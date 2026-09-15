@@ -5,6 +5,7 @@ import { HistoryController } from './core/history';
 import { analyzeMouthCues, buildAssetMeta } from './core/media';
 import { clampProjectDuration, createProject, defaultClip, trackKindForAsset, uid } from './core/project';
 import { deleteAssetFile, loadProject, readAssetFile, requestPersistentStorage, saveAssetFile, saveProject, storageEstimate } from './core/storage';
+import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipRight } from './core/timelineOps';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
@@ -122,7 +123,9 @@ export default function App() {
 
   const updateProject = useCallback((mutator: (p: Project) => Project, options: UpdateOptions = {}) => {
     setProject((current) => {
-      const next = clampProjectDuration({ ...mutator(current), updatedAt: new Date().toISOString() });
+      const mutated = mutator(current);
+      if (mutated === current) return current;
+      const next = clampProjectDuration({ ...mutated, updatedAt: new Date().toISOString() });
       if (options.history !== false) {
         history.current.record(current, options.label ?? '編集', options.key);
       }
@@ -219,6 +222,27 @@ export default function App() {
     setSelectedClipId(null);
   }, [selectedClipId, updateProject]);
 
+  const splitSelectedClip = useCallback(() => {
+    if (!selectedClipId || !selectedClip) return;
+    const frame = 1 / Math.max(1, project.fps);
+    if (time < selectedClip.start + frame || time > selectedClip.start + selectedClip.duration - frame) return;
+    updateProject((p) => splitClipAt(p, selectedClipId, time), { label: 'クリップ分割' });
+  }, [project.fps, selectedClip, selectedClipId, time, updateProject]);
+
+  const rippleDeleteSelectedClip = useCallback(() => {
+    if (!selectedClipId) return;
+    updateProject((p) => rippleDeleteClip(p, selectedClipId), { label: 'リップル削除' });
+    setSelectedClipId(null);
+  }, [selectedClipId, updateProject]);
+
+  const nudgeSelected = useCallback((frames: number) => {
+    if (!selectedClipId) return;
+    updateProject((p) => nudgeClip(p, selectedClipId, frames), {
+      label: 'クリップをフレーム移動',
+      key: `clip:${selectedClipId}:nudge`,
+    });
+  }, [selectedClipId, updateProject]);
+
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -237,15 +261,39 @@ export default function App() {
         redo();
         return;
       }
+      if (mod && lower === 'k') {
+        e.preventDefault();
+        splitSelectedClip();
+        return;
+      }
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        nudgeSelected(-1);
+        return;
+      }
+      if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        nudgeSelected(1);
+        return;
+      }
       if (e.code === 'Space') {
         e.preventDefault();
         setPlaying((v) => !v);
+        return;
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipId) removeSelectedClip();
+      if ((e.key === 'Delete' || e.key === 'Backspace') && e.shiftKey && selectedClipId) {
+        e.preventDefault();
+        rippleDeleteSelectedClip();
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipId) {
+        e.preventDefault();
+        removeSelectedClip();
+      }
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [selectedClipId, removeSelectedClip, undo, redo]);
+  }, [selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, nudgeSelected, undo, redo]);
 
   const manualSave = async () => {
     try {
@@ -291,7 +339,11 @@ export default function App() {
         inPoint: 0,
         volume: 1,
         muted: false,
-        transform: { x: 0, y: 0, scale: 0.82, rotation: 0, opacity: 1 },
+        transform: { x: 0, y: 0, scale: 0.82, rotation: 0, opacity: 1, anchorX: 0.5, anchorY: 0.5 },
+        blendMode: 'normal',
+        speed: 1,
+        reverse: false,
+        effects: [],
         zundamon: { ...request, cues },
       };
       const audioClip = defaultClip(audio.name, audio.id, time, audio.duration);
@@ -316,6 +368,8 @@ export default function App() {
       setZBusy(false);
     }
   };
+
+  const snapThreshold = 8 / Math.max(20, zoom);
 
   return (
     <div className="appShell">
@@ -362,8 +416,17 @@ export default function App() {
         onZoom={setZoom}
         onTime={(v) => { setPlaying(false); setTime(v); }}
         onSelect={setSelectedClipId}
-        onMoveClip={(id, start) => updateClip(id, { start }, `clip:${id}:move`, 'クリップ移動')}
-        onTrimClip={(id, duration) => updateClip(id, { duration }, `clip:${id}:trim`, 'トリム')}
+        onSplitSelected={splitSelectedClip}
+        onRippleDeleteSelected={rippleDeleteSelectedClip}
+        onMoveClip={(id, start) => updateProject(
+          (p) => moveClip(p, id, start, time, snapThreshold),
+          { label: 'クリップ移動', key: `clip:${id}:move` },
+        )}
+        onTrimClip={(id, duration) => updateProject((p) => {
+          const location = findClip(p, id);
+          if (!location) return p;
+          return trimClipRight(p, id, location.clip.start + duration, time, snapThreshold);
+        }, { label: 'トリム', key: `clip:${id}:trim` })}
         onToggleMuteTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, muted: !t.muted } : t) }), { label: 'トラックミュート' })}
         onToggleLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, locked: !t.locked } : t) }), { label: 'トラックロック' })}
       />
