@@ -5,7 +5,7 @@ export const uid = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 export function createProject(): Project {
   const now = new Date().toISOString();
   return {
-    version: 1,
+    version: 2,
     id: uid('project'),
     name: '無題のプロジェクト',
     width: 1920,
@@ -16,10 +16,12 @@ export function createProject(): Project {
     createdAt: now,
     updatedAt: now,
     assets: [],
+    markers: [],
     tracks: [
-      { id: uid('track'), name: 'オーバーレイ', kind: 'overlay', muted: false, locked: false, clips: [] },
-      { id: uid('track'), name: 'ビデオ 1', kind: 'video', muted: false, locked: false, clips: [] },
-      { id: uid('track'), name: 'オーディオ 1', kind: 'audio', muted: false, locked: false, clips: [] },
+      { id: uid('track'), name: 'オーバーレイ', kind: 'overlay', muted: false, locked: false, visible: true, clips: [] },
+      { id: uid('track'), name: '字幕', kind: 'subtitle', muted: false, locked: false, visible: true, clips: [] },
+      { id: uid('track'), name: 'ビデオ 1', kind: 'video', muted: false, locked: false, visible: true, clips: [] },
+      { id: uid('track'), name: 'オーディオ 1', kind: 'audio', muted: false, locked: false, visible: true, clips: [] },
     ],
   };
 }
@@ -41,7 +43,11 @@ export function defaultClip(name: string, assetId: string, start: number, durati
     inPoint: 0,
     volume: 1,
     muted: false,
-    transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
+    transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1, anchorX: 0.5, anchorY: 0.5 },
+    blendMode: 'normal',
+    speed: 1,
+    reverse: false,
+    effects: [],
   };
 }
 
