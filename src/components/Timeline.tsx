@@ -1,5 +1,5 @@
 import { Eye, EyeOff, Lock, Unlock, ZoomIn, ZoomOut } from 'lucide-react';
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import type { Clip, Project } from '../types/editor';
 
 interface Props {
@@ -18,7 +18,6 @@ interface Props {
 
 export function Timeline(props: Props) {
   const { project, time, zoom, selectedClipId, onZoom, onTime, onSelect, onMoveClip, onTrimClip, onToggleMuteTrack, onToggleLockTrack } = props;
-  const scrollRef = useRef<HTMLDivElement>(null);
   const px = zoom;
   const width = Math.max(1200, project.duration * px + 120);
   const ticks = useMemo(() => Array.from({ length: Math.ceil(project.duration) + 1 }, (_, i) => i), [project.duration]);
@@ -26,7 +25,7 @@ export function Timeline(props: Props) {
   const seekFromPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('.clip')) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left + (scrollRef.current?.scrollLeft ?? 0);
+    const x = e.clientX - rect.left;
     onTime(Math.max(0, Math.min(project.duration, x / px)));
   };
 
@@ -51,7 +50,7 @@ export function Timeline(props: Props) {
             </div>
           ))}
         </div>
-        <div className="timelineScroller" ref={scrollRef}>
+        <div className="timelineScroller">
           <div className="timelineCanvas" style={{ width }} onPointerDown={seekFromPointer}>
             <div className="ruler">
               {ticks.map((tick) => <div key={tick} className="tick" style={{ left: tick * px }}><span>{tick}s</span></div>)}
