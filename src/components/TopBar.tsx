@@ -1,4 +1,4 @@
-import { Download, FolderOpen, Save, Settings2 } from 'lucide-react';
+import { Download, FolderOpen, Save } from 'lucide-react';
 import type { CapabilityReport } from '../core/capabilities';
 
 interface Props {
@@ -28,9 +28,8 @@ export function TopBar({ projectName, onProjectName, onSave, onExport, capabilit
       </div>
       <div className="topActions">
         <span className="capPill" title="利用可能なブラウザ機能数">{ready}/6 engine</span>
-        <button className="iconBtn" title="設定"><Settings2 size={17} /></button>
         <button className="button" onClick={onSave}><Save size={16} />保存</button>
-        <button className="button primary" onClick={onExport}><Download size={16} />書き出し</button>
+        <button className="button primary" onClick={onExport} title="プロジェクトJSONを端末へバックアップ"><Download size={16} />バックアップ</button>
       </div>
     </header>
   );
