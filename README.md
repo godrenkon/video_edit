@@ -1,6 +1,6 @@
 # Suiram Video Edit
 
-ブラウザだけで動く、高性能な個人用ノンリニア動画編集環境を目指すプロジェクトです。Adobe Premiere Pro / DaVinci Resolve のようなデスクトップ編集ソフトの主要ワークフローを、Chrome + AWS Amplify Hosting で完結させることを長期目標にしています。
+ブラウザだけで動く、高性能な個人用ノンリニア動画編集環境を目指すプロジェクトです。Adobe Premiere Pro / DaVinci Resolve の主要ワークフローを、Chrome + AWS Amplify Hosting で完結させることを長期目標にしています。
 
 > 現在: **Foundation / v0.1**。編集UI、素材管理、タイムライン、プレビュー、OPFS保存、ずんだもん自動口パクの初期実装まで。
 
@@ -30,7 +30,15 @@
 - SharedArrayBuffer / WASMマルチスレッドを見据えた `customHttp.yml`
 - `.sveproj.json` のプロジェクトバックアップ出力
 
+## まだ未実装
+
+**動画本体のMP4 / WebM書き出しはv0.1では未実装です。** 現在の上部「バックアップ」ボタンはプロジェクトJSONを保存する機能で、完成動画のレンダリングではありません。
+
+動画書き出しは `WebCodecs + Worker + OffscreenCanvas + muxer` を使う独立レンダリングエンジンとして `Phase 3` で実装します。これにより、プレビューを画面録画する方式ではなく、フレーム単位で正確にレンダリングできる構造を目指します。
+
 ## 開発
+
+Node.js 22.12以上を使用します。
 
 ```bash
 npm install
@@ -47,6 +55,7 @@ npm run build
 
 このリポジトリをAmplifyへ接続すれば `amplify.yml` が利用されます。
 
+- Node.js 22
 - build: `npm run build`
 - artifact: `dist`
 - 静的配信のみでも動作
@@ -56,6 +65,11 @@ npm run build
 
 編集時の大容量データはサーバーへアップロードせず、可能な限りブラウザ内で処理します。これによりAmplify側の転送量・バックエンド処理費を抑えます。
 
-最終的なレンダリングエンジンは WebCodecs + Worker + OffscreenCanvas を中心にし、WebGPUは対応端末でのみ高速化に利用します。互換性が必要な処理は Canvas/WebGL/WASMへフォールバックします。
+最終的なメディアエンジンは WebCodecs + Worker + OffscreenCanvas を中心にし、WebGPUは対応端末でのみ高速化に利用します。互換性が必要な処理は WebGL2 / Canvas / WASMへフォールバックします。
 
-詳細は `docs/ARCHITECTURE.md` と `docs/ROADMAP.md` を参照してください。
+## 設計資料
+
+- `docs/ARCHITECTURE.md` — エンジン構造
+- `docs/ROADMAP.md` — 実装順序と完成条件
+- `docs/FEATURES.md` — 高機能編集ソフトとして必要な機能一覧
+- `docs/ZUNDAMON.md` — ずんだもん自動化仕様
