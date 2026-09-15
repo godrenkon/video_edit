@@ -8,6 +8,14 @@ const SNAPSHOT_COUNT = 8;
 const SNAPSHOT_INTERVAL_MS = 30_000;
 let lastSnapshotAt = 0;
 
+export interface RecoverySnapshotInfo {
+  id: string;
+  lastModified: number;
+  size: number;
+  projectName: string;
+  projectUpdatedAt: string;
+}
+
 async function root() {
   if (!navigator.storage?.getDirectory) throw new Error('OPFS is not available');
   return navigator.storage.getDirectory();
@@ -73,6 +81,38 @@ export async function loadProject(): Promise<Project | null> {
   }
 }
 
+export async function listRecoverySnapshots(): Promise<RecoverySnapshotInfo[]> {
+  const r = await root();
+  const entries = await readSnapshotEntries(r);
+  return entries.map(({ id, file, project }) => ({
+    id,
+    lastModified: file.lastModified,
+    size: file.size,
+    projectName: project.name,
+    projectUpdatedAt: project.updatedAt,
+  }));
+}
+
+export async function loadRecoverySnapshot(id: string): Promise<Project | null> {
+  if (!/^snapshot-[0-7]\.json$/.test(id)) throw new Error('Invalid recovery snapshot id');
+  const r = await root();
+  let dir: FileSystemDirectoryHandle;
+  try {
+    dir = await r.getDirectoryHandle(SNAPSHOT_DIR);
+  } catch {
+    return null;
+  }
+
+  try {
+    const handle = await dir.getFileHandle(id);
+    const file = await handle.getFile();
+    return migrateProject(JSON.parse(await file.text()));
+  } catch (error) {
+    console.warn(`Failed to load recovery snapshot ${id}`, error);
+    return null;
+  }
+}
+
 export async function loadRecoveryProject(): Promise<Project | null> {
   const r = await root();
   return loadLatestRecoverySnapshot(r);
@@ -100,32 +140,34 @@ async function writeSnapshot(r: FileSystemDirectoryHandle, json: string, now: nu
 }
 
 async function loadLatestRecoverySnapshot(r: FileSystemDirectoryHandle): Promise<Project | null> {
+  const entries = await readSnapshotEntries(r);
+  return entries[0]?.project ?? null;
+}
+
+async function readSnapshotEntries(r: FileSystemDirectoryHandle) {
   let dir: FileSystemDirectoryHandle;
   try {
     dir = await r.getDirectoryHandle(SNAPSHOT_DIR);
   } catch {
-    return null;
+    return [] as Array<{ id: string; file: File; project: Project }>;
   }
 
-  const candidates: File[] = [];
+  const candidates: Array<{ id: string; file: File; project: Project }> = [];
   for (let slot = 0; slot < SNAPSHOT_COUNT; slot += 1) {
+    const id = `snapshot-${slot}.json`;
     try {
-      const handle = await dir.getFileHandle(`snapshot-${slot}.json`);
-      candidates.push(await handle.getFile());
+      const handle = await dir.getFileHandle(id);
+      const file = await handle.getFile();
+      const project = migrateProject(JSON.parse(await file.text()));
+      candidates.push({ id, file, project });
     } catch {
-      // Empty rotating slot.
+      // Empty or invalid rotating slot. Invalid snapshots are ignored instead of
+      // preventing recovery from older valid generations.
     }
   }
 
-  candidates.sort((a, b) => b.lastModified - a.lastModified);
-  for (const file of candidates) {
-    try {
-      return migrateProject(JSON.parse(await file.text()));
-    } catch {
-      // Try the next older snapshot.
-    }
-  }
-  return null;
+  candidates.sort((a, b) => b.file.lastModified - a.file.lastModified);
+  return candidates;
 }
 
 async function writeText(handle: FileSystemFileHandle, text: string) {
