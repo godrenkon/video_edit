@@ -6,16 +6,22 @@ interface SessionState {
   updatedAt: number;
 }
 
+let initialUncleanObservation: boolean | null = null;
+
 export function beginEditorSession() {
   const previous = readSessionState();
+  if (initialUncleanObservation === null) {
+    initialUncleanObservation = previous?.status === 'open';
+  }
+
   const now = Date.now();
   const current: SessionState = { status: 'open', startedAt: now, updatedAt: now };
   try {
     localStorage.setItem(SESSION_KEY, JSON.stringify(current));
   } catch {
-    return false;
+    return initialUncleanObservation;
   }
-  return previous?.status === 'open';
+  return initialUncleanObservation;
 }
 
 export function markEditorSessionClean() {
@@ -34,7 +40,7 @@ export function markEditorSessionClean() {
 }
 
 export function editorSessionWasUnclean() {
-  return readSessionState()?.status === 'open';
+  return initialUncleanObservation ?? readSessionState()?.status === 'open';
 }
 
 function readSessionState(): SessionState | null {
