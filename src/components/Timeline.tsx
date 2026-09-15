@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Lock, Unlock, ZoomIn, ZoomOut } from 'lucide-react';
+import { Eye, EyeOff, Lock, Scissors, Trash2, Unlock, ZoomIn, ZoomOut } from 'lucide-react';
 import { useMemo } from 'react';
 import type { Clip, Project } from '../types/editor';
 
@@ -10,6 +10,8 @@ interface Props {
   onZoom: (value: number) => void;
   onTime: (time: number) => void;
   onSelect: (clipId: string) => void;
+  onSplitSelected: () => void;
+  onRippleDeleteSelected: () => void;
   onMoveClip: (clipId: string, start: number) => void;
   onTrimClip: (clipId: string, duration: number) => void;
   onToggleMuteTrack: (trackId: string) => void;
@@ -17,7 +19,21 @@ interface Props {
 }
 
 export function Timeline(props: Props) {
-  const { project, time, zoom, selectedClipId, onZoom, onTime, onSelect, onMoveClip, onTrimClip, onToggleMuteTrack, onToggleLockTrack } = props;
+  const {
+    project,
+    time,
+    zoom,
+    selectedClipId,
+    onZoom,
+    onTime,
+    onSelect,
+    onSplitSelected,
+    onRippleDeleteSelected,
+    onMoveClip,
+    onTrimClip,
+    onToggleMuteTrack,
+    onToggleLockTrack,
+  } = props;
   const px = zoom;
   const width = Math.max(1200, project.duration * px + 120);
   const ticks = useMemo(() => Array.from({ length: Math.ceil(project.duration) + 1 }, (_, i) => i), [project.duration]);
@@ -34,6 +50,18 @@ export function Timeline(props: Props) {
       <div className="timelineHeader">
         <div><strong>タイムライン</strong><span>{project.tracks.length} tracks</span></div>
         <div className="zoomCtl">
+          <button
+            className="miniBtn"
+            onClick={onSplitSelected}
+            disabled={!selectedClipId}
+            title="再生ヘッドで分割 (Ctrl/Cmd+K)"
+          ><Scissors size={14} /></button>
+          <button
+            className="miniBtn"
+            onClick={onRippleDeleteSelected}
+            disabled={!selectedClipId}
+            title="リップル削除 (Shift+Delete)"
+          ><Trash2 size={14} /></button>
           <button className="miniBtn" onClick={() => onZoom(Math.max(20, zoom - 10))}><ZoomOut size={14} /></button>
           <input type="range" min={20} max={120} value={zoom} onChange={(e) => onZoom(Number(e.target.value))} />
           <button className="miniBtn" onClick={() => onZoom(Math.min(120, zoom + 10))}><ZoomIn size={14} /></button>
