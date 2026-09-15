@@ -1,7 +1,12 @@
 import type { Project } from '../types/editor';
+import { migrateProject } from './migration';
 
 const PROJECT_FILE = 'project.json';
 const ASSET_DIR = 'assets';
+const SNAPSHOT_DIR = 'snapshots';
+const SNAPSHOT_COUNT = 8;
+const SNAPSHOT_INTERVAL_MS = 30_000;
+let lastSnapshotAt = 0;
 
 async function root() {
   if (!navigator.storage?.getDirectory) throw new Error('OPFS is not available');
@@ -40,29 +45,91 @@ export async function deleteAssetFile(storageName: string) {
 
 export async function saveProject(project: Project) {
   const r = await root();
+  const safeProject = serializableProject(project);
+  const json = JSON.stringify(safeProject, null, 2);
+
+  const now = Date.now();
+  if (now - lastSnapshotAt >= SNAPSHOT_INTERVAL_MS) {
+    await writeSnapshot(r, json, now).catch((error) => {
+      console.warn('Failed to write recovery snapshot', error);
+    });
+    lastSnapshotAt = now;
+  }
+
   const handle = await r.getFileHandle(PROJECT_FILE, { create: true });
-  const writable = await handle.createWritable();
-  const safeProject: Project = {
-    ...project,
-    updatedAt: new Date().toISOString(),
-    assets: project.assets.map(({ objectUrl: _objectUrl, ...asset }) => asset),
-  };
-  await writable.write(JSON.stringify(safeProject, null, 2));
-  await writable.close();
+  await writeText(handle, json);
 }
 
 export async function loadProject(): Promise<Project | null> {
+  const r = await root();
+
   try {
-    const r = await root();
     const handle = await r.getFileHandle(PROJECT_FILE);
     const file = await handle.getFile();
-    return JSON.parse(await file.text()) as Project;
-  } catch {
-    return null;
+    return migrateProject(JSON.parse(await file.text()));
+  } catch (error) {
+    console.warn('Main project load failed; checking recovery snapshots', error);
+    return loadLatestRecoverySnapshot(r);
   }
+}
+
+export async function loadRecoveryProject(): Promise<Project | null> {
+  const r = await root();
+  return loadLatestRecoverySnapshot(r);
 }
 
 export async function storageEstimate() {
   if (!navigator.storage?.estimate) return null;
   return navigator.storage.estimate();
+}
+
+function serializableProject(project: Project): Project {
+  return {
+    ...project,
+    version: 2,
+    updatedAt: new Date().toISOString(),
+    assets: project.assets.map(({ objectUrl: _objectUrl, ...asset }) => asset),
+  };
+}
+
+async function writeSnapshot(r: FileSystemDirectoryHandle, json: string, now: number) {
+  const dir = await r.getDirectoryHandle(SNAPSHOT_DIR, { create: true });
+  const slot = Math.floor(now / SNAPSHOT_INTERVAL_MS) % SNAPSHOT_COUNT;
+  const handle = await dir.getFileHandle(`snapshot-${slot}.json`, { create: true });
+  await writeText(handle, json);
+}
+
+async function loadLatestRecoverySnapshot(r: FileSystemDirectoryHandle): Promise<Project | null> {
+  let dir: FileSystemDirectoryHandle;
+  try {
+    dir = await r.getDirectoryHandle(SNAPSHOT_DIR);
+  } catch {
+    return null;
+  }
+
+  const candidates: File[] = [];
+  for (let slot = 0; slot < SNAPSHOT_COUNT; slot += 1) {
+    try {
+      const handle = await dir.getFileHandle(`snapshot-${slot}.json`);
+      candidates.push(await handle.getFile());
+    } catch {
+      // Empty rotating slot.
+    }
+  }
+
+  candidates.sort((a, b) => b.lastModified - a.lastModified);
+  for (const file of candidates) {
+    try {
+      return migrateProject(JSON.parse(await file.text()));
+    } catch {
+      // Try the next older snapshot.
+    }
+  }
+  return null;
+}
+
+async function writeText(handle: FileSystemFileHandle, text: string) {
+  const writable = await handle.createWritable();
+  await writable.write(text);
+  await writable.close();
 }
