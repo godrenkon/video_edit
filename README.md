@@ -1,10 +1,12 @@
 # Suiram Video Edit
 
+> **制作作業は `work` ブランチから開始してください。** 最初に [`WORK_START.md`](WORK_START.md) を読み、全体設計は [`docs/MASTER_PLAN.md`](docs/MASTER_PLAN.md) を基準にしてください。古い設計書と矛盾する場合は `MASTER_PLAN.md` を優先します。
+
 ブラウザだけで動く、高性能な個人用ノンリニア動画編集環境を目指すプロジェクトです。Adobe Premiere Pro / DaVinci Resolve / Final Cut Pro / Avid / YMM4 等の有用なワークフローを調査し、Chrome + AWS Amplify Hosting で一つの編集環境に統合することを長期目標にしています。
 
-> 現在: **v0.2 research-driven foundation**。v0.1の素材管理・タイムライン・プレビュー・ずんだもん機能に加え、Undo/Redo、v2プロジェクトスキーマ、復旧snapshot、分割・リップル削除・スナップ、エフェクト/キーフレーム共通モデル、CIまで実装を進めています。
+> 現在: **v0.3 production handoff foundation**。v0.1/v0.2の素材管理・タイムライン・調査基盤に加え、Undo/Redo、v2プロジェクトスキーマ、復旧snapshot、クラッシュ復旧UI、分割・リップル削除・スナップ、エフェクト/キーフレーム共通モデル、EditorCommand基盤、Vitest/CIまで制作開始用に整備しています。
 
-## v0.2で実装済み
+## v0.3で実装済み / 整備済み
 
 ### 基盤 / 安全性
 
@@ -13,10 +15,15 @@
 - OPFSへの動画 / 音声 / 画像素材保存
 - プロジェクト自動保存
 - 8世代の循環OPFS recovery snapshot
+- 起動時の異常終了検知
+- snapshot選択式recovery UI
 - v1プロジェクトからv2へのschema migration
 - Undo / Redo履歴
 - ドラッグ/スライダー操作の履歴coalescing
-- TypeScript typecheck + production buildのGitHub Actions CI
+- EditorCommand基盤
+- Vitestテスト基盤
+- `work` ブランチを含むGitHub Actions CI
+- CI: `npm test` → TypeScript check → production build
 
 ### タイムライン
 
@@ -83,31 +90,29 @@
 - 音声clip + 立ち絵clipの自動タイムライン配置
 - 将来の「あいうえお口パク」用vowel cue schema
 
-## 調査成果 / 設計資料
+## 制作開始時に読むもの
 
-2026年時点の主要編集ソフトを調査し、単なる機能名一覧ではなく、優先度・難易度・依存関係・Web API制約まで実装仕様へ変換しています。
-
-- `docs/RESEARCH_2026.md` — Premiere / Resolve / Final Cut / Avid / VEGAS / Kdenlive / Shotcut / OpenShot / Blender / Descript / Runway / YMM4 等の調査
-- `docs/FEATURE_MATRIX_V2.md` — 機能ごとの参考ソフト、Priority、Difficulty、Web実装方式
-- `docs/IMPLEMENTATION_PLAN_V2.md` — Stage 0〜12の具体的実装計画、Acceptance条件、performance budget
-- `docs/ARCHITECTURE.md` — エンジン構造
-- `docs/ROADMAP.md` — 現在の実装状況と今後の工程
-- `docs/FEATURES.md` — 高機能編集ソフトとして必要な機能一覧
-- `docs/ZUNDAMON.md` — ずんだもん自動化仕様
+1. `WORK_START.md` — Work会話が最初に読む制作開始手順
+2. `docs/MASTER_PLAN.md` — 現行の最上位設計・実装順
+3. `docs/RESEARCH_2026.md` — 主要編集ソフトの調査
+4. `docs/FEATURE_MATRIX_V2.md` — 機能ごとのPriority / Difficulty / Web実装方式
+5. `docs/IMPLEMENTATION_PLAN_V2.md` — Stageごとの詳細実装計画
+6. `docs/ROADMAP.md` — 実装状況
+7. `docs/ARCHITECTURE.md` — 基礎エンジン構造
+8. `docs/ZUNDAMON.md` — ずんだもん自動化仕様
 
 ## 重要: まだ未実装の中核機能
 
-**完成動画のMP4 / WebM書き出しは、まだ未実装です。** 現在の「プロジェクトを書き出し」は `.sveproj.json` のバックアップであり、動画レンダリングではありません。
+**完成動画のMP4 / WebM本番書き出しは、まだ未実装です。** 現在の「プロジェクトを書き出し」は `.sveproj.json` のバックアップであり、動画レンダリングではありません。
 
 本番動画出力は、プレビュー画面録画ではなく次のoffline render pipelineとして実装します。
 
 ```text
 Timeline
- -> source decode
+ -> deterministic source decode
  -> effects / composite
- -> VideoEncoder
  -> offline audio mix
- -> AudioEncoder
+ -> VideoEncoder / AudioEncoder
  -> MP4 / WebM muxer
  -> output
 ```
@@ -118,28 +123,29 @@ Timeline
 
 ```text
 UI / React
-  ├─ Project + Undo/Redo
+  ├─ Project + Undo/Redo / EditorCommand
   ├─ Timeline Operations
   ├─ Media Library
   └─ Inspector / Tools
 
 Workers
-  ├─ Demux / Decode (WebCodecs)
+  ├─ Probe / Demux / Decode (WebCodecs)
   ├─ Proxy / Thumbnail / Waveform
-  ├─ Cache / OPFS
+  ├─ Transcript / Analysis
   └─ Offline Render
 
 Render
   ├─ WebGPU
   ├─ WebGL2 fallback
-  └─ Canvas fallback
+  ├─ Canvas fallback
+  └─ CPU/WASM correctness fallback where required
 
 Audio
   ├─ Web Audio
   └─ AudioWorklet DSP
 ```
 
-WebGPUは高速化経路として利用しますが、非対応環境でも基本編集できるようWebGL2 / Canvas fallbackを残します。大容量素材は原則ブラウザ内OPFSに保存し、S3/Lambdaへ素材そのものをアップロードしない構成を基本とします。
+WebGPUは高速化経路として利用しますが、非対応環境でも基本編集できるようfallbackを残します。大容量素材は原則ブラウザ内OPFSに保存し、素材そのものをS3/Lambdaへ常時アップロードしないlocal-first構成を基本とします。
 
 ## 開発
 
@@ -147,16 +153,16 @@ Node.js 22.12以上を使用します。
 
 ```bash
 npm install
+npm run check
 npm run dev
 ```
 
-検証:
+個別検証:
 
 ```bash
+npm test
 npm run typecheck
 npm run build
-# または
-npm run check
 ```
 
 ## Amplify Hosting
@@ -172,7 +178,7 @@ npm run check
 
 ## Definition of usable
 
-Suiram Video Editを「完成」と呼ぶ最低ラインは以下です。
+Suiram Video Editを「実用」と呼ぶ最低ラインは以下です。
 
 1. 30分以上の1080pプロジェクトを安定編集できる
 2. 数GB級素材をブラウザメモリへ丸ごと載せない
