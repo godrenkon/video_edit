@@ -4,11 +4,24 @@ import { detectCapabilities } from './core/capabilities';
 import { HistoryController } from './core/history';
 import { analyzeMouthCues, buildAssetMeta } from './core/media';
 import { clampProjectDuration, createProject, defaultClip, trackKindForAsset, uid } from './core/project';
-import { deleteAssetFile, loadProject, readAssetFile, requestPersistentStorage, saveAssetFile, saveProject, storageEstimate } from './core/storage';
+import {
+  deleteAssetFile,
+  listRecoverySnapshots,
+  loadProject,
+  loadRecoverySnapshot,
+  readAssetFile,
+  requestPersistentStorage,
+  saveAssetFile,
+  saveProject,
+  storageEstimate,
+  type RecoverySnapshotInfo,
+} from './core/storage';
+import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipRight } from './core/timelineOps';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
+import { RecoveryDialog } from './components/RecoveryDialog';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
 import { ZundamonPanel, type ZundamonRequest } from './components/ZundamonPanel';
@@ -30,6 +43,10 @@ export default function App() {
   const [saveState, setSaveState] = useState('起動中…');
   const [zBusy, setZBusy] = useState(false);
   const [storageText, setStorageText] = useState('—');
+  const [recoverySnapshots, setRecoverySnapshots] = useState<RecoverySnapshotInfo[]>([]);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [suspectedCrash, setSuspectedCrash] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
   const capabilities = useMemo(() => detectCapabilities(), []);
   const lastFrame = useRef<number | null>(null);
   const history = useRef(new HistoryController<Project>(120, 750));
@@ -44,32 +61,41 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    const previousSessionWasUnclean = beginEditorSession();
+    setSuspectedCrash(previousSessionWasUnclean);
+
+    const markClean = () => markEditorSessionClean();
+    window.addEventListener('pagehide', markClean);
+    window.addEventListener('beforeunload', markClean);
+
     (async () => {
       try {
         await requestPersistentStorage();
         const saved = await loadProject();
-        if (saved) {
-          const assets = await Promise.all(saved.assets.map(async (asset) => {
-            try {
-              const file = await readAssetFile(asset.storageName);
-              return { ...asset, objectUrl: URL.createObjectURL(file) };
-            } catch {
-              return asset;
-            }
-          }));
+        if (saved && !cancelled) {
+          const hydratedProject = await hydrateProjectAssets(saved);
           if (!cancelled) {
             history.current.clear();
-            setProject({ ...saved, assets });
+            setProject(hydratedProject);
           }
         }
+
+        if (previousSessionWasUnclean && capabilities.opfs) {
+          const snapshots = await listRecoverySnapshots();
+          if (!cancelled && snapshots.length > 0) {
+            setRecoverySnapshots(snapshots);
+            setShowRecovery(true);
+          }
+        }
+
         const estimate = await storageEstimate();
-        if (estimate?.quota) {
+        if (estimate?.quota && !cancelled) {
           const used = estimate.usage ?? 0;
           setStorageText(`${(used / 1024 / 1024).toFixed(0)} / ${(estimate.quota / 1024 / 1024 / 1024).toFixed(1)} GB`);
         }
         if (!cancelled) {
           setHydrated(true);
-          setSaveState('保存済み');
+          setSaveState(previousSessionWasUnclean ? '復旧候補を確認してください' : '保存済み');
         }
       } catch (error) {
         console.error(error);
@@ -79,8 +105,14 @@ export default function App() {
         }
       }
     })();
-    return () => { cancelled = true; };
-  }, []);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('pagehide', markClean);
+      window.removeEventListener('beforeunload', markClean);
+      markEditorSessionClean();
+    };
+  }, [capabilities.opfs]);
 
   useEffect(() => {
     if (!hydrated || !capabilities.opfs) return;
@@ -161,6 +193,32 @@ export default function App() {
     setSaveState(`やり直し: ${result.label}`);
   }, [project]);
 
+  const restoreSnapshot = useCallback(async (snapshotId: string) => {
+    setRecoveryBusy(true);
+    try {
+      const restored = await loadRecoverySnapshot(snapshotId);
+      if (!restored) {
+        setSaveState('復旧データを読み込めませんでした');
+        return;
+      }
+      const hydratedProject = await hydrateProjectAssets(restored);
+      revokeProjectUrls(project);
+      history.current.clear();
+      setPlaying(false);
+      setTime(0);
+      setSelectedClipId(null);
+      setProject(hydratedProject);
+      await saveProject(hydratedProject);
+      setShowRecovery(false);
+      setSaveState('復旧スナップショットを適用しました');
+    } catch (error) {
+      console.error(error);
+      setSaveState('復旧に失敗しました');
+    } finally {
+      setRecoveryBusy(false);
+    }
+  }, [project]);
+
   const importFiles = async (files: File[]) => {
     setSaveState('素材を保存中…');
     for (const file of files) {
@@ -200,9 +258,6 @@ export default function App() {
     if (!asset) return;
     if (capabilities.opfs) await deleteAssetFile(asset.storageName);
     if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
-
-    // Physical file deletion cannot currently be undone safely. Clear project
-    // history so an older snapshot cannot re-introduce metadata for a missing file.
     history.current.clear();
     updateProject((p) => ({
       ...p,
@@ -247,6 +302,7 @@ export default function App() {
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.matches('input, textarea, select')) return;
+      if (showRecovery) return;
 
       const mod = e.ctrlKey || e.metaKey;
       const lower = e.key.toLowerCase();
@@ -293,7 +349,7 @@ export default function App() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, nudgeSelected, undo, redo]);
+  }, [showRecovery, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, nudgeSelected, undo, redo]);
 
   const manualSave = async () => {
     try {
@@ -373,6 +429,19 @@ export default function App() {
 
   return (
     <div className="appShell">
+      {showRecovery && (
+        <RecoveryDialog
+          snapshots={recoverySnapshots}
+          suspectedCrash={suspectedCrash}
+          busy={recoveryBusy}
+          onRestore={restoreSnapshot}
+          onDismiss={() => {
+            setShowRecovery(false);
+            setSaveState('現在の保存を使用');
+          }}
+        />
+      )}
+
       <TopBar
         projectName={project.name}
         onProjectName={(name) => updateProject((p) => ({ ...p, name }), { label: 'プロジェクト名変更', key: 'project-name' })}
@@ -450,6 +519,24 @@ function EngineStatus({ capabilities, storageText }: { capabilities: ReturnType<
       </div>
     </div>
   );
+}
+
+async function hydrateProjectAssets(input: Project): Promise<Project> {
+  const assets = await Promise.all(input.assets.map(async (asset) => {
+    try {
+      const file = await readAssetFile(asset.storageName);
+      return { ...asset, objectUrl: URL.createObjectURL(file) };
+    } catch {
+      return asset;
+    }
+  }));
+  return { ...input, assets };
+}
+
+function revokeProjectUrls(input: Project) {
+  for (const asset of input.assets) {
+    if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
+  }
 }
 
 function clipUsesAsset(clip: Clip, assetId: string) {
