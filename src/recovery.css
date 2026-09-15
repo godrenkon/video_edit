@@ -1,0 +1,125 @@
+.recoveryBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(3, 7, 12, 0.76);
+  backdrop-filter: blur(10px);
+}
+
+.recoveryDialog {
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line, #28323d);
+  border-radius: 16px;
+  background: #10161d;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+}
+
+.recoveryHeader,
+.recoveryFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 18px 20px;
+}
+
+.recoveryHeader {
+  border-bottom: 1px solid var(--line, #28323d);
+}
+
+.recoveryTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.recoveryTitleRow svg {
+  color: #f2b84b;
+}
+
+.recoveryHeader h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.recoveryHeader p {
+  max-width: 600px;
+  margin: 8px 0 0;
+  color: #9aa8b7;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.recoveryList {
+  overflow: auto;
+  padding: 8px;
+}
+
+.recoveryItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 12px;
+  border-radius: 10px;
+}
+
+.recoveryItem:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.recoveryMeta {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.recoveryMeta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recoveryMeta span {
+  color: #78c7ff;
+  font-size: 12px;
+}
+
+.recoveryMeta small,
+.recoveryFooter span {
+  color: #8493a3;
+  font-size: 11px;
+}
+
+.recoveryFooter {
+  align-items: center;
+  border-top: 1px solid var(--line, #28323d);
+}
+
+@media (max-width: 640px) {
+  .recoveryBackdrop {
+    padding: 10px;
+  }
+
+  .recoveryDialog {
+    max-height: calc(100vh - 20px);
+  }
+
+  .recoveryItem,
+  .recoveryFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recoveryItem .button,
+  .recoveryFooter .button {
+    width: 100%;
+  }
+}
