@@ -1,4 +1,5 @@
 .effectsEditor { display: grid; gap: 8px; }
+.effectsTime { color: var(--muted); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
 .effectsAddRow { display: grid; grid-template-columns: minmax(0, 1fr) 28px; gap: 6px; }
 .effectsAddRow select, .effectParameter select { min-width: 0; height: 29px; border: 1px solid var(--line); border-radius: 6px; padding: 0 7px; color: var(--text); background: #0a0f12; }
 .effectsEmpty { padding: 9px; border: 1px dashed var(--line); border-radius: 7px; color: var(--muted); font-size: 9px; text-align: center; }
@@ -10,6 +11,10 @@
 .effectParameter { display: grid; gap: 4px; color: var(--muted); font-size: 9px; }
 .effectParameter > span { display: flex; justify-content: space-between; gap: 8px; }
 .effectParameter b { color: #cfd9df; font-weight: 700; }
-.effectParameter input[type=range] { width: 100%; accent-color: var(--green); }
+.effectParameter input[type=range] { width: 100%; min-width: 0; accent-color: var(--green); }
 .effectParameter input[type=color] { width: 100%; height: 28px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: #0a0f12; }
 .effectToggle { grid-template-columns: 1fr auto; align-items: center; }
+.effectParameterControls { display: grid; grid-template-columns: minmax(0, 1fr) 25px; align-items: center; gap: 5px; }
+.keyframeBtn { width: 25px; height: 25px; border: 1px solid var(--line); border-radius: 6px; background: #12191f; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.keyframeBtn.active { color: var(--cyan); border-color: #32677a; background: #11222a; }
+.keyframeInterpolation { width: 100%; height: 25px !important; font-size: 8px; }

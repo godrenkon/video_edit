@@ -559,6 +559,7 @@ export default function App() {
         <Inspector
           project={project}
           selectedClip={selectedClip}
+          timelineTime={time}
           onProject={(patch) => updateProject((p) => ({ ...p, ...patch }), { label: 'プロジェクト設定', key: 'project-settings' })}
           onClip={(patch) => selectedClipId && updateClip(selectedClipId, patch, `clip:${selectedClipId}:properties`, 'クリップ設定')}
           onTransform={(key, value) => selectedClipId && selectedClip && updateClip(

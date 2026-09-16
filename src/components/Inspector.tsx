@@ -6,6 +6,7 @@ import '../creation-tools.css';
 interface Props {
   project: Project;
   selectedClip: Clip | null;
+  timelineTime: number;
   onProject: (patch: Partial<Project>) => void;
   onClip: (patch: Partial<Clip>) => void;
   onTransform: (key: keyof Clip['transform'], value: number) => void;
@@ -14,7 +15,7 @@ interface Props {
 
 const blendModes: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'add'];
 
-export function Inspector({ project, selectedClip, onProject, onClip, onTransform, onDeleteClip }: Props) {
+export function Inspector({ project, selectedClip, timelineTime, onProject, onClip, onTransform, onDeleteClip }: Props) {
   const patchText = (patch: Partial<TextPayload>) => {
     const current: TextPayload = selectedClip?.text ?? { text: 'テキスト' };
     onClip({ text: { ...current, ...patch } });
@@ -120,7 +121,7 @@ export function Inspector({ project, selectedClip, onProject, onClip, onTransfor
                 <RangeField label="音量" value={selectedClip.volume} min={0} max={1} step={0.01} onChange={(v) => onClip({ volume: v })} />
               )}
               <h3>エフェクト</h3>
-              <EffectsPanel clip={selectedClip} onClip={onClip} />
+              <EffectsPanel clip={selectedClip} timelineTime={timelineTime} fps={project.fps} onClip={onClip} />
             </>
           ) : null}
           <button className="dangerButton" onClick={onDeleteClip}><Trash2 size={15} />クリップを削除</button>
