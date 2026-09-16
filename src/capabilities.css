@@ -1,0 +1,163 @@
+.capWrap {
+  position: relative;
+}
+
+.capButton {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  background: #10161b;
+  cursor: pointer;
+}
+
+.capButton span {
+  color: #6f7f8a;
+  font-size: 9px;
+}
+
+.capButton.warn {
+  border-color: #5d4b2a;
+  color: #f0d39a;
+}
+
+.capDiagnostics {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 80;
+  width: 390px;
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  padding: 11px;
+  border: 1px solid #32414b;
+  border-radius: 10px;
+  background: #0c1115;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .48);
+  color: var(--text);
+}
+
+.capDiagnosticsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--line);
+}
+
+.capDiagnosticsHeader > div {
+  display: grid;
+  gap: 2px;
+}
+
+.capDiagnosticsHeader strong {
+  font-size: 12px;
+}
+
+.capDiagnosticsHeader span {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.capRefresh {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #cad5dc;
+  background: #141b20;
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.capRefresh:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.capSection {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid #1c262d;
+}
+
+.capSection:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.capSection > strong {
+  color: #aebbc4;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.capStorageRow,
+.capCodecRow {
+  min-height: 24px;
+  display: grid;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: #11181d;
+  font-size: 9px;
+}
+
+.capStorageRow {
+  grid-template-columns: 1fr auto;
+}
+
+.capCodecRow {
+  grid-template-columns: 1fr 54px 54px;
+}
+
+.capStorageRow span,
+.capCodecRow span {
+  color: #bdc9d0;
+}
+
+.capStorageRow b,
+.capCodecRow b {
+  color: #8fa1ac;
+  font-weight: 700;
+  text-align: right;
+}
+
+.capCodecGrid,
+.capNotes {
+  display: grid;
+  gap: 4px;
+}
+
+.capNotes {
+  color: #cdb989;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.capOk {
+  color: #bfeeb0;
+  font-size: 9px;
+}
+
+.capEmpty {
+  padding: 18px 4px 8px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.spin {
+  animation: capSpin .9s linear infinite;
+}
+
+@keyframes capSpin {
+  to { transform: rotate(360deg); }
+}
