@@ -6,6 +6,7 @@ import {
   visualTimelineItems,
   zundamonVisualState,
 } from '../render/timelineEvaluation';
+import { canvasFilterForEffects } from '../render/effectEvaluation';
 import {
   deterministicNoiseByte,
   generatorColor,
@@ -30,12 +31,14 @@ function clipPreviewTransform(clip: Clip, project: Project, extraY = 0) {
   return `translate(${x}%, ${y}%) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`;
 }
 
-function layerStyle(clip: Clip, project: Project, extraY = 0): CSSProperties {
+function layerStyle(clip: Clip, project: Project, time: number, extraY = 0): CSSProperties {
+  const clipLocalTime = Math.max(0, Math.min(clip.duration, time - clip.start));
   return {
     transform: clipPreviewTransform(clip, project, extraY),
     transformOrigin: `${(clip.transform.anchorX ?? 0.5) * 100}% ${(clip.transform.anchorY ?? 0.5) * 100}%`,
     opacity: Math.max(0, Math.min(1, clip.transform.opacity)),
     mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
+    filter: canvasFilterForEffects(clip.effects ?? [], clipLocalTime),
   };
 }
 
@@ -61,7 +64,7 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
   }, [clip.reverse, playbackRate, playing]);
 
   if (!asset?.objectUrl) return null;
-  const style = layerStyle(clip, project);
+  const style = layerStyle(clip, project, time);
 
   if (asset.kind === 'video') return <video ref={videoRef} className="previewMedia" src={asset.objectUrl} muted playsInline style={style} />;
   if (asset.kind === 'image') return <img className="previewMedia" src={asset.objectUrl} alt="" draggable={false} style={style} />;
@@ -74,11 +77,11 @@ function ZundamonLayer({ clip, assets, project, time }: { clip: Clip; assets: As
   const asset = assets.find((item) => item.id === state.assetId);
   if (!asset?.objectUrl) return null;
 
-  return <img className="previewMedia zundamonMedia" src={asset.objectUrl} alt="" draggable={false} style={layerStyle(clip, project, state.bobOffset)} />;
+  return <img className="previewMedia zundamonMedia" src={asset.objectUrl} alt="" draggable={false} style={layerStyle(clip, project, time, state.bobOffset)} />;
 }
 
 function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project; time: number }) {
-  const common = layerStyle(clip, project);
+  const common = layerStyle(clip, project, time);
 
   if (clip.kind === 'text' || clip.kind === 'subtitle') {
     const subtitle = clip.kind === 'subtitle' ? clip.subtitle?.text : undefined;

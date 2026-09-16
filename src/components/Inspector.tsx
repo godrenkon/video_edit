@@ -1,5 +1,6 @@
 import { SlidersHorizontal, Trash2 } from 'lucide-react';
 import type { BlendMode, Clip, GeneratorPayload, Project, TextPayload } from '../types/editor';
+import { EffectsPanel } from './EffectsPanel';
 import '../creation-tools.css';
 
 interface Props {
@@ -118,6 +119,8 @@ export function Inspector({ project, selectedClip, onProject, onClip, onTransfor
               {(selectedClip.kind === 'asset' || selectedClip.kind === 'zundamon') && (
                 <RangeField label="音量" value={selectedClip.volume} min={0} max={1} step={0.01} onChange={(v) => onClip({ volume: v })} />
               )}
+              <h3>エフェクト</h3>
+              <EffectsPanel clip={selectedClip} onClip={onClip} />
             </>
           ) : null}
           <button className="dangerButton" onClick={onDeleteClip}><Trash2 size={15} />クリップを削除</button>
@@ -131,7 +134,7 @@ export function Inspector({ project, selectedClip, onProject, onClip, onTransfor
             <NumberField label="FPS" value={project.fps} step={1} onChange={(v) => onProject({ fps: Math.max(1, Math.min(120, Math.round(v))) })} />
           </div>
           <Field label="背景"><input type="color" value={project.background} onChange={(e) => onProject({ background: e.target.value })} /></Field>
-          <div className="infoCard">クリップを選択すると、内容・位置・拡大率・回転・透明度などを編集できます。</div>
+          <div className="infoCard">クリップを選択すると、内容・位置・拡大率・回転・透明度・エフェクトなどを編集できます。</div>
         </div>
       )}
     </aside>

@@ -1,0 +1,15 @@
+.effectsEditor { display: grid; gap: 8px; }
+.effectsAddRow { display: grid; grid-template-columns: minmax(0, 1fr) 28px; gap: 6px; }
+.effectsAddRow select, .effectParameter select { min-width: 0; height: 29px; border: 1px solid var(--line); border-radius: 6px; padding: 0 7px; color: var(--text); background: #0a0f12; }
+.effectsEmpty { padding: 9px; border: 1px dashed var(--line); border-radius: 7px; color: var(--muted); font-size: 9px; text-align: center; }
+.effectCard { padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #0c1216; display: grid; gap: 7px; }
+.effectCardHeader { display: flex; align-items: center; gap: 6px; }
+.effectCardHeader > label { min-width: 0; flex: 1; display: flex; align-items: center; gap: 6px; font-size: 10px; }
+.effectCardHeader strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.effectPending { color: var(--amber); font-size: 8px; }
+.effectParameter { display: grid; gap: 4px; color: var(--muted); font-size: 9px; }
+.effectParameter > span { display: flex; justify-content: space-between; gap: 8px; }
+.effectParameter b { color: #cfd9df; font-weight: 700; }
+.effectParameter input[type=range] { width: 100%; accent-color: var(--green); }
+.effectParameter input[type=color] { width: 100%; height: 28px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: #0a0f12; }
+.effectToggle { grid-template-columns: 1fr auto; align-items: center; }
