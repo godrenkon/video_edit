@@ -1,5 +1,6 @@
 import { SlidersHorizontal, Trash2 } from 'lucide-react';
-import type { Clip, Project } from '../types/editor';
+import type { BlendMode, Clip, GeneratorPayload, Project, TextPayload } from '../types/editor';
+import '../creation-tools.css';
 
 interface Props {
   project: Project;
@@ -10,7 +11,24 @@ interface Props {
   onDeleteClip: () => void;
 }
 
+const blendModes: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'add'];
+
 export function Inspector({ project, selectedClip, onProject, onClip, onTransform, onDeleteClip }: Props) {
+  const patchText = (patch: Partial<TextPayload>) => {
+    const current: TextPayload = selectedClip?.text ?? { text: 'テキスト' };
+    onClip({ text: { ...current, ...patch } });
+  };
+
+  const patchGenerator = (patch: Partial<GeneratorPayload>) => {
+    if (!selectedClip?.generator) return;
+    onClip({ generator: { ...selectedClip.generator, ...patch } });
+  };
+
+  const patchGeneratorData = (key: string, value: string | number | boolean | number[]) => {
+    if (!selectedClip?.generator) return;
+    onClip({ generator: { ...selectedClip.generator, data: { ...selectedClip.generator.data, [key]: value } } });
+  };
+
   return (
     <aside className="panel inspectorPanel">
       <div className="panelHeader"><div><strong>インスペクター</strong><span>properties</span></div><SlidersHorizontal size={17} /></div>
@@ -21,6 +39,67 @@ export function Inspector({ project, selectedClip, onProject, onClip, onTransfor
             <NumberField label="開始" value={selectedClip.start} step={0.1} onChange={(v) => onClip({ start: Math.max(0, v) })} />
             <NumberField label="長さ" value={selectedClip.duration} step={0.1} onChange={(v) => onClip({ duration: Math.max(0.1, v) })} />
           </div>
+
+          {selectedClip.kind === 'text' && selectedClip.text && (
+            <>
+              <h3>テキスト</h3>
+              <Field label="内容"><textarea rows={4} value={selectedClip.text.text} onChange={(e) => patchText({ text: e.target.value })} /></Field>
+              <Field label="フォント"><input value={selectedClip.text.fontFamily ?? 'Noto Sans JP'} onChange={(e) => patchText({ fontFamily: e.target.value })} /></Field>
+              <div className="twoFields">
+                <NumberField label="サイズ" value={selectedClip.text.fontSize ?? 72} step={1} onChange={(v) => patchText({ fontSize: Math.max(8, v) })} />
+                <NumberField label="太さ" value={selectedClip.text.fontWeight ?? 700} step={100} onChange={(v) => patchText({ fontWeight: Math.max(100, Math.min(1000, v)) })} />
+              </div>
+              <div className="twoFields">
+                <Field label="文字色"><input type="color" value={safeColor(selectedClip.text.color, '#ffffff')} onChange={(e) => patchText({ color: e.target.value })} /></Field>
+                <Field label="縁色"><input type="color" value={safeColor(selectedClip.text.strokeColor, '#000000')} onChange={(e) => patchText({ strokeColor: e.target.value })} /></Field>
+              </div>
+              <NumberField label="縁取り" value={selectedClip.text.strokeWidth ?? 0} step={1} onChange={(v) => patchText({ strokeWidth: Math.max(0, v) })} />
+              <Field label="揃え">
+                <select value={selectedClip.text.align ?? 'center'} onChange={(e) => patchText({ align: e.target.value as TextPayload['align'] })}>
+                  <option value="left">左</option><option value="center">中央</option><option value="right">右</option>
+                </select>
+              </Field>
+            </>
+          )}
+
+          {selectedClip.kind === 'subtitle' && selectedClip.subtitle && (
+            <>
+              <h3>字幕</h3>
+              <Field label="内容"><textarea rows={4} value={selectedClip.subtitle.text} onChange={(e) => onClip({ subtitle: { ...selectedClip.subtitle!, text: e.target.value } })} /></Field>
+              <Field label="話者"><input value={selectedClip.subtitle.speaker ?? ''} placeholder="任意" onChange={(e) => onClip({ subtitle: { ...selectedClip.subtitle!, speaker: e.target.value || undefined } })} /></Field>
+              <div className="infoCard">字幕は現在、白文字＋黒縁＋半透明背景の読みやすい既定styleでPreview/WebMへ描画されます。</div>
+            </>
+          )}
+
+          {selectedClip.kind === 'generator' && selectedClip.generator && (
+            <>
+              <h3>ジェネレーター</h3>
+              <Field label="種類">
+                <select value={selectedClip.generator.kind} onChange={(e) => patchGenerator({ kind: e.target.value as GeneratorPayload['kind'], data: defaultsForGenerator(e.target.value as GeneratorPayload['kind']) })}>
+                  <option value="color">単色</option>
+                  <option value="gradient">グラデーション</option>
+                  <option value="bars">カラーバー</option>
+                  <option value="noise">ノイズ</option>
+                </select>
+              </Field>
+              {selectedClip.generator.kind === 'color' && (
+                <Field label="色"><input type="color" value={safeColor(asString(selectedClip.generator.data?.color), '#202830')} onChange={(e) => patchGeneratorData('color', e.target.value)} /></Field>
+              )}
+              {selectedClip.generator.kind === 'gradient' && (
+                <>
+                  <div className="twoFields">
+                    <Field label="開始色"><input type="color" value={safeColor(asString(selectedClip.generator.data?.startColor), '#161b22')} onChange={(e) => patchGeneratorData('startColor', e.target.value)} /></Field>
+                    <Field label="終了色"><input type="color" value={safeColor(asString(selectedClip.generator.data?.endColor), '#5fd8ff')} onChange={(e) => patchGeneratorData('endColor', e.target.value)} /></Field>
+                  </div>
+                  <NumberField label="角度" value={asNumber(selectedClip.generator.data?.angle, 0)} step={1} onChange={(v) => patchGeneratorData('angle', v)} />
+                </>
+              )}
+              {selectedClip.generator.kind === 'noise' && (
+                <NumberField label="変化速度" value={asNumber(selectedClip.generator.data?.speed, 8)} step={1} onChange={(v) => patchGeneratorData('speed', Math.max(0, v))} />
+              )}
+            </>
+          )}
+
           {selectedClip.kind !== 'asset' || selectedClip.assetId ? (
             <>
               <h3>変形</h3>
@@ -31,7 +110,14 @@ export function Inspector({ project, selectedClip, onProject, onClip, onTransfor
                 <NumberField label="回転" value={selectedClip.transform.rotation} step={1} onChange={(v) => onTransform('rotation', v)} />
               </div>
               <RangeField label="不透明度" value={selectedClip.transform.opacity} min={0} max={1} step={0.01} onChange={(v) => onTransform('opacity', v)} />
-              <RangeField label="音量" value={selectedClip.volume} min={0} max={1} step={0.01} onChange={(v) => onClip({ volume: v })} />
+              <Field label="合成">
+                <select value={selectedClip.blendMode ?? 'normal'} onChange={(e) => onClip({ blendMode: e.target.value as BlendMode })}>
+                  {blendModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+                </select>
+              </Field>
+              {(selectedClip.kind === 'asset' || selectedClip.kind === 'zundamon') && (
+                <RangeField label="音量" value={selectedClip.volume} min={0} max={1} step={0.01} onChange={(v) => onClip({ volume: v })} />
+              )}
             </>
           ) : null}
           <button className="dangerButton" onClick={onDeleteClip}><Trash2 size={15} />クリップを削除</button>
@@ -45,7 +131,7 @@ export function Inspector({ project, selectedClip, onProject, onClip, onTransfor
             <NumberField label="FPS" value={project.fps} step={1} onChange={(v) => onProject({ fps: Math.max(1, Math.min(120, Math.round(v))) })} />
           </div>
           <Field label="背景"><input type="color" value={project.background} onChange={(e) => onProject({ background: e.target.value })} /></Field>
-          <div className="infoCard">クリップを選択すると、位置・拡大率・回転・透明度・音量を編集できます。</div>
+          <div className="infoCard">クリップを選択すると、内容・位置・拡大率・回転・透明度などを編集できます。</div>
         </div>
       )}
     </aside>
@@ -62,4 +148,23 @@ function NumberField({ label, value, step = 1, onChange }: { label: string; valu
 
 function RangeField({ label, value, min, max, step, onChange }: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void }) {
   return <label className="rangeField"><span>{label}<b>{Math.round(value * 100)}%</b></span><input type="range" value={value} min={min} max={max} step={step} onChange={(e) => onChange(Number(e.target.value))} /></label>;
+}
+
+function safeColor(value: string | undefined, fallback: string) {
+  return value && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+}
+
+function asString(value: unknown) {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function asNumber(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function defaultsForGenerator(kind: GeneratorPayload['kind']): GeneratorPayload['data'] {
+  if (kind === 'gradient') return { startColor: '#161b22', endColor: '#5fd8ff', angle: 0 };
+  if (kind === 'noise') return { speed: 8 };
+  if (kind === 'color') return { color: '#202830' };
+  return undefined;
 }

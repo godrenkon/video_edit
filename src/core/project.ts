@@ -1,4 +1,4 @@
-import type { AssetKind, Clip, Project, TrackKind } from '../types/editor';
+import type { AssetKind, Clip, GeneratorPayload, Project, TrackKind } from '../types/editor';
 
 export const uid = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 
@@ -34,11 +34,69 @@ export function trackKindForAsset(kind: AssetKind): TrackKind {
 
 export function defaultClip(name: string, assetId: string, start: number, duration: number): Clip {
   return {
-    id: uid('clip'),
-    kind: 'asset',
-    name,
+    ...baseTimelineClip('asset', name, start, duration),
     assetId,
-    start,
+  };
+}
+
+export function defaultTextClip(start: number, duration = 5): Clip {
+  return {
+    ...baseTimelineClip('text', 'テキスト', start, duration),
+    text: {
+      text: 'テキスト',
+      fontFamily: 'Noto Sans JP',
+      fontSize: 72,
+      fontWeight: 700,
+      color: '#ffffff',
+      strokeColor: '#000000',
+      strokeWidth: 0,
+      align: 'center',
+    },
+  };
+}
+
+export function defaultSubtitleClip(start: number, y = 0, duration = 4): Clip {
+  const clip = baseTimelineClip('subtitle', '字幕', start, duration);
+  clip.transform = { ...clip.transform, y };
+  return {
+    ...clip,
+    subtitle: { text: '字幕テキスト' },
+  };
+}
+
+export function defaultGeneratorClip(
+  start: number,
+  kind: GeneratorPayload['kind'] = 'color',
+  duration = 5,
+): Clip {
+  const data: GeneratorPayload['data'] = kind === 'gradient'
+    ? { startColor: '#161b22', endColor: '#5fd8ff', angle: 0 }
+    : kind === 'noise'
+      ? { speed: 8 }
+      : kind === 'color'
+        ? { color: '#202830' }
+        : undefined;
+
+  return {
+    ...baseTimelineClip('generator', generatorName(kind), start, duration),
+    generator: { kind, data },
+  };
+}
+
+export function clampProjectDuration(project: Project): Project {
+  let end = 10;
+  for (const track of project.tracks) {
+    for (const clip of track.clips) end = Math.max(end, clip.start + clip.duration + 1);
+  }
+  return { ...project, duration: Math.max(10, end) };
+}
+
+function baseTimelineClip(kind: Clip['kind'], name: string, start: number, duration: number): Clip {
+  return {
+    id: uid('clip'),
+    kind,
+    name,
+    start: Math.max(0, start),
     duration: Math.max(0.1, duration),
     inPoint: 0,
     volume: 1,
@@ -51,10 +109,10 @@ export function defaultClip(name: string, assetId: string, start: number, durati
   };
 }
 
-export function clampProjectDuration(project: Project): Project {
-  let end = 10;
-  for (const track of project.tracks) {
-    for (const clip of track.clips) end = Math.max(end, clip.start + clip.duration + 1);
-  }
-  return { ...project, duration: Math.max(10, end) };
+function generatorName(kind: GeneratorPayload['kind']) {
+  if (kind === 'gradient') return 'グラデーション';
+  if (kind === 'noise') return 'ノイズ';
+  if (kind === 'bars') return 'カラーバー';
+  if (kind === 'custom') return 'ジェネレーター';
+  return 'カラーマット';
 }

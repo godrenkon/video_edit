@@ -1,4 +1,4 @@
-import { FileAudio, FileImage, Film, Plus, Search, Trash2 } from 'lucide-react';
+import { Captions, FileAudio, FileImage, Film, Palette, Plus, Search, Trash2, Type } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { AssetMeta } from '../types/editor';
 
@@ -7,6 +7,9 @@ interface Props {
   onImport: (files: File[]) => void;
   onAdd: (assetId: string) => void;
   onDelete: (assetId: string) => void;
+  onCreateText: () => void;
+  onCreateSubtitle: () => void;
+  onCreateGenerator: () => void;
 }
 
 const iconFor = (kind: AssetMeta['kind']) => {
@@ -20,7 +23,15 @@ const formatBytes = (bytes: number) => {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
-export function MediaLibrary({ assets, onImport, onAdd, onDelete }: Props) {
+export function MediaLibrary({
+  assets,
+  onImport,
+  onAdd,
+  onDelete,
+  onCreateText,
+  onCreateSubtitle,
+  onCreateGenerator,
+}: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const filtered = useMemo(
@@ -45,6 +56,11 @@ export function MediaLibrary({ assets, onImport, onAdd, onDelete }: Props) {
             e.target.value = '';
           }}
         />
+      </div>
+      <div className="createTools" aria-label="生成クリップ">
+        <button type="button" onClick={onCreateText} title="テキストクリップを追加"><Type size={14} /><span>テキスト</span></button>
+        <button type="button" onClick={onCreateSubtitle} title="字幕クリップを追加"><Captions size={14} /><span>字幕</span></button>
+        <button type="button" onClick={onCreateGenerator} title="背景ジェネレーターを追加"><Palette size={14} /><span>背景</span></button>
       </div>
       <div className="searchBox"><Search size={14} /><input placeholder="素材を検索" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
       <div className="assetList">

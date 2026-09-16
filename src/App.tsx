@@ -3,7 +3,16 @@ import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles 
 import { detectCapabilities } from './core/capabilities';
 import { HistoryController } from './core/history';
 import { analyzeMouthCues, buildAssetMeta } from './core/media';
-import { clampProjectDuration, createProject, defaultClip, trackKindForAsset, uid } from './core/project';
+import {
+  clampProjectDuration,
+  createProject,
+  defaultClip,
+  defaultGeneratorClip,
+  defaultSubtitleClip,
+  defaultTextClip,
+  trackKindForAsset,
+  uid,
+} from './core/project';
 import {
   deleteAssetFile,
   listRecoverySnapshots,
@@ -26,7 +35,7 @@ import { RecoveryDialog } from './components/RecoveryDialog';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
 import { ZundamonPanel, type ZundamonRequest } from './components/ZundamonPanel';
-import type { Clip, Project } from './types/editor';
+import type { Clip, Project, TrackKind } from './types/editor';
 
 interface UpdateOptions {
   history?: boolean;
@@ -228,6 +237,7 @@ export default function App() {
   }, [project]);
 
   const importFiles = async (files: File[]) => {
+    if (rendering) return;
     setSaveState('素材を保存中…');
     for (const file of files) {
       try {
@@ -245,6 +255,7 @@ export default function App() {
   };
 
   const addAssetToTimeline = (assetId: string) => {
+    if (rendering) return;
     const asset = project.assets.find((a) => a.id === assetId);
     if (!asset) return;
     const kind = trackKindForAsset(asset.kind);
@@ -260,6 +271,33 @@ export default function App() {
       };
     }, { label: 'タイムラインに追加' });
   };
+
+  const addSyntheticClip = useCallback((clip: Clip, trackKind: TrackKind, label: string) => {
+    if (rendering) return;
+    const target = project.tracks.find((track) => track.kind === trackKind && !track.locked);
+    if (!target) {
+      setSaveState(`${label}: 使用できる${trackKind}トラックがありません`);
+      return;
+    }
+    updateProject((p) => ({
+      ...p,
+      tracks: p.tracks.map((track) => track.id === target.id ? { ...track, clips: [...track.clips, clip] } : track),
+    }), { label });
+    setSelectedClipId(clip.id);
+    setPlaying(false);
+  }, [project.tracks, rendering, updateProject]);
+
+  const createText = useCallback(() => {
+    addSyntheticClip(defaultTextClip(time), 'overlay', 'テキストを追加');
+  }, [addSyntheticClip, time]);
+
+  const createSubtitle = useCallback(() => {
+    addSyntheticClip(defaultSubtitleClip(time, project.height * 0.34), 'subtitle', '字幕を追加');
+  }, [addSyntheticClip, project.height, time]);
+
+  const createGenerator = useCallback(() => {
+    addSyntheticClip(defaultGeneratorClip(time, 'color'), 'video', '背景を追加');
+  }, [addSyntheticClip, time]);
 
   const deleteAsset = async (assetId: string) => {
     if (rendering) return;
@@ -278,34 +316,34 @@ export default function App() {
   };
 
   const removeSelectedClip = useCallback(() => {
-    if (!selectedClipId) return;
+    if (!selectedClipId || rendering) return;
     updateProject((p) => ({
       ...p,
       tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => c.id !== selectedClipId) })),
     }), { label: 'クリップ削除' });
     setSelectedClipId(null);
-  }, [selectedClipId, updateProject]);
+  }, [rendering, selectedClipId, updateProject]);
 
   const splitSelectedClip = useCallback(() => {
-    if (!selectedClipId || !selectedClip) return;
+    if (!selectedClipId || !selectedClip || rendering) return;
     const frame = 1 / Math.max(1, project.fps);
     if (time < selectedClip.start + frame || time > selectedClip.start + selectedClip.duration - frame) return;
     updateProject((p) => splitClipAt(p, selectedClipId, time), { label: 'クリップ分割' });
-  }, [project.fps, selectedClip, selectedClipId, time, updateProject]);
+  }, [project.fps, rendering, selectedClip, selectedClipId, time, updateProject]);
 
   const rippleDeleteSelectedClip = useCallback(() => {
-    if (!selectedClipId) return;
+    if (!selectedClipId || rendering) return;
     updateProject((p) => rippleDeleteClip(p, selectedClipId), { label: 'リップル削除' });
     setSelectedClipId(null);
-  }, [selectedClipId, updateProject]);
+  }, [rendering, selectedClipId, updateProject]);
 
   const nudgeSelected = useCallback((frames: number) => {
-    if (!selectedClipId) return;
+    if (!selectedClipId || rendering) return;
     updateProject((p) => nudgeClip(p, selectedClipId, frames), {
       label: 'クリップをフレーム移動',
       key: `clip:${selectedClipId}:nudge`,
     });
-  }, [selectedClipId, updateProject]);
+  }, [rendering, selectedClipId, updateProject]);
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -504,7 +542,15 @@ export default function App() {
       )}
 
       <main className="editorGrid" aria-busy={rendering}>
-        <MediaLibrary assets={project.assets} onImport={importFiles} onAdd={addAssetToTimeline} onDelete={deleteAsset} />
+        <MediaLibrary
+          assets={project.assets}
+          onImport={importFiles}
+          onAdd={addAssetToTimeline}
+          onDelete={deleteAsset}
+          onCreateText={createText}
+          onCreateSubtitle={createSubtitle}
+          onCreateGenerator={createGenerator}
+        />
         <div className="centerColumn">
           <Preview project={project} time={time} playing={playing} onTogglePlay={() => setPlaying((v) => !v)} onTime={(v) => setTime(Math.max(0, Math.min(project.duration, v)))} />
           <ZundamonPanel assets={project.assets} busy={zBusy} onGenerate={generateZundamon} />
