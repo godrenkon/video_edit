@@ -6,6 +6,7 @@ import {
   visualTimelineItems,
   zundamonVisualState,
 } from '../render/timelineEvaluation';
+import { previewCropLayout } from '../render/cropGeometry';
 import { canvasFilterForEffects } from '../render/effectEvaluation';
 import {
   deterministicNoiseByte,
@@ -42,6 +43,58 @@ function layerStyle(clip: Clip, project: Project, time: number, extraY = 0): CSS
   };
 }
 
+function assetLayerStyles(
+  clip: Clip,
+  asset: AssetMeta,
+  project: Project,
+  time: number,
+  extraY = 0,
+): { frame: CSSProperties; source: CSSProperties } | null {
+  const layout = previewCropLayout(
+    asset.width ?? project.width,
+    asset.height ?? project.height,
+    project.width,
+    project.height,
+    clip.crop ?? null,
+  );
+  if (!layout) return null;
+
+  const clipLocalTime = Math.max(0, Math.min(clip.duration, time - clip.start));
+  const anchorX = Math.max(0, Math.min(1, clip.transform.anchorX ?? 0.5));
+  const anchorY = Math.max(0, Math.min(1, clip.transform.anchorY ?? 0.5));
+  const xPercent = clip.transform.x / Math.max(1, project.width) * 100;
+  const yPercent = (clip.transform.y + extraY) / Math.max(1, project.height) * 100;
+
+  return {
+    frame: {
+      position: 'absolute',
+      left: `${50 + xPercent}%`,
+      top: `${50 + yPercent}%`,
+      width: `${layout.frameWidthPercent}%`,
+      height: `${layout.frameHeightPercent}%`,
+      overflow: 'hidden',
+      transformOrigin: '0 0',
+      transform: `rotate(${clip.transform.rotation}deg) scale(${clip.transform.scale}) translate(${-anchorX * 100}%, ${-anchorY * 100}%)`,
+      opacity: Math.max(0, Math.min(1, clip.transform.opacity)),
+      mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
+      filter: canvasFilterForEffects(clip.effects ?? [], clipLocalTime),
+      pointerEvents: 'none',
+    },
+    source: {
+      position: 'absolute',
+      left: `${layout.sourceLeftPercent}%`,
+      top: `${layout.sourceTopPercent}%`,
+      width: `${layout.sourceWidthPercent}%`,
+      height: `${layout.sourceHeightPercent}%`,
+      maxWidth: 'none',
+      maxHeight: 'none',
+      objectFit: 'fill',
+      userSelect: 'none',
+      pointerEvents: 'none',
+    },
+  };
+}
+
 function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asset?: AssetMeta; project: Project; time: number; playing: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const sourceTime = clipSourceTime(clip, time);
@@ -64,10 +117,23 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
   }, [clip.reverse, playbackRate, playing]);
 
   if (!asset?.objectUrl) return null;
-  const style = layerStyle(clip, project, time);
+  const styles = assetLayerStyles(clip, asset, project, time);
+  if (!styles) return null;
 
-  if (asset.kind === 'video') return <video ref={videoRef} className="previewMedia" src={asset.objectUrl} muted playsInline style={style} />;
-  if (asset.kind === 'image') return <img className="previewMedia" src={asset.objectUrl} alt="" draggable={false} style={style} />;
+  if (asset.kind === 'video') {
+    return (
+      <div className="previewAssetFrame" style={styles.frame}>
+        <video ref={videoRef} className="previewAssetSource" src={asset.objectUrl} muted playsInline style={styles.source} />
+      </div>
+    );
+  }
+  if (asset.kind === 'image') {
+    return (
+      <div className="previewAssetFrame" style={styles.frame}>
+        <img className="previewAssetSource" src={asset.objectUrl} alt="" draggable={false} style={styles.source} />
+      </div>
+    );
+  }
   return null;
 }
 
@@ -76,8 +142,14 @@ function ZundamonLayer({ clip, assets, project, time }: { clip: Clip; assets: As
   if (!state.assetId) return null;
   const asset = assets.find((item) => item.id === state.assetId);
   if (!asset?.objectUrl) return null;
+  const styles = assetLayerStyles(clip, asset, project, time, state.bobOffset);
+  if (!styles) return null;
 
-  return <img className="previewMedia zundamonMedia" src={asset.objectUrl} alt="" draggable={false} style={layerStyle(clip, project, time, state.bobOffset)} />;
+  return (
+    <div className="previewAssetFrame" style={styles.frame}>
+      <img className="previewAssetSource zundamonMedia" src={asset.objectUrl} alt="" draggable={false} style={styles.source} />
+    </div>
+  );
 }
 
 function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project; time: number }) {

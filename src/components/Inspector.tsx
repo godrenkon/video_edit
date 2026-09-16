@@ -1,5 +1,6 @@
-import { SlidersHorizontal, Trash2 } from 'lucide-react';
-import type { BlendMode, Clip, GeneratorPayload, Project, TextPayload } from '../types/editor';
+import { RotateCcw, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { constrainNormalizedCrop, cropToNormalized } from '../render/cropGeometry';
+import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload } from '../types/editor';
 import { EffectsPanel } from './EffectsPanel';
 import '../creation-tools.css';
 
@@ -16,6 +17,11 @@ interface Props {
 const blendModes: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'add'];
 
 export function Inspector({ project, selectedClip, timelineTime, onProject, onClip, onTransform, onDeleteClip }: Props) {
+  const selectedAsset = selectedClip?.assetId ? project.assets.find((asset) => asset.id === selectedClip.assetId) : undefined;
+  const crop = selectedClip && selectedAsset && selectedAsset.kind !== 'audio'
+    ? cropToNormalized(selectedClip.crop, selectedAsset.width ?? project.width, selectedAsset.height ?? project.height)
+    : null;
+
   const patchText = (patch: Partial<TextPayload>) => {
     const current: TextPayload = selectedClip?.text ?? { text: 'テキスト' };
     onClip({ text: { ...current, ...patch } });
@@ -29,6 +35,13 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
   const patchGeneratorData = (key: string, value: string | number | boolean | number[]) => {
     if (!selectedClip?.generator) return;
     onClip({ generator: { ...selectedClip.generator, data: { ...selectedClip.generator.data, [key]: value } } });
+  };
+
+  const patchCrop = (edge: keyof Crop, percent: number) => {
+    if (!crop) return;
+    const next = constrainNormalizedCrop({ ...crop, [edge]: Math.max(0, Math.min(99, percent)) / 100 }, edge);
+    const empty = Object.values(next).every((value) => value <= 1e-6);
+    onClip({ crop: empty ? undefined : next });
   };
 
   return (
@@ -102,6 +115,35 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
             </>
           )}
 
+          {selectedAsset && (selectedAsset.kind === 'video' || selectedAsset.kind === 'audio') && (
+            <>
+              <h3>再生</h3>
+              <div className="twoFields">
+                <NumberField label="速度" value={selectedClip.speed ?? 1} step={0.05} onChange={(v) => onClip({ speed: Math.max(0.0625, Math.min(16, v)) })} />
+                <NumberField label="開始オフセット" value={selectedClip.inPoint} step={0.01} onChange={(v) => onClip({ inPoint: Math.max(0, Math.min(selectedAsset.duration || Number.MAX_SAFE_INTEGER, v)) })} />
+              </div>
+              <label className="checkboxField">
+                <span>逆再生</span>
+                <input type="checkbox" checked={Boolean(selectedClip.reverse)} onChange={(e) => onClip({ reverse: e.target.checked })} />
+              </label>
+              {selectedAsset.kind === 'audio' && selectedClip.reverse && (
+                <div className="infoCard">逆再生音声は最終WebM書き出しへ反映されます。HTML Audioの制約によりPreview再生中は無音です。</div>
+              )}
+            </>
+          )}
+
+          {crop && selectedAsset && selectedAsset.kind !== 'audio' && (
+            <>
+              <h3 className="sectionTitleRow"><span>切り抜き</span><button type="button" className="miniBtn" onClick={() => onClip({ crop: undefined })} title="切り抜きをリセット"><RotateCcw size={12} /></button></h3>
+              <div className="twoFields">
+                <NumberField label="上 %" value={crop.top * 100} step={0.5} onChange={(v) => patchCrop('top', v)} />
+                <NumberField label="右 %" value={crop.right * 100} step={0.5} onChange={(v) => patchCrop('right', v)} />
+                <NumberField label="下 %" value={crop.bottom * 100} step={0.5} onChange={(v) => patchCrop('bottom', v)} />
+                <NumberField label="左 %" value={crop.left * 100} step={0.5} onChange={(v) => patchCrop('left', v)} />
+              </div>
+            </>
+          )}
+
           {selectedClip.kind !== 'asset' || selectedClip.assetId ? (
             <>
               <h3>変形</h3>
@@ -135,7 +177,7 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
             <NumberField label="FPS" value={project.fps} step={1} onChange={(v) => onProject({ fps: Math.max(1, Math.min(120, Math.round(v))) })} />
           </div>
           <Field label="背景"><input type="color" value={project.background} onChange={(e) => onProject({ background: e.target.value })} /></Field>
-          <div className="infoCard">クリップを選択すると、内容・位置・拡大率・回転・透明度・エフェクトなどを編集できます。</div>
+          <div className="infoCard">クリップを選択すると、内容・速度・切り抜き・位置・エフェクトなどを編集できます。</div>
         </div>
       )}
     </aside>

@@ -1,4 +1,5 @@
-import type { BlendMode, Crop, Project } from '../types/editor';
+import type { BlendMode, Project } from '../types/editor';
+import { resolveCropRectangle } from './cropGeometry';
 import { canvasFilterForEffects } from './effectEvaluation';
 import { buildVisualFramePlan, type VisualFrameLayerPlan } from './framePlan';
 import { RenderAssetStore } from './renderAssetStore';
@@ -11,24 +12,14 @@ import {
   wrapTextLines,
 } from './syntheticLayers';
 
+export { resolveCropRectangle } from './cropGeometry';
+
 export type RenderCanvas = HTMLCanvasElement | OffscreenCanvas;
 export type RenderContext2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 export function blendModeToCanvas(blendMode: BlendMode): GlobalCompositeOperation {
   if (blendMode === 'add') return 'lighter';
   return blendMode === 'normal' ? 'source-over' : blendMode;
-}
-
-export function resolveCropRectangle(width: number, height: number, crop: Crop | null) {
-  if (!crop) return { x: 0, y: 0, width, height };
-  const normalized = [crop.top, crop.right, crop.bottom, crop.left].every((value) => value >= 0 && value <= 1);
-  const factorX = normalized ? width : 1;
-  const factorY = normalized ? height : 1;
-  const top = clamp(crop.top, 0, normalized ? 1 : height) * factorY;
-  const right = clamp(crop.right, 0, normalized ? 1 : width) * factorX;
-  const bottom = clamp(crop.bottom, 0, normalized ? 1 : height) * factorY;
-  const left = clamp(crop.left, 0, normalized ? 1 : width) * factorX;
-  return { x: left, y: top, width: Math.max(0, width - left - right), height: Math.max(0, height - top - bottom) };
 }
 
 export class Canvas2DProjectRenderer {

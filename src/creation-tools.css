@@ -4,3 +4,9 @@
 .field textarea, .field select { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 7px; color: var(--text); background: #0a0f12; outline: none; }
 .field textarea { resize: vertical; min-height: 54px; line-height: 1.45; }
 .field select { height: 30px; padding: 0 7px; }
+.checkboxField { min-height: 31px; margin: 7px 0; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: #0a0f12; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 9px; }
+.checkboxField input { width: 15px; height: 15px; accent-color: var(--green); }
+.inspectorBody h3.sectionTitleRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sectionTitleRow .miniBtn { width: 24px; height: 24px; flex: 0 0 auto; }
+.previewAssetFrame { position: absolute; pointer-events: none; will-change: transform; }
+.previewAssetSource { display: block; user-select: none; pointer-events: none; }
