@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, Download, FolderOpen, RefreshCcw, Save } from 'lucide-react';
+import { Activity, Clapperboard, Download, FolderOpen, RefreshCcw, Save, X } from 'lucide-react';
 import {
   probeCapabilities,
   type BrowserCapabilityReport,
@@ -12,12 +12,27 @@ interface Props {
   projectName: string;
   onProjectName: (name: string) => void;
   onSave: () => void;
-  onExport: () => void;
+  onBackup: () => void;
+  onRender: () => void;
+  onCancelRender: () => void;
+  rendering: boolean;
+  renderProgress: number | null;
   capabilities: CapabilityReport;
   saveState: string;
 }
 
-export function TopBar({ projectName, onProjectName, onSave, onExport, capabilities, saveState }: Props) {
+export function TopBar({
+  projectName,
+  onProjectName,
+  onSave,
+  onBackup,
+  onRender,
+  onCancelRender,
+  rendering,
+  renderProgress,
+  capabilities,
+  saveState,
+}: Props) {
   const ready = Object.values(capabilities).filter(Boolean).length;
   const total = Object.keys(capabilities).length;
   const [diagnostics, setDiagnostics] = useState<BrowserCapabilityReport | null>(null);
@@ -52,6 +67,8 @@ export function TopBar({ projectName, onProjectName, onSave, onExport, capabilit
       setDiagnosticsBusy(false);
     }
   };
+
+  const progressLabel = renderProgress === null ? '準備中' : `${Math.round(renderProgress * 100)}%`;
 
   return (
     <header className="topbar">
@@ -88,8 +105,19 @@ export function TopBar({ projectName, onProjectName, onSave, onExport, capabilit
             />
           )}
         </div>
-        <button className="button" onClick={onSave}><Save size={16} />保存</button>
-        <button className="button primary" onClick={onExport} title="プロジェクトJSONを端末へバックアップ"><Download size={16} />バックアップ</button>
+        <button className="button" onClick={onSave} disabled={rendering}><Save size={16} />保存</button>
+        <button className="button" onClick={onBackup} disabled={rendering} title="プロジェクトJSONを端末へバックアップ">
+          <Download size={16} />バックアップ
+        </button>
+        {rendering ? (
+          <button className="button renderCancel" onClick={onCancelRender} title="動画書き出しをキャンセル">
+            <X size={16} />中止 {progressLabel}
+          </button>
+        ) : (
+          <button className="button primary" onClick={onRender} title="タイムラインをWebM動画として書き出す">
+            <Clapperboard size={16} />動画書き出し
+          </button>
+        )}
       </div>
     </header>
   );

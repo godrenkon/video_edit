@@ -18,6 +18,7 @@ import {
 } from './core/storage';
 import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipRight } from './core/timelineOps';
+import { exportProjectWebM } from './render/projectExporter';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
@@ -47,9 +48,12 @@ export default function App() {
   const [showRecovery, setShowRecovery] = useState(false);
   const [suspectedCrash, setSuspectedCrash] = useState(false);
   const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [rendering, setRendering] = useState(false);
+  const [renderProgress, setRenderProgress] = useState<number | null>(null);
   const capabilities = useMemo(() => detectCapabilities(), []);
   const lastFrame = useRef<number | null>(null);
   const history = useRef(new HistoryController<Project>(120, 750));
+  const renderAbort = useRef<AbortController | null>(null);
 
   const selectedClip = useMemo(() => {
     for (const track of project.tracks) {
@@ -58,6 +62,10 @@ export default function App() {
     }
     return null;
   }, [project.tracks, selectedClipId]);
+
+  useEffect(() => () => {
+    renderAbort.current?.abort('Editor closed');
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -254,6 +262,7 @@ export default function App() {
   };
 
   const deleteAsset = async (assetId: string) => {
+    if (rendering) return;
     const asset = project.assets.find((a) => a.id === assetId);
     if (!asset) return;
     if (capabilities.opfs) await deleteAssetFile(asset.storageName);
@@ -302,7 +311,7 @@ export default function App() {
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.matches('input, textarea, select')) return;
-      if (showRecovery) return;
+      if (showRecovery || rendering) return;
 
       const mod = e.ctrlKey || e.metaKey;
       const lower = e.key.toLowerCase();
@@ -349,7 +358,7 @@ export default function App() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [showRecovery, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, nudgeSelected, undo, redo]);
+  }, [showRecovery, rendering, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, nudgeSelected, undo, redo]);
 
   const manualSave = async () => {
     try {
@@ -366,14 +375,49 @@ export default function App() {
       assets: project.assets.map(({ objectUrl: _objectUrl, ...asset }) => asset),
     };
     const blob = new Blob([JSON.stringify(clean, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    a.href = url;
-    a.download = `${sanitize(project.name)}.sveproj.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    setSaveState('プロジェクトを書き出しました');
+    downloadBlob(blob, `${sanitize(project.name)}.sveproj.json`);
+    setSaveState('プロジェクトをバックアップしました');
   };
+
+  const renderVideo = useCallback(async () => {
+    if (rendering) return;
+    setPlaying(false);
+
+    const controller = new AbortController();
+    renderAbort.current = controller;
+    setRendering(true);
+    setRenderProgress(null);
+    setSaveState('動画書き出しを準備中…');
+
+    try {
+      const result = await exportProjectWebM(project, {
+        signal: controller.signal,
+        preferOpfs: true,
+        onProgress: (progress) => setRenderProgress(progress.fraction),
+      });
+      if (controller.signal.aborted) return;
+
+      const output = result.storage === 'opfs' ? result.file : result.blob;
+      downloadBlob(output, result.fileName);
+      setRenderProgress(1);
+      setSaveState(result.hasAudio ? '動画書き出し完了（音声込み）' : '動画書き出し完了');
+    } catch (error) {
+      if (controller.signal.aborted) {
+        setSaveState('動画書き出しを中止しました');
+      } else {
+        console.error(error);
+        setSaveState(error instanceof Error ? `動画書き出しエラー: ${error.message}` : '動画書き出しエラー');
+      }
+    } finally {
+      if (renderAbort.current === controller) renderAbort.current = null;
+      setRendering(false);
+      setRenderProgress(null);
+    }
+  }, [project, rendering]);
+
+  const cancelRender = useCallback(() => {
+    renderAbort.current?.abort('ユーザーが動画書き出しを中止しました');
+  }, []);
 
   const generateZundamon = async (request: ZundamonRequest) => {
     const audio = project.assets.find((a) => a.id === request.audioAssetId);
@@ -446,7 +490,11 @@ export default function App() {
         projectName={project.name}
         onProjectName={(name) => updateProject((p) => ({ ...p, name }), { label: 'プロジェクト名変更', key: 'project-name' })}
         onSave={manualSave}
-        onExport={backupProject}
+        onBackup={backupProject}
+        onRender={renderVideo}
+        onCancelRender={cancelRender}
+        rendering={rendering}
+        renderProgress={renderProgress}
         capabilities={capabilities}
         saveState={saveState}
       />
@@ -455,7 +503,7 @@ export default function App() {
         <div className="warningBar"><AlertTriangle size={16} />このブラウザではOPFSが利用できないため、素材の永続保存が制限されます。Chrome系ブラウザ推奨です。</div>
       )}
 
-      <main className="editorGrid">
+      <main className="editorGrid" aria-busy={rendering}>
         <MediaLibrary assets={project.assets} onImport={importFiles} onAdd={addAssetToTimeline} onDelete={deleteAsset} />
         <div className="centerColumn">
           <Preview project={project} time={time} playing={playing} onTogglePlay={() => setPlaying((v) => !v)} onTime={(v) => setTime(Math.max(0, Math.min(project.duration, v)))} />
@@ -542,6 +590,15 @@ function revokeProjectUrls(input: Project) {
 function clipUsesAsset(clip: Clip, assetId: string) {
   const z = clip.zundamon;
   return Boolean(z && [z.closedAssetId, z.halfAssetId, z.openAssetId, z.blinkAssetId, z.audioAssetId].includes(assetId));
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 function sanitize(name: string) {
