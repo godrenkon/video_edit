@@ -1,5 +1,6 @@
 import { probeCapabilities, type BrowserCapabilityReport, type CodecCapability } from '../core/capabilities';
 import type { Project } from '../types/editor';
+import { ProjectAudioMixer, buildAudioMixSegments } from './audioMixer';
 import { Canvas2DProjectRenderer, type RenderCanvas } from './canvas2dRenderer';
 import { sanitizeRenderFileName } from './opfsRenderTarget';
 import { RenderAssetStore } from './renderAssetStore';
@@ -20,6 +21,11 @@ export interface ProjectVideoExportOptions {
   fileName?: string;
   codec?: WebMVideoCodec;
   bitrate?: number;
+  includeAudio?: boolean;
+  audioBitrate?: number;
+  audioChunkSeconds?: number;
+  audioSampleRate?: number;
+  audioChannels?: number;
   signal?: AbortSignal;
   onProgress?: (progress: RenderProgress) => void;
   capabilities?: BrowserCapabilityReport;
@@ -33,6 +39,7 @@ export type ProjectVideoExportResult =
       file: File;
       mimeType: string;
       codec: WebMVideoCodec;
+      hasAudio: boolean;
       range: ProjectRenderRange;
     }
   | {
@@ -41,8 +48,11 @@ export type ProjectVideoExportResult =
       blob: Blob;
       mimeType: string;
       codec: WebMVideoCodec;
+      hasAudio: boolean;
       range: ProjectRenderRange;
     };
+
+export type ProjectWebMExportResult = ProjectVideoExportResult;
 
 export function projectRenderRange(project: Project): ProjectRenderRange {
   const projectEnd = Math.max(0, project.duration);
@@ -63,15 +73,23 @@ export function selectWebMVideoCodec(codecs: CodecCapability[]): WebMVideoCodec 
   return null;
 }
 
+export function canEncodeOpus(codecs: CodecCapability[]) {
+  return codecs.some((codec) => codec.id === 'opus' && codec.encode === 'supported');
+}
+
+export function projectHasAudibleAudio(project: Project, range = projectRenderRange(project)) {
+  return buildAudioMixSegments(project, range.startSeconds, range.endSeconds).length > 0;
+}
+
 export function defaultVideoBitrate(width: number, height: number, fps: number) {
   const pixelsPerSecond = Math.max(1, width) * Math.max(1, height) * Math.max(1, fps);
   return Math.round(clamp(pixelsPerSecond * 0.12, 2_000_000, 50_000_000));
 }
 
-export async function exportProjectVideoWebM(
+export async function exportProjectWebM(
   project: Project,
   options: ProjectVideoExportOptions = {},
-): Promise<ProjectVideoExportResult> {
+): Promise<ProjectWebMExportResult> {
   const range = projectRenderRange(project);
   if (range.durationSeconds <= 0) throw new Error('書き出し範囲が空です。');
 
@@ -79,8 +97,14 @@ export async function exportProjectVideoWebM(
   const codec = options.codec ?? selectWebMVideoCodec(capabilities.videoCodecs);
   if (!codec) throw new Error('このブラウザでは WebM 動画をエンコードできる対応コーデックが見つかりません。');
 
+  const hasAudio = options.includeAudio !== false && projectHasAudibleAudio(project, range);
+  if (hasAudio && !canEncodeOpus(capabilities.audioCodecs)) {
+    throw new Error('このブラウザでは WebM 音声用の Opus エンコードが利用できません。');
+  }
+
   const canvas = createRenderCanvas(project.width, project.height);
   const assets = new RenderAssetStore(project.assets);
+  const audioMixer = hasAudio ? new ProjectAudioMixer(project.assets) : null;
   const renderer = new Canvas2DProjectRenderer(canvas, assets);
   const fileName = ensureWebMExtension(options.fileName ?? `${project.name || 'render'}.webm`);
   const bitrate = options.bitrate ?? defaultVideoBitrate(project.width, project.height, project.fps);
@@ -94,6 +118,21 @@ export async function exportProjectVideoWebM(
     bitrate,
     signal: options.signal,
     onProgress: options.onProgress,
+    audio: audioMixer ? {
+      codec: 'opus' as const,
+      bitrate: options.audioBitrate ?? 160_000,
+      chunkSeconds: options.audioChunkSeconds ?? 2,
+      renderChunk: (startSeconds: number, durationSeconds: number, signal?: AbortSignal) => audioMixer.renderChunk(
+        project,
+        range.startSeconds + startSeconds,
+        durationSeconds,
+        {
+          sampleRate: options.audioSampleRate ?? 48_000,
+          channels: options.audioChannels ?? 2,
+          signal,
+        },
+      ),
+    } : undefined,
     drawFrame: async (request: { timeSeconds: number }, signal?: AbortSignal) => {
       await renderer.render(project, range.startSeconds + request.timeSeconds, signal);
     },
@@ -109,6 +148,7 @@ export async function exportProjectVideoWebM(
         file: result.file,
         mimeType: result.mimeType,
         codec,
+        hasAudio,
         range,
       };
     }
@@ -120,12 +160,19 @@ export async function exportProjectVideoWebM(
       blob,
       mimeType: blob.type || 'video/webm',
       codec,
+      hasAudio,
       range,
     };
   } finally {
-    await assets.close();
+    await Promise.all([
+      assets.close(),
+      audioMixer?.close() ?? Promise.resolve(),
+    ]);
   }
 }
+
+/** Backwards-compatible name retained while callers migrate to exportProjectWebM. */
+export const exportProjectVideoWebM = exportProjectWebM;
 
 function createRenderCanvas(width: number, height: number): RenderCanvas {
   if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(width, height);

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CodecCapability } from '../core/capabilities';
 import type { Project } from '../types/editor';
-import { defaultVideoBitrate, projectRenderRange, selectWebMVideoCodec } from './projectExporter';
+import {
+  canEncodeOpus,
+  defaultVideoBitrate,
+  projectHasAudibleAudio,
+  projectRenderRange,
+  selectWebMVideoCodec,
+} from './projectExporter';
 
 function project(patch: Partial<Project> = {}): Project {
   return {
@@ -62,6 +68,26 @@ describe('project export planning', () => {
     expect(selectWebMVideoCodec([codec('vp9', 'unsupported'), codec('vp8', 'supported')])).toBe('vp8');
     expect(selectWebMVideoCodec([codec('av1', 'supported')])).toBe('av1');
     expect(selectWebMVideoCodec([codec('vp9', 'unsupported')])).toBeNull();
+  });
+
+  it('requires an actual supported Opus encoder for WebM audio', () => {
+    expect(canEncodeOpus([codec('aac', 'supported'), codec('opus', 'unsupported')])).toBe(false);
+    expect(canEncodeOpus([codec('opus', 'supported')])).toBe(true);
+  });
+
+  it('detects audible audio inside the render range', () => {
+    const withAudio = project({
+      assets: [{ id: 'a', name: 'voice', kind: 'audio', mime: 'audio/wav', size: 1, duration: 4, storageName: 'voice.wav' }],
+      tracks: [{
+        id: 't', name: 'Audio', kind: 'audio', muted: false, locked: false, clips: [{
+          id: 'c', kind: 'asset', name: 'voice', assetId: 'a', start: 2, duration: 4, inPoint: 0,
+          volume: 1, muted: false, transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
+        }],
+      }],
+    });
+    expect(projectHasAudibleAudio(withAudio)).toBe(true);
+    withAudio.tracks[0].muted = true;
+    expect(projectHasAudibleAudio(withAudio)).toBe(false);
   });
 
   it('scales default bitrate with resolution and fps while enforcing safe bounds', () => {

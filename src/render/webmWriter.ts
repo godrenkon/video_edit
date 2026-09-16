@@ -1,4 +1,5 @@
 import {
+  AudioBufferSource as MediabunnyAudioBufferSource,
   BufferTarget,
   CanvasSource,
   Output,
@@ -13,6 +14,13 @@ import type { RenderFrameRequest, RenderProgress } from './types';
 
 export type WebMVideoCodec = 'vp8' | 'vp9' | 'av1';
 
+export interface WebMAudioRenderOptions {
+  codec?: 'opus';
+  bitrate?: number;
+  chunkSeconds?: number;
+  renderChunk: (startSeconds: number, durationSeconds: number, signal?: AbortSignal) => Promise<AudioBuffer>;
+}
+
 export interface WebMRenderOptions {
   canvas: HTMLCanvasElement | OffscreenCanvas;
   width: number;
@@ -22,6 +30,7 @@ export interface WebMRenderOptions {
   codec?: WebMVideoCodec;
   bitrate?: number;
   keyFrameIntervalSeconds?: number;
+  audio?: WebMAudioRenderOptions;
   signal?: AbortSignal;
   onProgress?: (progress: RenderProgress) => void;
   drawFrame: (request: RenderFrameRequest, signal?: AbortSignal) => Promise<void> | void;
@@ -36,11 +45,12 @@ export interface OpfsWebMRenderResult {
 class MediabunnyWebMCanvasWriter {
   private readonly output: Output;
   private readonly source: CanvasSource;
+  private readonly audioSource: MediabunnyAudioBufferSource | null;
   private readonly keyFrameInterval: number;
   private started = false;
   private lastTimestampUs = -1;
 
-  constructor(target: Target, options: Pick<WebMRenderOptions, 'canvas' | 'fps' | 'codec' | 'bitrate' | 'keyFrameIntervalSeconds'>) {
+  constructor(target: Target, options: Pick<WebMRenderOptions, 'canvas' | 'fps' | 'codec' | 'bitrate' | 'keyFrameIntervalSeconds' | 'audio'>) {
     const format = new WebMOutputFormat();
     this.output = new Output({ format, target });
     this.source = new CanvasSource(options.canvas, {
@@ -48,7 +58,18 @@ class MediabunnyWebMCanvasWriter {
       quality: new Quality({ bitrate: options.bitrate ?? 8_000_000 }),
       latencyMode: 'quality',
     });
-    this.output.addVideoTrack(this.source);
+    this.output.addVideoTrack(this.source, { frameRate: options.fps });
+
+    if (options.audio) {
+      this.audioSource = new MediabunnyAudioBufferSource({
+        codec: options.audio.codec ?? 'opus',
+        quality: new Quality({ bitrate: options.audio.bitrate ?? 160_000 }),
+      });
+      this.output.addAudioTrack(this.audioSource);
+    } else {
+      this.audioSource = null;
+    }
+
     this.keyFrameInterval = Math.max(1, Math.round(options.fps * (options.keyFrameIntervalSeconds ?? 2)));
   }
 
@@ -69,9 +90,16 @@ class MediabunnyWebMCanvasWriter {
     this.lastTimestampUs = request.timestampUs;
   }
 
+  async addAudioBuffer(buffer: AudioBuffer) {
+    if (!this.audioSource) throw new Error('WebM writer has no audio track');
+    if (!this.started || this.output.state !== 'started') throw new Error('WebM writer is not ready for audio');
+    await this.audioSource.add(buffer);
+  }
+
   async finalize() {
     if (!this.started) throw new Error('WebM writer was not started');
     this.source.close();
+    this.audioSource?.close();
     await this.output.finalize();
     return this.output.getMimeType();
   }
@@ -129,6 +157,21 @@ export async function renderCanvasToOpfsWebM(fileName: string, options: WebMRend
 }
 
 async function runRenderLoop(writer: MediabunnyWebMCanvasWriter, options: WebMRenderOptions) {
+  let audioCursor = 0;
+  const audioChunkSeconds = Math.max(0.1, options.audio?.chunkSeconds ?? 2);
+
+  const addNextAudioChunk = async () => {
+    if (!options.audio || audioCursor >= options.durationSeconds - 1e-9) return;
+    const duration = Math.min(audioChunkSeconds, options.durationSeconds - audioCursor);
+    const buffer = await options.audio.renderChunk(audioCursor, duration, options.signal);
+    await writer.addAudioBuffer(buffer);
+    audioCursor += duration;
+  };
+
+  // Keep audio slightly ahead of video so neither track needs to buffer the
+  // entire render while waiting for the other one to begin.
+  if (options.audio) await addNextAudioChunk();
+
   await runFrameRenderLoop({
     width: options.width,
     height: options.height,
@@ -139,6 +182,15 @@ async function runRenderLoop(writer: MediabunnyWebMCanvasWriter, options: WebMRe
     renderFrame: async (request, signal) => {
       await options.drawFrame(request, signal);
       await writer.addFrame(request);
+
+      const videoEnd = request.timeSeconds + request.durationUs / 1_000_000;
+      while (options.audio && audioCursor < options.durationSeconds - 1e-9 && videoEnd + 1e-9 >= audioCursor) {
+        await addNextAudioChunk();
+      }
     },
   });
+
+  while (options.audio && audioCursor < options.durationSeconds - 1e-9) {
+    await addNextAudioChunk();
+  }
 }
