@@ -1,5 +1,11 @@
 import { Maximize2, Pause, Play, SkipBack, Volume2 } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
+import {
+  audioTimelineItems,
+  clipSourceTime,
+  visualTimelineItems,
+  zundamonVisualState,
+} from '../render/timelineEvaluation';
 import type { AssetMeta, Clip, Project } from '../types/editor';
 
 interface Props {
@@ -10,30 +16,26 @@ interface Props {
   onTime: (time: number) => void;
 }
 
-function cueState(clip: Clip, time: number) {
-  const z = clip.zundamon;
-  if (!z) return 0;
-  const local = Math.max(0, time - clip.start);
-  const index = Math.min(z.cues.length - 1, Math.floor(local / 0.045));
-  return z.cues[Math.max(0, index)]?.state ?? 0;
-}
-
 function VisualLayer({ clip, asset, time, playing }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const local = clip.inPoint + Math.max(0, time - clip.start);
+  const sourceTime = clipSourceTime(clip, time);
+  const playbackRate = Math.max(0.0625, Math.min(16, clip.speed ?? 1));
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (Math.abs(video.currentTime - local) > 0.15) video.currentTime = Math.max(0, local);
-  }, [local]);
+    if (clip.reverse || !playing || Math.abs(video.currentTime - sourceTime) > 0.15) {
+      video.currentTime = Math.max(0, sourceTime);
+    }
+  }, [clip.reverse, playing, sourceTime]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (playing) video.play().catch(() => undefined);
+    video.playbackRate = playbackRate;
+    if (playing && !clip.reverse) video.play().catch(() => undefined);
     else video.pause();
-  }, [playing]);
+  }, [clip.reverse, playbackRate, playing]);
 
   if (!asset?.objectUrl) return null;
   const transform = `translate(${clip.transform.x}px, ${clip.transform.y}px) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`;
@@ -45,53 +47,45 @@ function VisualLayer({ clip, asset, time, playing }: { clip: Clip; asset?: Asset
 }
 
 function ZundamonLayer({ clip, assets, time }: { clip: Clip; assets: AssetMeta[]; time: number }) {
-  if (!clip.zundamon) return null;
-  const z = clip.zundamon;
-  const local = Math.max(0, time - clip.start);
-  const blinkPhase = local % Math.max(1.5, z.blinkEvery);
-  const blinking = Boolean(z.blinkAssetId) && blinkPhase > z.blinkEvery - 0.13;
-  const mouth = cueState(clip, time);
-  let id = mouth === 2 ? z.openAssetId : mouth === 1 ? (z.halfAssetId || z.openAssetId) : z.closedAssetId;
-  if (blinking) id = z.blinkAssetId!;
-  const asset = assets.find((a) => a.id === id);
+  const state = zundamonVisualState(clip, time);
+  if (!state.assetId) return null;
+  const asset = assets.find((item) => item.id === state.assetId);
   if (!asset?.objectUrl) return null;
 
-  const bob = Math.sin(local * Math.PI * 2 * z.bobSpeed) * z.bobAmount;
-  const transform = `translate(${clip.transform.x}px, ${clip.transform.y + bob}px) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`;
+  const transform = `translate(${clip.transform.x}px, ${clip.transform.y + state.bobOffset}px) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`;
   return <img className="previewMedia zundamonMedia" src={asset.objectUrl} alt="" draggable={false} style={{ transform, opacity: clip.transform.opacity }} />;
 }
 
 function AudioLayer({ clip, asset, time, playing, trackMuted }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean; trackMuted: boolean }) {
   const ref = useRef<HTMLAudioElement>(null);
-  const local = clip.inPoint + Math.max(0, time - clip.start);
+  const sourceTime = clipSourceTime(clip, time);
+  const playbackRate = Math.max(0.0625, Math.min(16, clip.speed ?? 1));
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.volume = Math.max(0, Math.min(1, clip.volume));
-    el.muted = clip.muted || trackMuted;
-    if (Math.abs(el.currentTime - local) > 0.18) el.currentTime = Math.max(0, local);
-  }, [local, clip.volume, clip.muted, trackMuted]);
+    el.muted = clip.muted || trackMuted || Boolean(clip.reverse);
+    el.playbackRate = playbackRate;
+    if (clip.reverse || !playing || Math.abs(el.currentTime - sourceTime) > 0.18) {
+      el.currentTime = Math.max(0, sourceTime);
+    }
+  }, [clip.muted, clip.reverse, clip.volume, playbackRate, playing, sourceTime, trackMuted]);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (playing) el.play().catch(() => undefined);
+    if (playing && !clip.reverse) el.play().catch(() => undefined);
     else el.pause();
-  }, [playing]);
+  }, [clip.reverse, playing]);
 
   if (!asset?.objectUrl) return null;
   return <audio ref={ref} src={asset.objectUrl} preload="auto" />;
 }
 
 export function Preview({ project, time, playing, onTogglePlay, onTime }: Props) {
-  const active = useMemo(() => project.tracks.flatMap((track, trackIndex) =>
-    track.clips
-      .filter((clip) => time >= clip.start && time < clip.start + clip.duration)
-      .map((clip) => ({ track, clip, trackIndex }))), [project.tracks, time]);
-
-  const visuals = active.filter(({ track }) => track.kind !== 'audio').sort((a, b) => b.trackIndex - a.trackIndex);
-  const audios = active.filter(({ track }) => track.kind === 'audio');
+  const visuals = useMemo(() => visualTimelineItems(project, time), [project, time]);
+  const audios = useMemo(() => audioTimelineItems(project, time), [project, time]);
   const aspect = `${project.width} / ${project.height}`;
 
   return (
@@ -106,11 +100,11 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
           <div className="stage" style={{ aspectRatio: aspect, background: project.background }}>
             {visuals.map(({ clip }) => clip.kind === 'zundamon'
               ? <ZundamonLayer key={clip.id} clip={clip} assets={project.assets} time={time} />
-              : <VisualLayer key={clip.id} clip={clip} asset={project.assets.find((a) => a.id === clip.assetId)} time={time} playing={playing} />)}
+              : <VisualLayer key={clip.id} clip={clip} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} />)}
             {visuals.length === 0 && <div className="stageEmpty"><FilmIcon /><span>タイムラインに素材を追加</span></div>}
           </div>
         </div>
-        {audios.map(({ clip, track }) => <AudioLayer key={clip.id} clip={clip} trackMuted={track.muted} asset={project.assets.find((a) => a.id === clip.assetId)} time={time} playing={playing} />)}
+        {audios.map(({ clip, track }) => <AudioLayer key={clip.id} clip={clip} trackMuted={track.muted} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} />)}
         <div className="transport">
           <button className="iconBtn" onClick={() => onTime(0)}><SkipBack size={17} /></button>
           <button className="playBtn" onClick={onTogglePlay}>{playing ? <Pause size={20} /> : <Play size={20} />}</button>
