@@ -1,6 +1,6 @@
 # video_edit Master Plan
 
-Status: production-planning source of truth for the `work` branch.
+Status: production architecture and implementation source of truth for the `main` branch.
 
 ## 1. Product goal
 
@@ -19,9 +19,42 @@ The goal is not to clone every UI. The goal is to combine the strongest workflow
 - strong import/export compatibility
 - robust crash recovery and project migrations
 
-## 2. Non-negotiable architecture
+## 2. Current implementation checkpoint
 
-### 2.1 Preview and export are different engines
+The first deterministic WebM delivery path now exists on `main`.
+
+Implemented foundation:
+
+- OPFS media/project persistence and rotating recovery snapshots
+- project schema migration and Undo/Redo history
+- deterministic timeline primitives and shared Preview/Export timeline evaluation
+- browser codec/storage/GPU capability diagnostics
+- deterministic RenderClock and frame-stepped offline render loop
+- Mediabunny-backed source demux/decode
+- Canvas 2D compositor for current asset layers
+- VP9 / VP8 / AV1 WebM video encoding according to browser capability
+- chunked audio-track decode/mix and Opus mux
+- mute / solo / clip gain / speed / reverse handling in initial offline audio mix
+- in/out range export
+- OPFS direct output with memory fallback
+- progress, cancellation and error reporting
+- editor UI video export separated from project JSON backup
+- automated regression tests + TypeScript + production-build CI
+
+This checkpoint is not the final production renderer. The following are still mandatory before export can be considered broadly production-ready:
+
+- browser fixture render acceptance tests
+- long-duration A/V sync verification
+- long-render memory/resource leak verification
+- text/subtitle/generator rendering parity
+- registered effect + keyframe rendering parity
+- MP4/H.264/AAC delivery
+- Worker-based decode/render execution
+- GPU compositor and fallbacks
+
+## 3. Non-negotiable architecture
+
+### 3.1 Preview and export are different engines
 
 Preview may use proxies, cache, frame dropping and aggressive shortcuts. Final export must be deterministic and step the timeline frame-by-frame. Do not use realtime canvas capture as the final production renderer.
 
@@ -33,7 +66,9 @@ Export pipeline:
 
 `timeline clock -> deterministic decode -> compositor -> audio mixer -> encoder -> muxer`
 
-### 2.2 Local media vault
+Preview and Export may use different execution strategies, but they must share timeline interpretation, effect semantics and test fixtures so the rendered result does not diverge.
+
+### 3.2 Local media vault
 
 OPFS is the primary local storage layer. Each asset should eventually have:
 
@@ -50,9 +85,9 @@ OPFS is the primary local storage layer. Each asset should eventually have:
 - missing-media state
 - relink information
 
-Do not keep whole multi-GB files in JS memory.
+Do not keep whole multi-GB files in JS memory. Long renders should write progressively to OPFS or another streaming/random-access target.
 
-### 2.3 Serializable project state
+### 3.3 Serializable project state
 
 Project JSON stores metadata only. Never serialize runtime objects such as:
 
@@ -61,12 +96,13 @@ Project JSON stores metadata only. Never serialize runtime objects such as:
 - VideoFrame
 - AudioData
 - AudioBuffer
+- ImageBitmap
 - DOM nodes
 - GPU resources
 
 Runtime objects belong in cache/worker layers and are recreated from project metadata.
 
-### 2.4 Command-based editing
+### 3.4 Command-based editing
 
 All destructive timeline/property mutations should be represented as deterministic commands or equivalent pure operations. This is the base for:
 
@@ -77,11 +113,15 @@ All destructive timeline/property mutations should be represented as determinist
 - future AI-assisted edits
 - future collaboration/event logs
 
-### 2.5 Schema migrations are mandatory
+### 3.5 Schema migrations are mandatory
 
 Every project-schema change must include a migration path. Old `.sveproj.json` files must never silently become unreadable.
 
-## 3. Workspaces
+### 3.6 Runtime resources must have explicit ownership
+
+Every decoder, sample, bitmap, audio buffer wrapper, worker, stream target and GPU resource needs a defined owner and release path. Cancellation and errors must release the same resources as successful completion.
+
+## 4. Workspaces
 
 ### Media / Ingest
 
@@ -190,17 +230,29 @@ Every project-schema change must include a migration path. Old `.sveproj.json` f
 
 ### Deliver
 
-- deterministic WebM export first
-- MP4 where codec/mux support is viable
-- ffmpeg.wasm fallback path where justified
-- image-sequence export
+Current:
+
+- deterministic WebM export
+- VP9 / VP8 / AV1 capability-selected video encode
+- Opus audio mux when supported
+- chunked offline audio mix
+- in/out range
+- progress/cancel/error state
+- OPFS direct long-form output
+
+Next:
+
+- browser fixture acceptance tests
+- MP4/H.264/AAC
+- image sequence / PNG still
 - WAV export
 - SRT/VTT export
 - project backup package
 - OpenTimelineIO interchange
-- render diagnostics
+- render diagnostics / logs
+- render queue
 
-## 4. Compatibility strategy
+## 5. Compatibility strategy
 
 ### Native project
 
@@ -235,30 +287,34 @@ Mapping target:
 ### Import/export priority
 
 P0:
+
 - `.sveproj.json`
 - SRT/VTT
 - PNG/JPEG/WebP
 - WAV/audio formats supported by browser
 - browser-supported MP4/WebM preview
+- WebM final export
 
 P1:
+
 - `.sveprojz`
 - OTIO JSON
 - EDL export
-- WebM export
+- MP4/H.264/AAC export
 
 P2:
+
 - FCPXML basic export
-- MP4 export with WebCodecs/muxer or WASM fallback
 - Kdenlive/XGES investigation
 
 P3:
+
 - advanced AAF/conform workflows
 - richer Resolve/Premiere/FCP roundtrip helpers
 
-## 5. Worker/thread boundaries
+## 6. Worker/thread boundaries
 
-Main thread should contain only:
+Main thread should eventually contain only:
 
 - React UI
 - selections
@@ -274,7 +330,9 @@ Dedicated workers should handle:
 - waveform generation
 - transcript analysis
 - export rendering
-- audio analysis
+- audio analysis / offline mix where practical
+
+Current deterministic export may execute on the main thread while the Worker boundary is being completed. New render code must remain free of unnecessary DOM coupling so it can move into workers without redesigning the project model.
 
 GPU path:
 
@@ -282,7 +340,7 @@ GPU path:
 - WebGL/Canvas fallback
 - CPU/WASM correctness fallback where needed
 
-## 6. Performance targets
+## 7. Performance targets
 
 These are engineering targets, not promises:
 
@@ -290,29 +348,30 @@ These are engineering targets, not promises:
 - timeline interaction should not depend on rendering every clip as a DOM node
 - several-GB source files must not be read entirely into memory
 - frame caches must be bounded
-- VideoFrame/AudioData resources must be explicitly released
+- VideoFrame/VideoSample/AudioData/ImageBitmap resources must be explicitly released
 - proxy generation should allow editing high-bitrate 4K footage on weaker systems
 - long export jobs must not leak memory over time
 - large timelines should use viewport virtualization
+- audio export should decode/mix bounded chunks rather than whole-track PCM where possible
 
-## 7. Browser capability probe
+## 8. Browser capability probe
 
-The editor should expose a capability report at startup or diagnostics:
+The editor exposes a capability report covering:
 
 - OPFS support
 - persistent storage state
-- WebCodecs decode support
-- VideoEncoder support by codec
-- AudioEncoder support by codec
+- storage usage/quota
+- WebCodecs availability
+- video decode/encode support: H.264, VP9, VP8, AV1
+- audio decode/encode support: Opus, AAC
 - WebGPU support
 - OffscreenCanvas support
 - SharedArrayBuffer/cross-origin isolation state
-- maximum practical canvas dimensions
-- supported import MIME/container set
+- common import MIME/container playback hints
 
-Unsupported paths must degrade gracefully rather than failing later during export.
+Unsupported paths must degrade gracefully or fail before a long render starts rather than failing silently at finalization.
 
-## 8. AI architecture
+## 9. AI architecture
 
 AI must never silently mutate a project.
 
@@ -338,7 +397,7 @@ Initial AI-assisted features:
 
 Default privacy remains local-first. Media should not leave the browser unless a future cloud feature is explicitly enabled.
 
-## 9. Reliability requirements
+## 10. Reliability requirements
 
 Every editing feature should define:
 
@@ -361,68 +420,65 @@ Recovery system requirements:
 - asset relink after restore
 - no large binary objects stored in history
 
-## 10. Implementation order
+Render reliability requirements:
 
-### P0 — Reliability and rendering foundation
+- deterministic frame clock
+- monotonic encoded timestamps
+- bounded decode/mix caches
+- explicit sample/bitmap/decoder cleanup
+- cancellation from every long-running phase
+- no silent audio loss
+- unsupported codec check before render
+- fixture-based output validation
+- long-duration A/V sync validation
 
-1. Finish reliability-v0.3
-   - tests for HistoryController
-   - tests for migration
-   - tests for timeline operations
-   - tests for EditorCommand behavior
-   - tests for recovery metadata
-   - CI runs test + typecheck + build
-2. Capability probe
-3. Render-engine skeleton
-   - RenderClock
-   - FrameRequest
-   - MediaFrameProvider
-   - AudioSegmentProvider
-   - PreviewCompositor
-   - OfflineRenderer
-   - EncoderAdapter
-   - MuxerAdapter
-4. First real deterministic WebM export
-   - frame stepping
-   - audio included
-   - progress
-   - cancel
-   - render log
-   - memory release
+## 11. Implementation order from current checkpoint
 
-### P1 — Editing workflow
+### P0 — Harden current WebM renderer
 
-1. proxy generation and relink
-2. source/program monitor
-3. trim/roll/slip/slide
-4. insert/overwrite editing modes
-5. magnetic/storyline mode
-6. compound clips/nested sequences
-7. transitions and handles
-8. text/caption editor
-9. Zundamon PSD/ZIP ingest
+1. Add browser fixture acceptance harness
+2. Validate frame count / timestamps / duration
+3. Validate A/V sync over long durations
+4. Add memory/resource regression checks
+5. Improve missing/unsupported media reporting
+6. Add render diagnostics log
 
-### P2 — Professional production layer
+### P1 — Render semantic parity
 
-1. multicam
-2. text-based editing
-3. color scopes
-4. LUT/color pipeline
-5. audio mixer/buses/ducking
-6. OTIO import/export
-7. EDL export
-8. effect preset browser
-9. plugin API v1
+1. text / subtitle / generator compositor
+2. keyframe interpolation
+3. registered effect rendering
+4. Preview/Export parity fixtures
+5. transition rendering
 
-### P3 — Advanced creation
+### P2 — Performance and media workflow
 
-1. node VFX workspace
-2. tracking/masking
-3. advanced AI command proposals
-4. optional cloud/offload path
-5. collaboration only after the local editor is stable
+1. decode/render Worker boundaries
+2. bounded frame queue/cache
+3. proxy generation
+4. proxy/original relink
+5. thumbnails and waveforms
+6. timeline virtualization
 
-## 11. Testing policy
+### P3 — Professional editing workflow
+
+1. left/ripple/roll/slip/slide trim
+2. insert/overwrite/lift/extract
+3. multi-select / copy / paste
+4. compound clips/nested sequences
+5. transitions and handles
+6. source/program monitor workflow
+
+### P4 — Delivery and production layers
+
+1. MP4/H.264/AAC
+2. WAV/image sequence/captions
+3. OTIO/EDL
+4. color scopes/LUT pipeline
+5. professional audio buses/DSP/automation
+6. Zundamon PSD/ZIP + VOICEVOX timing
+
+## 12. Testing policy
 
 Every pure editing operation should have deterministic unit tests.
 
@@ -432,18 +488,6 @@ Minimum gates before merging substantial implementation work:
 - `npm run typecheck`
 - `npm run build`
 
-Features affecting final output should eventually gain fixture-based render acceptance tests. Schema changes must have migration fixtures. Browser-specific features should have capability/fallback tests.
+Features affecting final output require browser fixture-based render acceptance tests in addition to unit/type/build checks. Schema changes require migration fixtures. Browser-specific features require capability/fallback tests.
 
-## 12. Immediate next implementation task
-
-Do not start by adding more random UI panels.
-
-The next engineering sequence is:
-
-1. finish P0 reliability tests
-2. create capability-probe module and diagnostics panel
-3. define render interfaces and worker messages
-4. implement a frame-stepped WebM prototype
-5. only then expand the visible professional editing surface
-
-This order prevents the project from becoming a visually impressive editor that cannot reliably decode, preview, recover or export real projects.
+CI success proves the codebase compiles, typechecks and passes current automated tests; it does not by itself prove long-duration browser rendering, codec availability, A/V sync or output quality on every target device.

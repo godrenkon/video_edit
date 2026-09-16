@@ -1,7 +1,10 @@
 # Roadmap
 
+Current implementation branch: `main`.
+
 調査・設計の詳細:
 
+- `docs/MASTER_PLAN.md`
 - `docs/RESEARCH_2026.md`
 - `docs/FEATURE_MATRIX_V2.md`
 - `docs/IMPLEMENTATION_PLAN_V2.md`
@@ -22,12 +25,13 @@
 - [x] continuous drag/slider history coalescing
 - [x] project schema v1 -> v2 migration
 - [x] rotating OPFS recovery snapshots
+- [x] crash-session marker + recovery selection UI
 - [x] TypeScript + production build CI
+- [x] automated tests for timeline operations / migration / history / commands
+- [x] browser capability and codec diagnostics
 - [ ] deterministic EditorCommand layer for every edit
-- [ ] full crash-session marker + recovery selection UI
 - [ ] multiple project launcher
 - [ ] customizable keyboard shortcut manager
-- [ ] automated tests for timeline operations / migration / history
 
 ## Phase 1 — Practical Editing Core
 
@@ -55,7 +59,8 @@
 - [x] common keyframe/effect data model
 - [ ] crop UI
 - [x] anchor point data model
-- [ ] speed / reverse / freeze frame engine
+- [x] speed / reverse source-time evaluation
+- [ ] freeze frame engine
 - [x] speed / reverse data model
 - [ ] clip grouping / compound clips
 - [x] grouping field in clip model
@@ -66,54 +71,74 @@
 
 ## Phase 2 — High Performance Media Engine
 
-- [ ] demux layer
-- [ ] WebCodecs video decoder
-- [ ] WebCodecs audio decoder
+- [x] initial demux/decode layer via Mediabunny
+- [x] WebCodecs-backed video frame decode path
+- [x] WebCodecs-backed audio decode path for offline mix
+- [x] bounded source cache configuration
 - [ ] decode workers
-- [ ] bounded frame cache
 - [ ] proxy generation
 - [ ] proxy/original relink
 - [ ] thumbnail cache
 - [ ] waveform cache
 - [ ] preview render cache
-- [ ] OffscreenCanvas compositor
+- [x] OffscreenCanvas-capable Canvas 2D compositor path
 - [ ] WebGPU compositor
 - [ ] WebGL2 fallback
-- [ ] frame-accurate playback
+- [ ] frame-accurate playback engine
 - [ ] dropped-frame / decode-latency diagnostics
 - [ ] timeline virtualization for long projects
 
 ## Phase 3 — Export / Deliver
 
-- [ ] offline render graph
-- [ ] WebCodecs encoder
+- [x] deterministic offline render clock / frame loop
+- [x] project frame planning / shared timeline evaluation
+- [x] source frame decoder provider
+- [x] Canvas 2D compositor for current asset layers
+- [x] WebCodecs-backed video encoding through Mediabunny
+- [x] WebM muxer
+- [x] codec capability probing including H.264 / VP9 / VP8 / AV1
+- [x] VP9 export where supported
+- [x] VP8 fallback where supported
+- [x] AV1 export where supported
+- [x] Opus audio encode / mux where supported
+- [x] chunked audio-track decode and mix
+- [x] mute / solo / clip volume handling in offline audio mix
+- [x] speed / reverse mapping in offline audio mix
+- [x] in/out range export
+- [x] OPFS direct long-form output path
+- [x] memory output fallback
+- [x] render progress / cancellation / error reporting
+- [x] editor UI video-export control separated from project backup
+- [ ] browser fixture render acceptance tests
+- [ ] long-duration A/V sync acceptance tests
+- [ ] long-render memory leak acceptance tests
+- [ ] text / subtitle / generator rendering in final export
+- [ ] effect / keyframe rendering parity with preview
 - [ ] MP4 muxer
-- [ ] WebM muxer
-- [ ] H.264 capability probing
-- [ ] VP9
-- [ ] AV1 where supported
+- [ ] H.264 video export
+- [ ] AAC audio export
 - [ ] transparent WebM where supported
 - [ ] WAV / audio-only
 - [ ] PNG still / image sequence
-- [ ] bitrate / quality presets
-- [ ] 720p / 1080p / 1440p / 4K presets
-- [ ] hardware encoder capability test
-- [ ] in/out range export
+- [ ] bitrate / quality preset UI
+- [ ] 720p / 1080p / 1440p / 4K preset UI
+- [ ] hardware encoder preference / benchmark
 - [ ] render queue
-- [ ] render cancellation / recovery
+- [ ] resumable render recovery
 
-> 完成動画のMP4/WebMレンダリングはまだ未実装。現在の「プロジェクトを書き出し」は `.sveproj.json` バックアップであり、動画書き出しとは別機能。
+> 初期WebM offline exportは実装済み。現在の書き出しはframe-steppedで、対応環境ではVP9/VP8/AV1映像とOpus音声をWebMへmuxする。MP4、全effect/text parity、実機fixtureによる長時間検証は未完成。
 
 ## Phase 4 — Audio / Fairlight-style Workflow
 
 - [ ] waveform cache
-- [ ] clip gain / fades
-- [ ] pan
-- [ ] track mixer
-- [ ] mute / solo
+- [x] clip gain in offline export mix
+- [ ] fades
+- [ ] pan rendering
+- [ ] track mixer UI
+- [x] mute / solo semantics in offline export
 - [ ] bus routing
-- [ ] EQ
-- [ ] compressor
+- [ ] EQ rendering
+- [ ] compressor rendering
 - [ ] limiter
 - [ ] gate / expander
 - [ ] de-esser
@@ -130,7 +155,8 @@
 - [x] extensible effect registry / parameter descriptor model
 - [x] initial descriptors: brightness/contrast, exposure, saturation, temperature/tint
 - [x] initial descriptors: blur, sharpen, vignette, chroma key, drop shadow
-- [ ] actual GPU/Canvas effect rendering
+- [x] basic transform / crop / blend-mode Canvas composition path
+- [ ] actual registered effect rendering
 - [ ] keyframe interpolation engine
 - [ ] hold / linear / cubic-bezier interpolation
 - [ ] graph editor
@@ -144,7 +170,7 @@
 - [ ] mask feather / expand / invert
 - [ ] point tracker
 - [ ] planar tracker
-- [ ] blend modes rendering
+- [ ] full blend-mode parity tests
 - [ ] motion blur
 - [ ] reusable effect presets
 
@@ -156,6 +182,7 @@
 - [ ] fill / stroke / shadow / background
 - [ ] lower-third templates
 - [ ] subtitle track editor
+- [ ] final-export text/subtitle compositor
 - [ ] SRT import/export
 - [ ] VTT import/export
 - [ ] ASS subset
@@ -172,6 +199,7 @@
 ## Phase 7 — Zundamon / YMM4 Replacement
 
 - [x] audio-volume-based mouth states
+- [x] mouth cue evaluation by actual cue timestamps
 - [x] blink
 - [x] bob animation
 - [x] vowel field in mouth-cue schema
@@ -233,7 +261,7 @@ Large AI models must be optional and selected according to WebGPU/device capabil
 ## Phase 11 — Quality of Life / Extension
 
 - [x] rotating autosave snapshots
-- [ ] recovery browser UI
+- [x] recovery browser UI
 - [ ] project templates
 - [ ] reusable asset bins
 - [ ] tags / rating / favorites UI

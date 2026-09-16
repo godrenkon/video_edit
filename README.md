@@ -1,12 +1,12 @@
 # Suiram Video Edit
 
-> **制作作業は `work` ブランチから開始してください。** 最初に [`WORK_START.md`](WORK_START.md) を読み、全体設計は [`docs/MASTER_PLAN.md`](docs/MASTER_PLAN.md) を基準にしてください。古い設計書と矛盾する場合は `MASTER_PLAN.md` を優先します。
+> **制作作業は `main` ブランチを基準に進めます。** 最初に [`WORK_START.md`](WORK_START.md) を読み、全体設計は [`docs/MASTER_PLAN.md`](docs/MASTER_PLAN.md) を基準にしてください。古い設計書と矛盾する場合は `MASTER_PLAN.md` と現在の `main` 実装を優先します。
 
 ブラウザだけで動く、高性能な個人用ノンリニア動画編集環境を目指すプロジェクトです。Adobe Premiere Pro / DaVinci Resolve / Final Cut Pro / Avid / YMM4 等の有用なワークフローを調査し、Chrome + AWS Amplify Hosting で一つの編集環境に統合することを長期目標にしています。
 
-> 現在: **v0.3 production handoff foundation**。v0.1/v0.2の素材管理・タイムライン・調査基盤に加え、Undo/Redo、v2プロジェクトスキーマ、復旧snapshot、クラッシュ復旧UI、分割・リップル削除・スナップ、エフェクト/キーフレーム共通モデル、EditorCommand基盤、Vitest/CIまで制作開始用に整備しています。
+> 現在: **v0.3 render foundation**。Undo/Redo、v2 project schema、OPFS recovery、タイムライン編集基盤に加え、ブラウザ能力診断、Mediabunnyによるframe decode、deterministic offline render、Canvas 2D compositor、WebM/Opus mux、進捗・キャンセル対応の初期動画書き出しまで `main` に実装しています。
 
-## v0.3で実装済み / 整備済み
+## 現在実装済み / 整備済み
 
 ### 基盤 / 安全性
 
@@ -21,9 +21,9 @@
 - Undo / Redo履歴
 - ドラッグ/スライダー操作の履歴coalescing
 - EditorCommand基盤
-- Vitestテスト基盤
-- `work` ブランチを含むGitHub Actions CI
-- CI: `npm test` → TypeScript check → production build
+- Vitest回帰テスト
+- GitHub Actions CI: `npm test` → TypeScript check → production build
+- WebCodecs / codec / OPFS / persistent storage / WebGPU / OffscreenCanvas等のbrowser capability診断
 
 ### タイムライン
 
@@ -36,6 +36,7 @@
 - 再生ヘッド / marker / 他clip端へのsnapping
 - 1frame nudge
 - トラックmute / lock
+- speed / reverseを考慮する共通timeline evaluator
 - keyboard shortcuts
   - `Ctrl/Cmd + Z` Undo
   - `Ctrl/Cmd + Shift + Z` / `Ctrl/Cmd + Y` Redo
@@ -43,6 +44,31 @@
   - `Shift + Delete` リップル削除
   - `Alt + ← / →` 1frame移動
   - `Space` 再生/一時停止
+
+### Offline render / Deliver
+
+最初の実動画書き出し経路を実装済みです。
+
+- realtime `canvas.captureStream()`ではなく、frame-stepped deterministic render
+- ProjectとPreviewで共有するtimeline evaluation
+- Mediabunnyによる必要時刻の動画frame decode
+- image bitmap cache / decoder reuse / decoded sample release
+- Canvas 2D compositor
+  - contain配置
+  - transform / anchor / rotation / opacity
+  - crop
+  - 対応blend mode
+- VP9 / VP8 / AV1 capabilityに応じたWebM video encode
+- audio trackをchunk単位でdecode / mix
+- mute / solo / clip volume / speed / reverseを考慮する初期audio mixer
+- Opus音声をWebMへmux
+- in/out range対応
+- render progress / cancellation / error reporting
+- 長時間向けOPFS direct output
+- OPFS非対応時のmemory output fallback
+- UI上で「バックアップ」と「動画書き出し」を分離
+
+現段階のWebM出力は**初期production pipeline**です。CIではunit test / typecheck / production buildまで検証していますが、長時間・多形式素材を使うbrowser fixture acceptance testは今後追加します。
 
 ### 編集データモデル
 
@@ -78,13 +104,14 @@
 - high-pass / low-pass
 - compressor
 
-現時点では**descriptor/data model段階**であり、上記の全effectが映像へ実レンダリングされる段階ではありません。実レンダリングはWebGPU / WebGL2 / Canvas / Web Audio系backendへ順次接続します。
+現時点では**descriptor/data model段階のeffectが多く、全effectがPreview/Exportへ実レンダリングされる状態ではありません。** 実レンダリングはWebGPU / WebGL2 / Canvas / Web Audio系backendへ順次接続します。
 
 ### ずんだもん / VOICEVOX
 
 - 口閉じ / 半開き / 開き / 瞬きPNG
 - VOICEVOX等の音声をブラウザ内でRMS解析
 - 3段階自動口パク
+- cue実時刻に基づく口パク評価
 - 自動瞬き
 - 上下のbob animation
 - 音声clip + 立ち絵clipの自動タイムライン配置
@@ -92,32 +119,45 @@
 
 ## 制作開始時に読むもの
 
-1. `WORK_START.md` — Work会話が最初に読む制作開始手順
+1. `WORK_START.md` — 制作開始手順と現在の次工程
 2. `docs/MASTER_PLAN.md` — 現行の最上位設計・実装順
-3. `docs/RESEARCH_2026.md` — 主要編集ソフトの調査
-4. `docs/FEATURE_MATRIX_V2.md` — 機能ごとのPriority / Difficulty / Web実装方式
-5. `docs/IMPLEMENTATION_PLAN_V2.md` — Stageごとの詳細実装計画
-6. `docs/ROADMAP.md` — 実装状況
+3. `docs/ROADMAP.md` — 実装状況
+4. `docs/RESEARCH_2026.md` — 主要編集ソフトの調査
+5. `docs/FEATURE_MATRIX_V2.md` — 機能ごとのPriority / Difficulty / Web実装方式
+6. `docs/IMPLEMENTATION_PLAN_V2.md` — Stageごとの詳細実装計画
 7. `docs/ARCHITECTURE.md` — 基礎エンジン構造
 8. `docs/ZUNDAMON.md` — ずんだもん自動化仕様
 
-## 重要: まだ未実装の中核機能
+## 重要: まだ未完成の中核機能
 
-**完成動画のMP4 / WebM本番書き出しは、まだ未実装です。** 現在の「プロジェクトを書き出し」は `.sveproj.json` のバックアップであり、動画レンダリングではありません。
+WebMの初期offline exportは実装済みですが、次は以下を完成させます。
 
-本番動画出力は、プレビュー画面録画ではなく次のoffline render pipelineとして実装します。
+- browser実機fixtureによるA/V sync・frame accuracy・長時間memory検証
+- text / subtitle / generatorの本番compositor接続
+- effect / keyframe結果のPreviewとExport共通化
+- MP4 / H.264 + AAC出力
+- proxy + relink
+- waveform / thumbnail cache
+- decode / render Worker化
+- WebGPU compositor + WebGL fallback
+- professional audio mixer / DSP / automation
+- PSD/ZIP直接読み込みとVOICEVOX timing
+
+現行export pipeline:
 
 ```text
-Timeline
- -> deterministic source decode
- -> effects / composite
- -> offline audio mix
- -> VideoEncoder / AudioEncoder
- -> MP4 / WebM muxer
- -> output
+Project / Timeline
+ -> deterministic timeline evaluation
+ -> Mediabunny source decode
+ -> Canvas 2D composite
+ -> chunked audio decode + mix
+ -> WebCodecs encode
+ -> WebM + Opus mux
+ -> OPFS direct output / memory fallback
+ -> download
 ```
 
-また、WebCodecs Worker再生、proxy、waveform/thumbnail cache、GPU compositor、AudioWorklet mixer、PSD/ZIP直接読み込み等も今後の工程です。
+Previewとfinal exportは別pipelineのまま維持し、同じtimeline evaluationとeffect semanticsを共有して結果差を減らします。
 
 ## 目標アーキテクチャ
 
@@ -141,6 +181,7 @@ Render
   └─ CPU/WASM correctness fallback where required
 
 Audio
+  ├─ chunked offline mixer / Opus export
   ├─ Web Audio
   └─ AudioWorklet DSP
 ```
@@ -173,7 +214,7 @@ npm run build
 - build: `npm run build`
 - artifact: `dist`
 - 静的配信を基本とする
-- 素材はOPFSへローカル保存
+- 素材・長尺render中間/出力はOPFSを優先
 - `customHttp.yml` でSharedArrayBuffer / WASM multi-threadを見据えたheaderを設定
 
 ## Definition of usable
