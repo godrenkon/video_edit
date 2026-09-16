@@ -18,6 +18,7 @@ export interface VisualFrameLayerPlan {
   kind: ClipKind;
   assetId: string | null;
   sourceTime: number;
+  clipLocalTime: number;
   transform: Required<Pick<Transform, 'x' | 'y' | 'scale' | 'rotation' | 'opacity'>> & {
     anchorX: number;
     anchorY: number;
@@ -46,6 +47,7 @@ export function buildVisualFramePlan(project: Project, timeSeconds: number): Vis
       kind: clip.kind,
       assetId: zundamon?.assetId ?? clip.assetId ?? null,
       sourceTime,
+      clipLocalTime: Math.max(0, Math.min(clip.duration, timeSeconds - clip.start)),
       transform: {
         x: clip.transform.x,
         y: clip.transform.y + (zundamon?.bobOffset ?? 0),

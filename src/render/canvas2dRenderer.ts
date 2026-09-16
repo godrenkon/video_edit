@@ -1,4 +1,5 @@
 import type { BlendMode, Crop, Project } from '../types/editor';
+import { canvasFilterForEffects } from './effectEvaluation';
 import { buildVisualFramePlan, type VisualFrameLayerPlan } from './framePlan';
 import { RenderAssetStore } from './renderAssetStore';
 import {
@@ -92,6 +93,7 @@ function resetCanvas(context: RenderContext2D, project: Project) {
   context.resetTransform();
   context.globalAlpha = 1;
   context.globalCompositeOperation = 'source-over';
+  context.filter = 'none';
   context.fillStyle = project.background || '#000000';
   context.fillRect(0, 0, project.width, project.height);
   context.restore();
@@ -100,6 +102,7 @@ function resetCanvas(context: RenderContext2D, project: Project) {
 function applyLayerTransform(context: RenderContext2D, project: Project, layer: VisualFrameLayerPlan) {
   context.globalAlpha = clamp(layer.transform.opacity, 0, 1);
   context.globalCompositeOperation = blendModeToCanvas(layer.blendMode);
+  context.filter = canvasFilterForEffects(layer.effects, layer.clipLocalTime);
   context.translate(project.width / 2 + layer.transform.x, project.height / 2 + layer.transform.y);
   context.rotate(layer.transform.rotation * Math.PI / 180);
   context.scale(layer.transform.scale, layer.transform.scale);
