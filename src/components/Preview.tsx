@@ -1,12 +1,20 @@
 import { Maximize2, Pause, Play, SkipBack, Volume2 } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import {
   audioTimelineItems,
   clipSourceTime,
   visualTimelineItems,
   zundamonVisualState,
 } from '../render/timelineEvaluation';
+import {
+  deterministicNoiseByte,
+  generatorColor,
+  generatorNumber,
+  hashString,
+  resolveTextStyle,
+} from '../render/syntheticLayers';
 import type { AssetMeta, Clip, Project } from '../types/editor';
+import '../preview-synthetic.css';
 
 interface Props {
   project: Project;
@@ -16,7 +24,22 @@ interface Props {
   onTime: (time: number) => void;
 }
 
-function VisualLayer({ clip, asset, time, playing }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean }) {
+function clipPreviewTransform(clip: Clip, project: Project, extraY = 0) {
+  const x = clip.transform.x / Math.max(1, project.width) * 100;
+  const y = (clip.transform.y + extraY) / Math.max(1, project.height) * 100;
+  return `translate(${x}%, ${y}%) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`;
+}
+
+function layerStyle(clip: Clip, project: Project, extraY = 0): CSSProperties {
+  return {
+    transform: clipPreviewTransform(clip, project, extraY),
+    transformOrigin: `${(clip.transform.anchorX ?? 0.5) * 100}% ${(clip.transform.anchorY ?? 0.5) * 100}%`,
+    opacity: Math.max(0, Math.min(1, clip.transform.opacity)),
+    mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
+  };
+}
+
+function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asset?: AssetMeta; project: Project; time: number; playing: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const sourceTime = clipSourceTime(clip, time);
   const playbackRate = Math.max(0.0625, Math.min(16, clip.speed ?? 1));
@@ -38,22 +61,70 @@ function VisualLayer({ clip, asset, time, playing }: { clip: Clip; asset?: Asset
   }, [clip.reverse, playbackRate, playing]);
 
   if (!asset?.objectUrl) return null;
-  const transform = `translate(${clip.transform.x}px, ${clip.transform.y}px) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`;
-  const style = { transform, opacity: clip.transform.opacity };
+  const style = layerStyle(clip, project);
 
   if (asset.kind === 'video') return <video ref={videoRef} className="previewMedia" src={asset.objectUrl} muted playsInline style={style} />;
   if (asset.kind === 'image') return <img className="previewMedia" src={asset.objectUrl} alt="" draggable={false} style={style} />;
   return null;
 }
 
-function ZundamonLayer({ clip, assets, time }: { clip: Clip; assets: AssetMeta[]; time: number }) {
+function ZundamonLayer({ clip, assets, project, time }: { clip: Clip; assets: AssetMeta[]; project: Project; time: number }) {
   const state = zundamonVisualState(clip, time);
   if (!state.assetId) return null;
   const asset = assets.find((item) => item.id === state.assetId);
   if (!asset?.objectUrl) return null;
 
-  const transform = `translate(${clip.transform.x}px, ${clip.transform.y + state.bobOffset}px) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`;
-  return <img className="previewMedia zundamonMedia" src={asset.objectUrl} alt="" draggable={false} style={{ transform, opacity: clip.transform.opacity }} />;
+  return <img className="previewMedia zundamonMedia" src={asset.objectUrl} alt="" draggable={false} style={layerStyle(clip, project, state.bobOffset)} />;
+}
+
+function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project; time: number }) {
+  const common = layerStyle(clip, project);
+
+  if (clip.kind === 'text' || clip.kind === 'subtitle') {
+    const subtitle = clip.kind === 'subtitle' ? clip.subtitle?.text : undefined;
+    const text = resolveTextStyle(clip.text ?? null, subtitle);
+    if (!text.text) return null;
+    const fontSizeCqw = text.fontSize / Math.max(1, project.width) * 100;
+    const style: CSSProperties = {
+      ...common,
+      fontFamily: text.fontFamily,
+      fontSize: `${fontSizeCqw}cqw`,
+      fontWeight: text.fontWeight,
+      color: text.color,
+      textAlign: text.align,
+      WebkitTextStroke: text.strokeColor && text.strokeWidth > 0 ? `${text.strokeWidth / Math.max(1, project.width) * 100}cqw ${text.strokeColor}` : undefined,
+    };
+    return (
+      <div className="previewSynthetic previewTextLayer" style={style}>
+        <div style={{ background: text.backgroundColor ?? undefined }}>{text.text}</div>
+      </div>
+    );
+  }
+
+  if (clip.kind === 'generator' && clip.generator) {
+    const generator = clip.generator;
+    if (generator.kind === 'bars') {
+      return (
+        <div className="previewSynthetic previewGenerator" style={common}>
+          <div className="previewBarsTop" />
+          <div className="previewBarsBottom" />
+        </div>
+      );
+    }
+
+    let background: string | undefined;
+    if (generator.kind === 'gradient') {
+      const angle = generatorNumber(generator, 'angle', 0, -360, 360);
+      background = `linear-gradient(${90 + angle}deg, ${generatorColor(generator, 'startColor', '#161b22')}, ${generatorColor(generator, 'endColor', '#5fd8ff')})`;
+    } else if (generator.kind === 'noise') {
+      background = noiseDataUrl(clip.id, time, generatorNumber(generator, 'speed', 8, 0, 120));
+    } else {
+      background = generatorColor(generator, 'color', '#202830');
+    }
+    return <div className="previewSynthetic previewGenerator" style={{ ...common, background }} />;
+  }
+
+  return null;
 }
 
 function AudioLayer({ clip, asset, time, playing, trackMuted }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean; trackMuted: boolean }) {
@@ -98,9 +169,13 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
         </div>
         <div className="stageOuter">
           <div className="stage" style={{ aspectRatio: aspect, background: project.background }}>
-            {visuals.map(({ clip }) => clip.kind === 'zundamon'
-              ? <ZundamonLayer key={clip.id} clip={clip} assets={project.assets} time={time} />
-              : <VisualLayer key={clip.id} clip={clip} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} />)}
+            {visuals.map(({ clip }) => {
+              if (clip.kind === 'zundamon') return <ZundamonLayer key={clip.id} clip={clip} assets={project.assets} project={project} time={time} />;
+              if (clip.kind === 'text' || clip.kind === 'subtitle' || clip.kind === 'generator') {
+                return <SyntheticLayer key={clip.id} clip={clip} project={project} time={time} />;
+              }
+              return <VisualLayer key={clip.id} clip={clip} project={project} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} />;
+            })}
             {visuals.length === 0 && <div className="stageEmpty"><FilmIcon /><span>タイムラインに素材を追加</span></div>}
           </div>
         </div>
@@ -116,6 +191,29 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
       </div>
     </section>
   );
+}
+
+function noiseDataUrl(clipId: string, timeSeconds: number, speed: number) {
+  if (typeof document === 'undefined') return undefined;
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 18;
+  const context = canvas.getContext('2d');
+  if (!context) return undefined;
+  const image = context.createImageData(canvas.width, canvas.height);
+  const seed = hashString(`${clipId}:${Math.floor(timeSeconds * speed)}`);
+  for (let y = 0; y < canvas.height; y += 1) {
+    for (let x = 0; x < canvas.width; x += 1) {
+      const value = deterministicNoiseByte(seed, x, y);
+      const offset = (y * canvas.width + x) * 4;
+      image.data[offset] = value;
+      image.data[offset + 1] = value;
+      image.data[offset + 2] = value;
+      image.data[offset + 3] = 255;
+    }
+  }
+  context.putImageData(image, 0, 0);
+  return `url(${canvas.toDataURL('image/png')})`;
 }
 
 function formatTime(sec: number) {
