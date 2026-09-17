@@ -1,11 +1,11 @@
 import type { EffectInstance } from '../types/editor';
 import { resolveAudioEffects, type ResolvedAudioEffect } from './audioEffects';
 
-type PreviewEffectNode = {
-  effectId: string;
-  kind: ResolvedAudioEffect['kind'];
-  node: AudioNode;
-};
+type PreviewEffectNode =
+  | { effectId: string; kind: 'gain'; node: GainNode }
+  | { effectId: string; kind: 'pan'; node: StereoPannerNode }
+  | { effectId: string; kind: 'high-pass' | 'low-pass'; node: BiquadFilterNode }
+  | { effectId: string; kind: 'compressor'; node: DynamicsCompressorNode };
 
 /**
  * Web Audio graph used only for realtime preview. Offline export continues to
@@ -64,27 +64,32 @@ export class PreviewAudioGraph {
 
     let previous: AudioNode = this.source;
     for (const effect of effects) {
-      const node = this.createNode(effect);
-      if (!node) continue;
-      previous.connect(node);
-      previous = node;
-      this.nodes.push({ effectId: effect.id, kind: effect.kind, node });
+      const item = this.createNode(effect);
+      if (!item) continue;
+      previous.connect(item.node);
+      previous = item.node;
+      this.nodes.push(item);
     }
     previous.connect(this.context.destination);
     this.updateNodes(effects);
   }
 
-  private createNode(effect: ResolvedAudioEffect): AudioNode | null {
-    if (effect.kind === 'gain') return this.context.createGain();
+  private createNode(effect: ResolvedAudioEffect): PreviewEffectNode | null {
+    if (effect.kind === 'gain') {
+      return { effectId: effect.id, kind: effect.kind, node: this.context.createGain() };
+    }
     if (effect.kind === 'pan') {
-      return typeof this.context.createStereoPanner === 'function' ? this.context.createStereoPanner() : null;
+      if (typeof this.context.createStereoPanner !== 'function') return null;
+      return { effectId: effect.id, kind: effect.kind, node: this.context.createStereoPanner() };
     }
     if (effect.kind === 'high-pass' || effect.kind === 'low-pass') {
-      const filter = this.context.createBiquadFilter();
-      filter.type = effect.kind === 'high-pass' ? 'highpass' : 'lowpass';
-      return filter;
+      const node = this.context.createBiquadFilter();
+      node.type = effect.kind === 'high-pass' ? 'highpass' : 'lowpass';
+      return { effectId: effect.id, kind: effect.kind, node };
     }
-    if (effect.kind === 'compressor') return this.context.createDynamicsCompressor();
+    if (effect.kind === 'compressor') {
+      return { effectId: effect.id, kind: effect.kind, node: this.context.createDynamicsCompressor() };
+    }
     return null;
   }
 
@@ -94,13 +99,13 @@ export class PreviewAudioGraph {
     for (const item of this.nodes) {
       const effect = byId.get(item.effectId);
       if (!effect || effect.kind !== item.kind) continue;
-      if (effect.kind === 'gain' && item.node instanceof GainNode) {
+      if (item.kind === 'gain' && effect.kind === 'gain') {
         setAudioParam(item.node.gain, effect.gain, now);
-      } else if (effect.kind === 'pan' && item.node instanceof StereoPannerNode) {
+      } else if (item.kind === 'pan' && effect.kind === 'pan') {
         setAudioParam(item.node.pan, effect.pan, now);
-      } else if ((effect.kind === 'high-pass' || effect.kind === 'low-pass') && item.node instanceof BiquadFilterNode) {
+      } else if ((item.kind === 'high-pass' || item.kind === 'low-pass') && (effect.kind === 'high-pass' || effect.kind === 'low-pass')) {
         setAudioParam(item.node.frequency, effect.frequency, now);
-      } else if (effect.kind === 'compressor' && item.node instanceof DynamicsCompressorNode) {
+      } else if (item.kind === 'compressor' && effect.kind === 'compressor') {
         setAudioParam(item.node.threshold, effect.thresholdDb, now);
         setAudioParam(item.node.ratio, effect.ratio, now);
         setAudioParam(item.node.attack, effect.attack, now);
