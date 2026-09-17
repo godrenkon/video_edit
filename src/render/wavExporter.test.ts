@@ -4,7 +4,7 @@ import { audioBufferToPcm16, createWavHeader } from './wavExporter';
 describe('WAV export primitives', () => {
   it('writes a canonical 16-bit PCM WAV header', () => {
     const header = createWavHeader(48_000, 48_000, 2);
-    const view = new DataView(header.buffer);
+    const view = new DataView(ownedBuffer(header));
     expect(readAscii(header, 0, 4)).toBe('RIFF');
     expect(readAscii(header, 8, 4)).toBe('WAVE');
     expect(readAscii(header, 12, 4)).toBe('fmt ');
@@ -25,9 +25,9 @@ describe('WAV export primitives', () => {
       length: 2,
       numberOfChannels: 2,
       getChannelData: (channel: number) => channel === 0 ? left : right,
-    } as AudioBuffer;
+    } as unknown as AudioBuffer;
     const pcm = audioBufferToPcm16(buffer, 2);
-    const view = new DataView(pcm.buffer);
+    const view = new DataView(ownedBuffer(pcm));
     expect(view.getInt16(0, true)).toBe(-32768);
     expect(view.getInt16(2, true)).toBe(32767);
     expect(view.getInt16(4, true)).toBe(16384);
@@ -40,13 +40,19 @@ describe('WAV export primitives', () => {
       length: 1,
       numberOfChannels: 1,
       getChannelData: () => mono,
-    } as AudioBuffer;
+    } as unknown as AudioBuffer;
     const pcm = audioBufferToPcm16(buffer, 2);
-    const view = new DataView(pcm.buffer);
+    const view = new DataView(ownedBuffer(pcm));
     expect(view.getInt16(0, true)).toBe(8192);
     expect(view.getInt16(2, true)).toBe(8192);
   });
 });
+
+function ownedBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
 
 function readAscii(bytes: Uint8Array, offset: number, length: number) {
   return String.fromCharCode(...bytes.slice(offset, offset + length));
