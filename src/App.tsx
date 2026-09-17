@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles } from 'lucide-react';
+import { rippleTrimClip, rollEditBoundary } from './core/advancedTimelineOps';
 import { detectCapabilities } from './core/capabilities';
 import { HistoryController } from './core/history';
 import { analyzeMouthCues, buildAssetMeta } from './core/media';
@@ -597,6 +598,14 @@ export default function App() {
           if (!location) return p;
           return trimClipRight(p, id, location.clip.start + duration, time, snapThreshold);
         }, { label: '右トリム', key: `clip:${id}:trim-right` })}
+        onRippleTrimClip={(id, edge, boundary) => updateProject(
+          (p) => rippleTrimClip(p, id, edge, boundary, time, snapThreshold),
+          { label: 'リップルトリム', key: `clip:${id}:ripple-trim:${edge}` },
+        )}
+        onRollEditClip={(id, edge, boundary) => updateProject(
+          (p) => rollEditBoundary(p, id, edge, boundary),
+          { label: 'ロール編集', key: `clip:${id}:roll:${edge}` },
+        )}
         onToggleMuteTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, muted: !t.muted } : t) }), { label: 'トラックミュート' })}
         onToggleLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, locked: !t.locked } : t) }), { label: 'トラックロック' })}
       />
