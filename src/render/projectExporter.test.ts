@@ -8,7 +8,9 @@ import {
   defaultVideoBitrate,
   projectHasAudibleAudio,
   projectRenderRange,
+  qualityVideoBitrate,
   resolveExportDimensions,
+  resolveProjectExportOptions,
   selectPreferredExportContainer,
   selectWebMVideoCodec,
 } from './projectExporter';
@@ -64,6 +66,28 @@ describe('project export planning', () => {
       startSeconds: 18,
       endSeconds: 18,
       durationSeconds: 0,
+    });
+  });
+
+  it('loads persisted export preferences and lets explicit options win', () => {
+    const input = project({
+      exportSettings: { container: 'webm', outputHeight: 720, quality: 'compact', includeAudio: false },
+    });
+    expect(resolveProjectExportOptions(input)).toMatchObject({
+      container: 'webm', outputHeight: 720, quality: 'compact', includeAudio: false,
+    });
+    expect(resolveProjectExportOptions(input, {
+      container: 'mp4', outputHeight: 2160, quality: 'high', includeAudio: true,
+    })).toMatchObject({
+      container: 'mp4', outputHeight: 2160, quality: 'high', includeAudio: true,
+    });
+  });
+
+  it('does not mix a saved height with an explicit output width', () => {
+    const input = project({ exportSettings: { outputHeight: 720 } });
+    expect(resolveProjectExportOptions(input, { outputWidth: 1280 })).toMatchObject({
+      outputWidth: 1280,
+      outputHeight: undefined,
     });
   });
 
@@ -145,5 +169,13 @@ describe('project export planning', () => {
     expect(defaultVideoBitrate(1920, 1080, 30)).toBe(7_464_960);
     expect(defaultVideoBitrate(320, 180, 24)).toBe(2_000_000);
     expect(defaultVideoBitrate(7680, 4320, 120)).toBe(50_000_000);
+  });
+
+  it('applies compact and high quality multipliers within bitrate bounds', () => {
+    const balanced = qualityVideoBitrate(1920, 1080, 30, 'balanced');
+    expect(balanced).toBe(defaultVideoBitrate(1920, 1080, 30));
+    expect(qualityVideoBitrate(1920, 1080, 30, 'compact')).toBe(Math.round(balanced * 0.65));
+    expect(qualityVideoBitrate(1920, 1080, 30, 'high')).toBe(Math.round(balanced * 1.5));
+    expect(qualityVideoBitrate(7680, 4320, 120, 'high')).toBe(50_000_000);
   });
 });
