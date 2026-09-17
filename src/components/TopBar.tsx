@@ -114,7 +114,7 @@ export function TopBar({
             <X size={16} />中止 {progressLabel}
           </button>
         ) : (
-          <button className="button primary" onClick={onRender} title="タイムラインをWebM動画として書き出す">
+          <button className="button primary" onClick={onRender} title="プロジェクトに保存した形式・解像度・画質設定で動画を書き出す">
             <Clapperboard size={16} />動画書き出し
           </button>
         )}
