@@ -10,6 +10,7 @@ import {
 } from 'mediabunny';
 import { runFrameRenderLoop } from './frameLoop';
 import { createOpfsRenderTarget } from './opfsRenderTarget';
+import { planAudioChunks, type AudioChunkPlan } from './renderSchedule';
 import type { RenderFrameRequest, RenderProgress } from './types';
 
 export type WebMVideoCodec = 'vp8' | 'vp9' | 'av1';
@@ -18,6 +19,7 @@ export interface WebMAudioRenderOptions {
   codec?: 'opus';
   bitrate?: number;
   chunkSeconds?: number;
+  sampleRate?: number;
   renderChunk: (startSeconds: number, durationSeconds: number, signal?: AbortSignal) => Promise<AudioBuffer>;
 }
 
@@ -157,20 +159,31 @@ export async function renderCanvasToOpfsWebM(fileName: string, options: WebMRend
 }
 
 async function runRenderLoop(writer: MediabunnyWebMCanvasWriter, options: WebMRenderOptions) {
-  let audioCursor = 0;
-  const audioChunkSeconds = Math.max(0.1, options.audio?.chunkSeconds ?? 2);
+  const audioChunks = options.audio
+    ? planAudioChunks(
+        options.durationSeconds,
+        options.audio.chunkSeconds ?? 2,
+        options.audio.sampleRate ?? 48_000,
+      )
+    : [];
+  let nextAudioChunkIndex = 0;
+
+  const addAudioChunk = async (chunk: AudioChunkPlan) => {
+    if (!options.audio) return;
+    const buffer = await options.audio.renderChunk(chunk.startSeconds, chunk.durationSeconds, options.signal);
+    await writer.addAudioBuffer(buffer);
+    nextAudioChunkIndex = chunk.index + 1;
+  };
 
   const addNextAudioChunk = async () => {
-    if (!options.audio || audioCursor >= options.durationSeconds - 1e-9) return;
-    const duration = Math.min(audioChunkSeconds, options.durationSeconds - audioCursor);
-    const buffer = await options.audio.renderChunk(audioCursor, duration, options.signal);
-    await writer.addAudioBuffer(buffer);
-    audioCursor += duration;
+    const chunk = audioChunks[nextAudioChunkIndex];
+    if (!chunk) return;
+    await addAudioChunk(chunk);
   };
 
   // Keep audio slightly ahead of video so neither track needs to buffer the
   // entire render while waiting for the other one to begin.
-  if (options.audio) await addNextAudioChunk();
+  if (audioChunks.length > 0) await addNextAudioChunk();
 
   await runFrameRenderLoop({
     width: options.width,
@@ -184,13 +197,13 @@ async function runRenderLoop(writer: MediabunnyWebMCanvasWriter, options: WebMRe
       await writer.addFrame(request);
 
       const videoEnd = request.timeSeconds + request.durationUs / 1_000_000;
-      while (options.audio && audioCursor < options.durationSeconds - 1e-9 && videoEnd + 1e-9 >= audioCursor) {
+      while (nextAudioChunkIndex < audioChunks.length && videoEnd + 1e-9 >= audioChunks[nextAudioChunkIndex].startSeconds) {
         await addNextAudioChunk();
       }
     },
   });
 
-  while (options.audio && audioCursor < options.durationSeconds - 1e-9) {
+  while (nextAudioChunkIndex < audioChunks.length) {
     await addNextAudioChunk();
   }
 }
