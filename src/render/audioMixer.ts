@@ -1,6 +1,7 @@
 import type { WrappedAudioBuffer } from 'mediabunny';
 import { readAssetFile } from '../core/storage';
 import type { AssetMeta, Clip, EffectInstance, Project } from '../types/editor';
+import { clipFadeGain } from './audioEnvelope';
 import { clipSourceTime } from './timelineEvaluation';
 import {
   createAudioEffectState,
@@ -15,12 +16,15 @@ export interface AudioMixSegment {
   clipId: string;
   assetId: string;
   clipStart: number;
+  clipDuration: number;
   timelineStart: number;
   timelineEnd: number;
   sourceStart: number;
   speed: number;
   reverse: boolean;
   gain: number;
+  fadeIn: number;
+  fadeOut: number;
   effects: EffectInstance[];
 }
 
@@ -57,12 +61,15 @@ export function buildAudioMixSegments(project: Project, startSeconds: number, en
         clipId: clip.id,
         assetId: clip.assetId,
         clipStart: clip.start,
+        clipDuration: Math.max(0, clip.duration),
         timelineStart,
         timelineEnd,
         sourceStart: clipSourceTime(clip, timelineStart),
         speed: Math.max(0.0001, clip.speed ?? 1),
         reverse: Boolean(clip.reverse),
         gain: Math.max(0, clip.volume),
+        fadeIn: Math.max(0, clip.fadeIn ?? 0),
+        fadeOut: Math.max(0, clip.fadeOut ?? 0),
         effects: clip.effects ?? [],
       });
     }
@@ -198,18 +205,25 @@ function mixSegment(
   for (let frame = firstFrame; frame < lastFrame; frame += 1) {
     if ((frame & 4095) === 0) throwIfAborted(signal);
     const timelineTime = chunkStart + frame / output.sampleRate;
+    const clipLocalTime = Math.max(0, timelineTime - segment.clipStart);
     const sourceTime = segmentSourceTime(segment, timelineTime);
     const wrapped = findWrappedBuffer(buffers, sourceTime);
     if (!wrapped) continue;
 
     if ((frame - firstFrame) % 128 === 0) {
-      resolvedEffects = resolveAudioEffects(segment.effects, Math.max(0, timelineTime - segment.clipStart));
+      resolvedEffects = resolveAudioEffects(segment.effects, clipLocalTime);
     }
 
     const source = wrapped.buffer;
     const sourceFrame = Math.max(0, (sourceTime - wrapped.timestamp) * source.sampleRate);
-    let left = sampleChannel(source, 0, sourceFrame) * segment.gain;
-    let right = sampleChannel(source, Math.min(1, source.numberOfChannels - 1), sourceFrame) * segment.gain;
+    const envelopeGain = clipFadeGain({
+      duration: segment.clipDuration,
+      fadeIn: segment.fadeIn,
+      fadeOut: segment.fadeOut,
+    }, clipLocalTime);
+    const clipGain = segment.gain * envelopeGain;
+    let left = sampleChannel(source, 0, sourceFrame) * clipGain;
+    let right = sampleChannel(source, Math.min(1, source.numberOfChannels - 1), sourceFrame) * clipGain;
     [left, right] = processAudioEffects(left, right, resolvedEffects, output.sampleRate, effectState);
 
     if (outputChannels.length === 1) {
