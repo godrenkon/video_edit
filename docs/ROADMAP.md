@@ -36,7 +36,7 @@ Current implementation branch: `main`.
 ## Phase 1 — Practical Editing Core
 
 - [x] right trim
-- [ ] left trim
+- [x] left trim
 - [x] split at playhead
 - [x] ripple delete
 - [x] frame quantization
@@ -44,7 +44,8 @@ Current implementation branch: `main`.
 - [x] one-frame nudge
 - [ ] ripple trim
 - [ ] roll edit
-- [ ] slip edit
+- [x] slip edit core
+- [ ] slip edit UI
 - [ ] slide edit
 - [ ] insert / overwrite
 - [ ] lift / extract
@@ -53,13 +54,14 @@ Current implementation branch: `main`.
 - [x] duplicate operation core
 - [ ] track add / remove / reorder
 - [ ] transitions
-- [ ] text / subtitles / shapes UI
+- [x] text / subtitles / generator creation UI
 - [x] data model for text / subtitle / generator clips
-- [ ] keyframe editor UI
+- [x] initial keyframe editor UI
 - [x] common keyframe/effect data model
-- [ ] crop UI
+- [x] crop UI
 - [x] anchor point data model
 - [x] speed / reverse source-time evaluation
+- [x] speed / reverse inspector controls
 - [ ] freeze frame engine
 - [x] speed / reverse data model
 - [ ] clip grouping / compound clips
@@ -96,27 +98,30 @@ Current implementation branch: `main`.
 - [x] Canvas 2D compositor for current asset layers
 - [x] WebCodecs-backed video encoding through Mediabunny
 - [x] WebM muxer
+- [x] MP4 muxer
 - [x] codec capability probing including H.264 / VP9 / VP8 / AV1
 - [x] VP9 export where supported
 - [x] VP8 fallback where supported
 - [x] AV1 export where supported
+- [x] H.264 MP4 export where supported
 - [x] Opus audio encode / mux where supported
+- [x] AAC MP4 audio encode / mux where supported
+- [x] automatic MP4 -> WebM capability fallback
 - [x] chunked audio-track decode and mix
 - [x] mute / solo / clip volume handling in offline audio mix
 - [x] speed / reverse mapping in offline audio mix
-- [x] in/out range export
+- [x] in/out range export core
 - [x] OPFS direct long-form output path
 - [x] memory output fallback
 - [x] render progress / cancellation / error reporting
 - [x] editor UI video-export control separated from project backup
+- [x] sample-index-based long-form audio chunk scheduler tests
 - [ ] browser fixture render acceptance tests
-- [ ] long-duration A/V sync acceptance tests
+- [ ] encoded-file long-duration A/V sync acceptance tests
 - [ ] long-render memory leak acceptance tests
-- [ ] text / subtitle / generator rendering in final export
-- [ ] effect / keyframe rendering parity with preview
-- [ ] MP4 muxer
-- [ ] H.264 video export
-- [ ] AAC audio export
+- [x] text / subtitle / generator rendering in final export
+- [x] core Canvas/CSS effect + keyframe parity for supported effects
+- [ ] full effect / keyframe rendering parity across all registered effects
 - [ ] transparent WebM where supported
 - [ ] WAV / audio-only
 - [ ] PNG still / image sequence
@@ -126,26 +131,27 @@ Current implementation branch: `main`.
 - [ ] render queue
 - [ ] resumable render recovery
 
-> 初期WebM offline exportは実装済み。現在の書き出しはframe-steppedで、対応環境ではVP9/VP8/AV1映像とOpus音声をWebMへmuxする。MP4、全effect/text parity、実機fixtureによる長時間検証は未完成。
+> Deterministic offline export is implemented for capability-dependent MP4/H.264/AAC and WebM/VP9/VP8/AV1/Opus paths. The editor prefers MP4 when the browser exposes the required H.264/AAC encoders and falls back to WebM otherwise. Browser fixture validation, encoded-file long-duration A/V sync tests, full effect parity, and long-render memory acceptance remain incomplete.
 
 ## Phase 4 — Audio / Fairlight-style Workflow
 
 - [ ] waveform cache
 - [x] clip gain in offline export mix
 - [ ] fades
-- [ ] pan rendering
+- [x] pan rendering
 - [ ] track mixer UI
 - [x] mute / solo semantics in offline export
 - [ ] bus routing
-- [ ] EQ rendering
-- [ ] compressor rendering
+- [x] initial high-pass / low-pass rendering
+- [x] compressor rendering
 - [ ] limiter
 - [ ] gate / expander
 - [ ] de-esser
 - [ ] noise suppression
 - [ ] loudness meter
 - [ ] automatic ducking
-- [ ] automation lanes
+- [x] effect parameter keyframe evaluation in offline audio processing
+- [ ] dedicated automation lanes UI
 - [ ] AudioWorklet DSP layer
 - [ ] VOICEVOX-oriented voice presets
 - [x] audio effect descriptors for gain / pan / filters / compressor
@@ -156,10 +162,15 @@ Current implementation branch: `main`.
 - [x] initial descriptors: brightness/contrast, exposure, saturation, temperature/tint
 - [x] initial descriptors: blur, sharpen, vignette, chroma key, drop shadow
 - [x] basic transform / crop / blend-mode Canvas composition path
-- [ ] actual registered effect rendering
-- [ ] keyframe interpolation engine
-- [ ] hold / linear / cubic-bezier interpolation
+- [x] initial registered effect rendering: brightness/contrast, exposure, saturation, blur, drop shadow
+- [x] keyframe interpolation engine
+- [x] hold / linear / deterministic bezier-style interpolation
+- [x] initial keyframe controls in Inspector
 - [ ] graph editor
+- [ ] temperature/tint rendering
+- [ ] sharpen rendering
+- [ ] vignette rendering
+- [ ] chroma-key rendering
 - [ ] curves / levels
 - [ ] lift / gamma / gain
 - [ ] shadows / mids / highlights
@@ -178,11 +189,12 @@ Current implementation branch: `main`.
 
 - [x] text/subtitle clip schema
 - [x] subtitle word-timing schema
-- [ ] text clip UI / renderer
-- [ ] fill / stroke / shadow / background
+- [x] text clip UI / renderer
+- [x] fill / stroke / background controls for text
+- [ ] text shadow control
 - [ ] lower-third templates
-- [ ] subtitle track editor
-- [ ] final-export text/subtitle compositor
+- [x] basic subtitle clip editor
+- [x] final-export text/subtitle compositor
 - [ ] SRT import/export
 - [ ] VTT import/export
 - [ ] ASS subset
