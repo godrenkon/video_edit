@@ -108,6 +108,7 @@ export async function exportProjectWebM(
   const renderer = new Canvas2DProjectRenderer(canvas, assets);
   const fileName = ensureWebMExtension(options.fileName ?? `${project.name || 'render'}.webm`);
   const bitrate = options.bitrate ?? defaultVideoBitrate(project.width, project.height, project.fps);
+  const audioSampleRate = Math.max(8_000, Math.round(options.audioSampleRate ?? 48_000));
   const renderOptions = {
     canvas,
     width: project.width,
@@ -122,12 +123,13 @@ export async function exportProjectWebM(
       codec: 'opus' as const,
       bitrate: options.audioBitrate ?? 160_000,
       chunkSeconds: options.audioChunkSeconds ?? 2,
+      sampleRate: audioSampleRate,
       renderChunk: (startSeconds: number, durationSeconds: number, signal?: AbortSignal) => audioMixer.renderChunk(
         project,
         range.startSeconds + startSeconds,
         durationSeconds,
         {
-          sampleRate: options.audioSampleRate ?? 48_000,
+          sampleRate: audioSampleRate,
           channels: options.audioChannels ?? 2,
           signal,
         },
