@@ -27,7 +27,7 @@ import {
 } from './core/storage';
 import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
-import { exportProjectWebM } from './render/projectExporter';
+import { exportProjectVideo } from './render/projectExporter';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
@@ -428,7 +428,8 @@ export default function App() {
     setSaveState('動画書き出しを準備中…');
 
     try {
-      const result = await exportProjectWebM(project, {
+      const result = await exportProjectVideo(project, {
+        container: 'auto',
         signal: controller.signal,
         preferOpfs: true,
         onProgress: (progress) => setRenderProgress(progress.fraction),
@@ -438,7 +439,8 @@ export default function App() {
       const output = result.storage === 'opfs' ? result.file : result.blob;
       downloadBlob(output, result.fileName);
       setRenderProgress(1);
-      setSaveState(result.hasAudio ? '動画書き出し完了（音声込み）' : '動画書き出し完了');
+      const format = result.container.toUpperCase();
+      setSaveState(result.hasAudio ? `${format} 書き出し完了（音声込み）` : `${format} 書き出し完了`);
     } catch (error) {
       if (controller.signal.aborted) {
         setSaveState('動画書き出しを中止しました');
