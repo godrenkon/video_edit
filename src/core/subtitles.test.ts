@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { formatSrt, formatSrtTimestamp, parseSrt, stripSrtMarkup, subtitleClipsFromSrt, subtitleClipsToSrt } from './subtitles';
+import {
+  formatSrt,
+  formatSrtTimestamp,
+  formatVttTimestamp,
+  formatWebVtt,
+  parseSrt,
+  parseWebVtt,
+  stripSrtMarkup,
+  stripSubtitleMarkup,
+  subtitleClipsFromSrt,
+  subtitleClipsFromWebVtt,
+  subtitleClipsToSrt,
+  subtitleClipsToWebVtt,
+} from './subtitles';
 
 describe('SRT subtitle exchange', () => {
   it('parses BOM, CRLF, numeric indexes and multiline text', () => {
@@ -68,5 +81,70 @@ describe('SRT subtitle exchange', () => {
 
   it('strips supported SRT and SSA-style presentation markup for plain subtitle clips', () => {
     expect(stripSrtMarkup('<b><font color="#fff">Text</font></b> {\\an8}')).toBe('Text');
+  });
+});
+
+describe('WebVTT subtitle exchange', () => {
+  it('parses WEBVTT header, cue identifiers, settings and multiline cue text', () => {
+    const input = [
+      'WEBVTT Sample',
+      '',
+      'intro',
+      '00:01.250 --> 00:03.500 align:start position:10%',
+      '<v Narrator>Hello</v>',
+      'world',
+      '',
+      '00:00:05.000 --> 00:00:06.100',
+      'Second',
+    ].join('\n');
+    expect(parseWebVtt(input)).toEqual([
+      { start: 1.25, end: 3.5, text: '<v Narrator>Hello</v>\nworld' },
+      { start: 5, end: 6.1, text: 'Second' },
+    ]);
+  });
+
+  it('ignores NOTE, STYLE and REGION metadata blocks', () => {
+    const input = [
+      'WEBVTT',
+      '',
+      'NOTE this is metadata',
+      'not a cue',
+      '',
+      'STYLE',
+      '::cue { color: white; }',
+      '',
+      'REGION',
+      'id:fred',
+      '',
+      '00:00.500 --> 00:01.500',
+      'Visible',
+    ].join('\n');
+    expect(parseWebVtt(input)).toEqual([{ start: 0.5, end: 1.5, text: 'Visible' }]);
+  });
+
+  it('formats canonical WebVTT output with dot milliseconds', () => {
+    expect(formatWebVtt([{ start: 1.25, end: 2.5, text: 'Hello' }])).toBe(
+      'WEBVTT\n\n00:00:01.250 --> 00:00:02.500\nHello\n',
+    );
+    expect(formatVttTimestamp(3661.007)).toBe('01:01:01.007');
+  });
+
+  it('imports WebVTT markup as plain subtitle text and exports clips back to VTT', () => {
+    const clips = subtitleClipsFromWebVtt(
+      'WEBVTT\n\n00:00:02.000 --> 00:00:04.000\n<c.green><b>Hello</b></c> &amp; world',
+      { y: 250 },
+    );
+    expect(clips[0]).toMatchObject({
+      kind: 'subtitle',
+      start: 2,
+      duration: 2,
+      transform: { y: 250 },
+      subtitle: { text: 'Hello & world' },
+    });
+    expect(subtitleClipsToWebVtt(clips)).toContain('00:00:02.000 --> 00:00:04.000');
+  });
+
+  it('strips WebVTT voice/class markup and decodes basic entities', () => {
+    expect(stripSubtitleMarkup('<v Speaker><c.red>A &amp; B</c></v>')).toBe('A & B');
   });
 });
