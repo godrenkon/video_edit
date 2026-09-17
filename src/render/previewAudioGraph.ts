@@ -7,96 +7,94 @@ type PreviewEffectNode =
   | { effectId: string; kind: 'high-pass' | 'low-pass'; node: BiquadFilterNode }
   | { effectId: string; kind: 'compressor'; node: DynamicsCompressorNode };
 
+type PreviewGraphState = {
+  context: AudioContext;
+  source: MediaElementAudioSourceNode;
+  nodes: PreviewEffectNode[];
+  topology: string;
+  connected: boolean;
+};
+
+let sharedContext: AudioContext | null = null;
+const stateByElement = new WeakMap<HTMLMediaElement, PreviewGraphState>();
+
 /**
- * Web Audio graph used only for realtime preview. Offline export continues to
- * use the deterministic sample-by-sample DSP path in audioEffects.ts.
+ * Realtime Web Audio graph for preview playback.
  *
- * The graph is rebuilt only when the enabled audio-effect topology changes;
- * parameter/keyframe changes update the existing nodes in place.
+ * MediaElementAudioSourceNode may only be created once for a media element.
+ * React StrictMode deliberately runs effect setup/cleanup twice in development,
+ * so source nodes are cached by element and reconnected instead of recreated.
+ * A single AudioContext is shared across active preview clips to keep resource
+ * usage bounded. Offline export remains deterministic and independent.
  */
 export class PreviewAudioGraph {
-  private readonly context: AudioContext;
-  private readonly source: MediaElementAudioSourceNode;
-  private nodes: PreviewEffectNode[] = [];
-  private topology = '';
-  private closed = false;
+  private readonly state: PreviewGraphState;
+  private detached = false;
 
   constructor(element: HTMLMediaElement) {
-    if (typeof AudioContext === 'undefined') throw new Error('Web Audio API is not available');
-    this.context = new AudioContext({ latencyHint: 'interactive' });
-    this.source = this.context.createMediaElementSource(element);
-    this.source.connect(this.context.destination);
+    const cached = stateByElement.get(element);
+    if (cached) {
+      this.state = cached;
+      return;
+    }
+
+    const context = getSharedContext();
+    const state: PreviewGraphState = {
+      context,
+      source: context.createMediaElementSource(element),
+      nodes: [],
+      topology: '',
+      connected: false,
+    };
+    stateByElement.set(element, state);
+    this.state = state;
   }
 
-  get state() {
-    return this.context.state;
+  get stateName() {
+    return this.state.context.state;
   }
 
   async resume() {
-    if (this.closed || this.context.state === 'running') return;
-    await this.context.resume();
-  }
-
-  async suspend() {
-    if (this.closed || this.context.state !== 'running') return;
-    await this.context.suspend();
+    if (this.detached || this.state.context.state === 'running') return;
+    await this.state.context.resume();
   }
 
   setEffects(effects: EffectInstance[] | undefined, clipLocalTime: number) {
-    if (this.closed) return;
+    if (this.detached) return;
     const resolved = resolveAudioEffects(effects ?? [], Math.max(0, clipLocalTime));
     const topology = resolved.map((effect) => `${effect.id}:${effect.kind}`).join('|');
-    if (topology !== this.topology) this.rebuild(resolved, topology);
+    if (topology !== this.state.topology || !this.state.connected) this.rebuild(resolved, topology);
     else this.updateNodes(resolved);
   }
 
-  async close() {
-    if (this.closed) return;
-    this.closed = true;
-    this.disconnectAll();
-    await this.context.close().catch(() => undefined);
+  detach() {
+    if (this.detached) return;
+    this.detached = true;
+    disconnectState(this.state);
   }
 
   private rebuild(effects: ResolvedAudioEffect[], topology: string) {
-    this.disconnectAll();
-    this.nodes = [];
-    this.topology = topology;
+    disconnectState(this.state);
+    this.state.nodes = [];
+    this.state.topology = topology;
 
-    let previous: AudioNode = this.source;
+    let previous: AudioNode = this.state.source;
     for (const effect of effects) {
-      const item = this.createNode(effect);
+      const item = createNode(this.state.context, effect);
       if (!item) continue;
       previous.connect(item.node);
       previous = item.node;
-      this.nodes.push(item);
+      this.state.nodes.push(item);
     }
-    previous.connect(this.context.destination);
+    previous.connect(this.state.context.destination);
+    this.state.connected = true;
     this.updateNodes(effects);
-  }
-
-  private createNode(effect: ResolvedAudioEffect): PreviewEffectNode | null {
-    if (effect.kind === 'gain') {
-      return { effectId: effect.id, kind: effect.kind, node: this.context.createGain() };
-    }
-    if (effect.kind === 'pan') {
-      if (typeof this.context.createStereoPanner !== 'function') return null;
-      return { effectId: effect.id, kind: effect.kind, node: this.context.createStereoPanner() };
-    }
-    if (effect.kind === 'high-pass' || effect.kind === 'low-pass') {
-      const node = this.context.createBiquadFilter();
-      node.type = effect.kind === 'high-pass' ? 'highpass' : 'lowpass';
-      return { effectId: effect.id, kind: effect.kind, node };
-    }
-    if (effect.kind === 'compressor') {
-      return { effectId: effect.id, kind: effect.kind, node: this.context.createDynamicsCompressor() };
-    }
-    return null;
   }
 
   private updateNodes(effects: ResolvedAudioEffect[]) {
     const byId = new Map(effects.map((effect) => [effect.id, effect]));
-    const now = this.context.currentTime;
-    for (const item of this.nodes) {
+    const now = this.state.context.currentTime;
+    for (const item of this.state.nodes) {
       const effect = byId.get(item.effectId);
       if (!effect || effect.kind !== item.kind) continue;
       if (item.kind === 'gain' && effect.kind === 'gain') {
@@ -113,13 +111,40 @@ export class PreviewAudioGraph {
       }
     }
   }
+}
 
-  private disconnectAll() {
-    try { this.source.disconnect(); } catch { /* already disconnected */ }
-    for (const item of this.nodes) {
-      try { item.node.disconnect(); } catch { /* already disconnected */ }
-    }
+function getSharedContext() {
+  if (sharedContext) return sharedContext;
+  if (typeof AudioContext === 'undefined') throw new Error('Web Audio API is not available');
+  sharedContext = new AudioContext({ latencyHint: 'interactive' });
+  return sharedContext;
+}
+
+function createNode(context: AudioContext, effect: ResolvedAudioEffect): PreviewEffectNode | null {
+  if (effect.kind === 'gain') {
+    return { effectId: effect.id, kind: effect.kind, node: context.createGain() };
   }
+  if (effect.kind === 'pan') {
+    if (typeof context.createStereoPanner !== 'function') return null;
+    return { effectId: effect.id, kind: effect.kind, node: context.createStereoPanner() };
+  }
+  if (effect.kind === 'high-pass' || effect.kind === 'low-pass') {
+    const node = context.createBiquadFilter();
+    node.type = effect.kind === 'high-pass' ? 'highpass' : 'lowpass';
+    return { effectId: effect.id, kind: effect.kind, node };
+  }
+  if (effect.kind === 'compressor') {
+    return { effectId: effect.id, kind: effect.kind, node: context.createDynamicsCompressor() };
+  }
+  return null;
+}
+
+function disconnectState(state: PreviewGraphState) {
+  try { state.source.disconnect(); } catch { /* already disconnected */ }
+  for (const item of state.nodes) {
+    try { item.node.disconnect(); } catch { /* already disconnected */ }
+  }
+  state.connected = false;
 }
 
 function setAudioParam(parameter: AudioParam, value: number, now: number) {
