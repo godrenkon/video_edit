@@ -430,7 +430,6 @@ export default function App() {
 
     try {
       const result = await exportProjectVideo(project, {
-        container: 'auto',
         signal: controller.signal,
         preferOpfs: true,
         onProgress: (progress) => setRenderProgress(progress.fraction),
