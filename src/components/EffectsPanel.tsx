@@ -2,6 +2,7 @@ import { Diamond, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { createEffectInstance, getEffectDescriptor, listEffects } from '../core/effects';
 import { uid } from '../core/project';
+import { isAudioEffectSupported } from '../render/audioEffects';
 import {
   evaluateEffectParameter,
   isCanvasFilterEffectSupported,
@@ -17,7 +18,10 @@ interface Props {
 }
 
 export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
-  const available = useMemo(() => listEffects('video').filter((effect) => isCanvasFilterEffectSupported(effect.kind)), []);
+  const available = useMemo(() => [
+    ...listEffects('video').filter((effect) => isCanvasFilterEffectSupported(effect.kind)),
+    ...(clip.assetId ? listEffects('audio').filter((effect) => isAudioEffectSupported(effect.kind)) : []),
+  ], [clip.assetId]);
   const [kind, setKind] = useState(available[0]?.kind ?? '');
   const effects = clip.effects ?? [];
   const frameDuration = 1 / Math.max(1, fps);
@@ -129,7 +133,9 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
       <div className="effectsTime">再生ヘッド: {localTime.toFixed(3)}s / clip</div>
       <div className="effectsAddRow">
         <select value={kind} onChange={(event) => setKind(event.target.value)} aria-label="追加するエフェクト">
-          {available.map((effect) => <option key={effect.kind} value={effect.kind}>{effect.label}</option>)}
+          {available.map((effect) => (
+            <option key={effect.kind} value={effect.kind}>{effect.domain === 'audio' ? `音声 / ${effect.label}` : effect.label}</option>
+          ))}
         </select>
         <button type="button" className="miniBtn" onClick={addEffect} disabled={!kind} title="エフェクトを追加"><Plus size={14} /></button>
       </div>
@@ -137,7 +143,9 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
       {effects.length === 0 && <div className="effectsEmpty">エフェクトなし</div>}
       {effects.map((effect) => {
         const descriptor = getEffectDescriptor(effect.kind);
-        const renderSupported = isCanvasFilterEffectSupported(effect.kind);
+        const renderSupported = descriptor?.domain === 'audio'
+          ? isAudioEffectSupported(effect.kind)
+          : isCanvasFilterEffectSupported(effect.kind);
         return (
           <div className="effectCard" key={effect.id}>
             <div className="effectCardHeader">
@@ -147,7 +155,7 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
                   checked={effect.enabled}
                   onChange={(event) => replaceEffect(effect.id, { ...effect, enabled: event.target.checked })}
                 />
-                <strong>{descriptor?.label ?? effect.kind}</strong>
+                <strong>{descriptor?.domain === 'audio' ? `音声 / ${descriptor.label}` : descriptor?.label ?? effect.kind}</strong>
               </label>
               {!renderSupported && <span className="effectPending">未接続</span>}
               <button type="button" className="miniBtn danger" onClick={() => removeEffect(effect.id)} title="エフェクトを削除"><Trash2 size={13} /></button>
