@@ -46,6 +46,7 @@ describe('migrateProject', () => {
     expect(project.version).toBe(2);
     expect(project.id).toBe('legacy-project');
     expect(project.markers).toEqual([]);
+    expect(project.exportSettings).toBeUndefined();
     expect(project.tracks[0]).toMatchObject({ muted: false, locked: false, visible: true, solo: false });
     expect(project.tracks[0].clips[0]).toMatchObject({
       id: 'clip-1',
@@ -63,6 +64,62 @@ describe('migrateProject', () => {
         opacity: 0.75,
       },
     });
+  });
+
+  it('preserves valid export settings and normalizes clip fades', () => {
+    const project = migrateProject({
+      version: 2,
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      duration: 10,
+      assets: [],
+      exportSettings: {
+        container: 'webm',
+        outputHeight: 2160,
+        quality: 'high',
+        includeAudio: false,
+      },
+      tracks: [{
+        kind: 'audio',
+        clips: [{
+          id: 'clip',
+          kind: 'asset',
+          name: 'voice',
+          start: 0,
+          duration: 4,
+          inPoint: 0,
+          volume: 1,
+          muted: false,
+          fadeIn: -3,
+          fadeOut: 99,
+          transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
+        }],
+      }],
+    });
+
+    expect(project.exportSettings).toEqual({
+      container: 'webm',
+      outputHeight: 2160,
+      quality: 'high',
+      includeAudio: false,
+    });
+    expect(project.tracks[0].clips[0]).toMatchObject({ fadeIn: 0, fadeOut: 4 });
+  });
+
+  it('drops unknown export settings instead of trusting invalid persisted values', () => {
+    const project = migrateProject({
+      version: 2,
+      assets: [],
+      tracks: [],
+      exportSettings: {
+        container: 'avi',
+        outputHeight: 'not-a-number',
+        quality: 'ultra',
+        includeAudio: 'yes',
+      },
+    });
+    expect(project.exportSettings).toBeUndefined();
   });
 
   it('clamps unsafe numeric values while preserving valid optional metadata', () => {
