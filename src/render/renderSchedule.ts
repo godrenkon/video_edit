@@ -74,7 +74,7 @@ export function buildRenderAcceptancePlan(
   const clock = new RenderClock(safeFps);
   const totalFrames = clock.framesForDuration(duration);
   const lastRequest = totalFrames > 0
-    ? clock.request(totalFrames - 1, { width: 1, height: 1 })
+    ? clock.frameRequest(totalFrames - 1, { width: 1, height: 1 })
     : null;
   const finalVideoEndSeconds = lastRequest
     ? (lastRequest.timestampUs + lastRequest.durationUs) / 1_000_000
