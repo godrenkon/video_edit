@@ -10,3 +10,14 @@
 .sectionTitleRow .miniBtn { width: 24px; height: 24px; flex: 0 0 auto; }
 .previewAssetFrame { position: absolute; pointer-events: none; will-change: transform; }
 .previewAssetSource { display: block; user-select: none; pointer-events: none; }
+.projectActionGrid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin: 5px 0 8px; }
+.projectActionGrid button { min-width: 0; min-height: 29px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; background: #131a20; color: #c6d2d8; cursor: pointer; font-size: 8px; }
+.projectActionGrid button:hover { filter: brightness(1.18); }
+.markerEmpty { padding: 9px; border: 1px dashed var(--line); border-radius: 7px; color: var(--muted); text-align: center; font-size: 9px; }
+.markerList { display: grid; gap: 5px; }
+.markerRow { display: grid; grid-template-columns: 25px minmax(0, 1fr) 65px 25px; gap: 5px; align-items: center; }
+.markerRow input { min-width: 0; height: 27px; border: 1px solid var(--line); border-radius: 6px; background: #0a0f12; color: var(--text); font-size: 9px; }
+.markerColor { width: 25px; padding: 2px; }
+.markerName { padding: 0 6px; }
+.markerTime { padding: 0 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.markerRow .miniBtn { width: 25px; height: 25px; }
