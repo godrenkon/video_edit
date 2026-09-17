@@ -5,6 +5,7 @@ import { constrainNormalizedCrop, cropToNormalized } from '../render/cropGeometr
 import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker, TrackKind } from '../types/editor';
 import { EffectsPanel } from './EffectsPanel';
 import { ProjectExportSettingsPanel } from './ProjectExportSettingsPanel';
+import { SubtitleExchangePanel } from './SubtitleExchangePanel';
 import '../creation-tools.css';
 
 interface Props {
@@ -235,6 +236,7 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
           <Field label="背景"><input type="color" value={project.background} onChange={(e) => onProject({ background: e.target.value })} /></Field>
 
           <ProjectExportSettingsPanel project={project} onChange={(exportSettings) => onProject({ exportSettings })} />
+          <SubtitleExchangePanel project={project} onProject={onProject} />
 
           <h3 className="sectionTitleRow"><span>トラック</span><span className="trackCount">{project.tracks.length}</span></h3>
           <div className="trackAddGrid">
