@@ -4,6 +4,7 @@ import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrack
 import { constrainNormalizedCrop, cropToNormalized } from '../render/cropGeometry';
 import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker, TrackKind } from '../types/editor';
 import { EffectsPanel } from './EffectsPanel';
+import { ProjectExportSettingsPanel } from './ProjectExportSettingsPanel';
 import '../creation-tools.css';
 
 interface Props {
@@ -232,6 +233,8 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
             <NumberField label="FPS" value={project.fps} step={1} onChange={(v) => onProject({ fps: Math.max(1, Math.min(120, Math.round(v))) })} />
           </div>
           <Field label="背景"><input type="color" value={project.background} onChange={(e) => onProject({ background: e.target.value })} /></Field>
+
+          <ProjectExportSettingsPanel project={project} onChange={(exportSettings) => onProject({ exportSettings })} />
 
           <h3 className="sectionTitleRow"><span>トラック</span><span className="trackCount">{project.tracks.length}</span></h3>
           <div className="trackAddGrid">
