@@ -1,7 +1,7 @@
 import { probeCapabilities, type BrowserCapabilityReport, type CodecCapability } from '../core/capabilities';
 import type { Project } from '../types/editor';
 import { ProjectAudioMixer, buildAudioMixSegments } from './audioMixer';
-import { Canvas2DProjectRenderer, type RenderCanvas } from './canvas2dRenderer';
+import { Canvas2DProjectRenderer, type RenderCanvas, type RenderContext2D } from './canvas2dRenderer';
 import { renderCanvasToMp4Buffer, renderCanvasToOpfsMp4 } from './mp4Writer';
 import { sanitizeRenderFileName } from './opfsRenderTarget';
 import { RenderAssetStore } from './renderAssetStore';
@@ -18,6 +18,11 @@ export interface ProjectRenderRange {
   durationSeconds: number;
 }
 
+export interface ExportDimensions {
+  width: number;
+  height: number;
+}
+
 export type ProjectExportContainer = 'mp4' | 'webm';
 export type ProjectExportContainerPreference = ProjectExportContainer | 'auto';
 
@@ -25,6 +30,8 @@ export interface ProjectVideoExportOptions {
   fileName?: string;
   codec?: WebMVideoCodec;
   bitrate?: number;
+  outputWidth?: number;
+  outputHeight?: number;
   includeAudio?: boolean;
   audioBitrate?: number;
   audioChunkSeconds?: number;
@@ -47,6 +54,8 @@ interface ProjectVideoExportResultBase {
   range: ProjectRenderRange;
   container: ProjectExportContainer;
   codec: WebMVideoCodec | 'h264';
+  width: number;
+  height: number;
 }
 
 export type ProjectVideoExportResult =
@@ -71,6 +80,33 @@ export function projectRenderRange(project: Project): ProjectRenderRange {
     endSeconds,
     durationSeconds: Math.max(0, endSeconds - startSeconds),
   };
+}
+
+export function resolveExportDimensions(
+  project: Pick<Project, 'width' | 'height'>,
+  options: Pick<ProjectVideoExportOptions, 'outputWidth' | 'outputHeight'> = {},
+): ExportDimensions {
+  const sourceWidth = normalizeDimension(project.width);
+  const sourceHeight = normalizeDimension(project.height);
+  const requestedWidth = finitePositive(options.outputWidth);
+  const requestedHeight = finitePositive(options.outputHeight);
+
+  if (requestedWidth && requestedHeight) {
+    return { width: normalizeDimension(requestedWidth), height: normalizeDimension(requestedHeight) };
+  }
+  if (requestedWidth) {
+    return {
+      width: normalizeDimension(requestedWidth),
+      height: normalizeDimension(requestedWidth * sourceHeight / sourceWidth),
+    };
+  }
+  if (requestedHeight) {
+    return {
+      width: normalizeDimension(requestedHeight * sourceWidth / sourceHeight),
+      height: normalizeDimension(requestedHeight),
+    };
+  }
+  return { width: sourceWidth, height: sourceHeight };
 }
 
 export function selectWebMVideoCodec(codecs: CodecCapability[]): WebMVideoCodec | null {
@@ -156,8 +192,8 @@ export async function exportProjectWebM(
   const context = createProjectRenderContext(project, options, hasAudio);
   const renderOptions = {
     canvas: context.canvas,
-    width: project.width,
-    height: project.height,
+    width: context.dimensions.width,
+    height: context.dimensions.height,
     fps: project.fps,
     durationSeconds: range.durationSeconds,
     codec,
@@ -188,6 +224,7 @@ export async function exportProjectWebM(
         container: 'webm',
         hasAudio,
         range,
+        ...context.dimensions,
       };
     }
 
@@ -201,6 +238,7 @@ export async function exportProjectWebM(
       container: 'webm',
       hasAudio,
       range,
+      ...context.dimensions,
     };
   } finally {
     await context.close();
@@ -227,8 +265,8 @@ export async function exportProjectMp4(
   const context = createProjectRenderContext(project, options, hasAudio);
   const renderOptions = {
     canvas: context.canvas,
-    width: project.width,
-    height: project.height,
+    width: context.dimensions.width,
+    height: context.dimensions.height,
     fps: project.fps,
     durationSeconds: range.durationSeconds,
     bitrate: context.bitrate,
@@ -258,6 +296,7 @@ export async function exportProjectMp4(
         container: 'mp4',
         hasAudio,
         range,
+        ...context.dimensions,
       };
     }
 
@@ -271,6 +310,7 @@ export async function exportProjectMp4(
       container: 'mp4',
       hasAudio,
       range,
+      ...context.dimensions,
     };
   } finally {
     await context.close();
@@ -279,11 +319,15 @@ export async function exportProjectMp4(
 
 function createProjectRenderContext(project: Project, options: ProjectVideoExportOptions, hasAudio: boolean) {
   const range = projectRenderRange(project);
-  const canvas = createRenderCanvas(project.width, project.height);
+  const dimensions = resolveExportDimensions(project, options);
+  const compositionCanvas = createRenderCanvas(project.width, project.height);
+  const needsScale = dimensions.width !== project.width || dimensions.height !== project.height;
+  const canvas = needsScale ? createRenderCanvas(dimensions.width, dimensions.height) : compositionCanvas;
+  const outputContext = needsScale ? getRenderContext2D(canvas) : null;
   const assets = new RenderAssetStore(project.assets);
   const audioMixer = hasAudio ? new ProjectAudioMixer(project.assets) : null;
-  const renderer = new Canvas2DProjectRenderer(canvas, assets);
-  const bitrate = options.bitrate ?? defaultVideoBitrate(project.width, project.height, project.fps);
+  const renderer = new Canvas2DProjectRenderer(compositionCanvas, assets);
+  const bitrate = options.bitrate ?? defaultVideoBitrate(dimensions.width, dimensions.height, project.fps);
   const audioSampleRate = Math.max(8_000, Math.round(options.audioSampleRate ?? 48_000));
 
   const renderAudioChunk = (startSeconds: number, durationSeconds: number, signal?: AbortSignal) => {
@@ -302,10 +346,33 @@ function createProjectRenderContext(project: Project, options: ProjectVideoExpor
 
   const drawFrame = async (request: { timeSeconds: number }, signal?: AbortSignal) => {
     await renderer.render(project, range.startSeconds + request.timeSeconds, signal);
+    if (!outputContext) return;
+    outputContext.save();
+    outputContext.resetTransform();
+    outputContext.globalAlpha = 1;
+    outputContext.globalCompositeOperation = 'source-over';
+    outputContext.filter = 'none';
+    outputContext.clearRect(0, 0, dimensions.width, dimensions.height);
+    outputContext.imageSmoothingEnabled = true;
+    outputContext.imageSmoothingQuality = 'high';
+    outputContext.drawImage(
+      compositionCanvas as CanvasImageSource,
+      0,
+      0,
+      project.width,
+      project.height,
+      0,
+      0,
+      dimensions.width,
+      dimensions.height,
+    );
+    outputContext.restore();
   };
 
   return {
     canvas,
+    compositionCanvas,
+    dimensions,
     assets,
     audioMixer,
     bitrate,
@@ -331,6 +398,21 @@ function createRenderCanvas(width: number, height: number): RenderCanvas {
   canvas.width = width;
   canvas.height = height;
   return canvas;
+}
+
+function getRenderContext2D(canvas: RenderCanvas): RenderContext2D {
+  const context = canvas.getContext('2d');
+  if (!context || !('drawImage' in context)) throw new Error('2D canvas scaling is not available');
+  return context as RenderContext2D;
+}
+
+function normalizeDimension(value: number) {
+  const rounded = Math.round(clamp(value, 16, 8192));
+  return rounded % 2 === 0 ? rounded : rounded + (rounded < 8192 ? 1 : -1);
+}
+
+function finitePositive(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 }
 
 function ensureExtension(fileName: string, extension: '.webm' | '.mp4') {
