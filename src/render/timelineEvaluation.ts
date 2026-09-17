@@ -54,8 +54,23 @@ export function visualTimelineItems(project: Project, timeSeconds: number) {
     .sort((a, b) => b.trackIndex - a.trackIndex);
 }
 
+/**
+ * Returns timeline items that can contribute sound. Dedicated audio tracks are
+ * always eligible, while video tracks contribute when their asset is a video
+ * container (which may carry an embedded audio track). The decoder/mixer later
+ * treats silent video containers as a no-op rather than failing the render.
+ */
 export function audioTimelineItems(project: Project, timeSeconds: number) {
-  return activeTimelineItems(project, timeSeconds).filter(({ track }) => track.kind === 'audio');
+  const assetKinds = new Map(project.assets.map((asset) => [asset.id, asset.kind]));
+  const candidates = project.tracks.filter((track) => track.kind === 'audio' || track.kind === 'video');
+  const hasSolo = candidates.some((track) => track.solo);
+
+  return activeTimelineItems(project, timeSeconds).filter(({ track, clip }) => {
+    if (track.kind !== 'audio' && track.kind !== 'video') return false;
+    if (track.muted || (hasSolo && !track.solo) || clip.muted || !clip.assetId) return false;
+    if (track.kind === 'audio') return true;
+    return assetKinds.get(clip.assetId) === 'video';
+  });
 }
 
 export function mouthCueState(cues: MouthCue[], localSeconds: number): 0 | 1 | 2 {

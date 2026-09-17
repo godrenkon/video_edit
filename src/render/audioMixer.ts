@@ -1,18 +1,27 @@
 import type { WrappedAudioBuffer } from 'mediabunny';
 import { readAssetFile } from '../core/storage';
-import type { AssetMeta, Clip, Project } from '../types/editor';
+import type { AssetMeta, Clip, EffectInstance, Project } from '../types/editor';
 import { clipSourceTime } from './timelineEvaluation';
+import {
+  createAudioEffectState,
+  processAudioEffects,
+  resetAudioEffectState,
+  resolveAudioEffects,
+  type AudioEffectState,
+} from './audioEffects';
 import { MediabunnyAudioProvider } from './mediabunnyAudioProvider';
 
 export interface AudioMixSegment {
   clipId: string;
   assetId: string;
+  clipStart: number;
   timelineStart: number;
   timelineEnd: number;
   sourceStart: number;
   speed: number;
   reverse: boolean;
   gain: number;
+  effects: EffectInstance[];
 }
 
 export interface ProjectAudioMixerOptions {
@@ -29,15 +38,17 @@ export interface AudioChunkOptions {
 export function buildAudioMixSegments(project: Project, startSeconds: number, endSeconds: number): AudioMixSegment[] {
   const start = Math.max(0, startSeconds);
   const end = Math.max(start, endSeconds);
-  const audioTracks = project.tracks.filter((track) => track.kind === 'audio');
-  const hasSolo = audioTracks.some((track) => track.solo);
-  const assetIds = new Set(project.assets.map((asset) => asset.id));
+  const assetById = new Map(project.assets.map((asset) => [asset.id, asset]));
+  const candidateTracks = project.tracks.filter((track) => track.kind === 'audio' || track.kind === 'video');
+  const hasSolo = candidateTracks.some((track) => track.solo);
   const segments: AudioMixSegment[] = [];
 
-  for (const track of audioTracks) {
+  for (const track of candidateTracks) {
     if (track.muted || (hasSolo && !track.solo)) continue;
     for (const clip of track.clips) {
-      if (clip.muted || !clip.assetId || !assetIds.has(clip.assetId)) continue;
+      if (clip.muted || !clip.assetId) continue;
+      const asset = assetById.get(clip.assetId);
+      if (!asset || (asset.kind !== 'audio' && asset.kind !== 'video')) continue;
       const timelineStart = Math.max(start, clip.start);
       const timelineEnd = Math.min(end, clip.start + clip.duration);
       if (timelineEnd <= timelineStart) continue;
@@ -45,12 +56,14 @@ export function buildAudioMixSegments(project: Project, startSeconds: number, en
       segments.push({
         clipId: clip.id,
         assetId: clip.assetId,
+        clipStart: clip.start,
         timelineStart,
         timelineEnd,
         sourceStart: clipSourceTime(clip, timelineStart),
         speed: Math.max(0.0001, clip.speed ?? 1),
         reverse: Boolean(clip.reverse),
         gain: Math.max(0, clip.volume),
+        effects: clip.effects ?? [],
       });
     }
   }
@@ -66,12 +79,15 @@ export function segmentSourceTime(segment: AudioMixSegment, timelineSeconds: num
 /**
  * Chunked project audio mixer. It decodes only source ranges that overlap the
  * requested timeline chunk, avoiding whole-file decodeAudioData allocations.
+ * Video assets are also inspected for embedded audio so ordinary video clips
+ * keep their sound in preview/export workflows.
  */
 export class ProjectAudioMixer {
   private readonly assets: Map<string, AssetMeta>;
   private readonly readFile: (storageName: string) => Promise<File>;
   private readonly maxCacheSize: number;
-  private readonly providers = new Map<string, Promise<MediabunnyAudioProvider>>();
+  private readonly providers = new Map<string, Promise<MediabunnyAudioProvider | null>>();
+  private readonly effectStates = new Map<string, AudioEffectState>();
   private closed = false;
 
   constructor(assets: AssetMeta[], options: ProjectAudioMixerOptions = {}) {
@@ -100,11 +116,12 @@ export class ProjectAudioMixer {
       const asset = this.assets.get(segment.assetId);
       if (!asset) continue;
       const provider = await this.getProvider(asset, options.signal);
+      if (!provider) continue;
       const sourceEnd = segmentSourceTime(segment, segment.timelineEnd);
       const sourceMin = Math.max(0, Math.min(segment.sourceStart, sourceEnd) - 0.02);
       const sourceMax = Math.max(segment.sourceStart, sourceEnd) + 0.02;
       const buffers = await provider.readRange(sourceMin, sourceMax, options.signal);
-      mixSegment(output, buffers, segment, startSeconds, options.signal);
+      mixSegment(output, buffers, segment, startSeconds, this.effectStateFor(segment.clipId), options.signal);
     }
 
     clampBuffer(output);
@@ -116,9 +133,19 @@ export class ProjectAudioMixer {
     this.closed = true;
     const providers = await Promise.allSettled(this.providers.values());
     for (const result of providers) {
-      if (result.status === 'fulfilled') result.value.close();
+      if (result.status === 'fulfilled') result.value?.close();
     }
     this.providers.clear();
+    this.effectStates.clear();
+  }
+
+  private effectStateFor(clipId: string) {
+    let state = this.effectStates.get(clipId);
+    if (!state) {
+      state = createAudioEffectState();
+      this.effectStates.set(clipId, state);
+    }
+    return state;
   }
 
   private getProvider(asset: AssetMeta, signal?: AbortSignal) {
@@ -133,6 +160,7 @@ export class ProjectAudioMixer {
           return provider;
         } catch (error) {
           provider.close();
+          if (error instanceof Error && error.message === 'Media has no audio track') return null;
           throw error;
         }
       })();
@@ -154,12 +182,19 @@ function mixSegment(
   buffers: WrappedAudioBuffer[],
   segment: AudioMixSegment,
   chunkStart: number,
+  effectState: AudioEffectState,
   signal?: AbortSignal,
 ) {
   const firstFrame = Math.max(0, Math.floor((segment.timelineStart - chunkStart) * output.sampleRate));
   const lastFrame = Math.min(output.length, Math.ceil((segment.timelineEnd - chunkStart) * output.sampleRate));
   const outputChannels = Array.from({ length: output.numberOfChannels }, (_, channel) => output.getChannelData(channel));
+  const firstTimelineTime = chunkStart + firstFrame / output.sampleRate;
+  const expectedPrevious = firstTimelineTime - 1 / output.sampleRate;
+  if (effectState.lastTimelineTime !== null && Math.abs(effectState.lastTimelineTime - expectedPrevious) > 2 / output.sampleRate) {
+    resetAudioEffectState(effectState);
+  }
 
+  let resolvedEffects = resolveAudioEffects(segment.effects, Math.max(0, firstTimelineTime - segment.clipStart));
   for (let frame = firstFrame; frame < lastFrame; frame += 1) {
     if ((frame & 4095) === 0) throwIfAborted(signal);
     const timelineTime = chunkStart + frame / output.sampleRate;
@@ -167,19 +202,33 @@ function mixSegment(
     const wrapped = findWrappedBuffer(buffers, sourceTime);
     if (!wrapped) continue;
 
+    if ((frame - firstFrame) % 128 === 0) {
+      resolvedEffects = resolveAudioEffects(segment.effects, Math.max(0, timelineTime - segment.clipStart));
+    }
+
     const source = wrapped.buffer;
     const sourceFrame = Math.max(0, (sourceTime - wrapped.timestamp) * source.sampleRate);
-    const leftIndex = Math.min(source.length - 1, Math.floor(sourceFrame));
-    const rightIndex = Math.min(source.length - 1, leftIndex + 1);
-    const fraction = sourceFrame - leftIndex;
+    let left = sampleChannel(source, 0, sourceFrame) * segment.gain;
+    let right = sampleChannel(source, Math.min(1, source.numberOfChannels - 1), sourceFrame) * segment.gain;
+    [left, right] = processAudioEffects(left, right, resolvedEffects, output.sampleRate, effectState);
 
-    for (let channel = 0; channel < outputChannels.length; channel += 1) {
-      const sourceChannel = Math.min(channel, source.numberOfChannels - 1);
-      const data = source.getChannelData(sourceChannel);
-      const sample = data[leftIndex] * (1 - fraction) + data[rightIndex] * fraction;
-      outputChannels[channel][frame] += sample * segment.gain;
+    if (outputChannels.length === 1) {
+      outputChannels[0][frame] += (left + right) * 0.5;
+    } else {
+      outputChannels[0][frame] += left;
+      outputChannels[1][frame] += right;
     }
+    effectState.lastTimelineTime = timelineTime;
   }
+}
+
+function sampleChannel(source: AudioBuffer, channel: number, sourceFrame: number) {
+  const safeChannel = Math.max(0, Math.min(source.numberOfChannels - 1, channel));
+  const data = source.getChannelData(safeChannel);
+  const leftIndex = Math.min(source.length - 1, Math.max(0, Math.floor(sourceFrame)));
+  const rightIndex = Math.min(source.length - 1, leftIndex + 1);
+  const fraction = Math.max(0, Math.min(1, sourceFrame - leftIndex));
+  return data[leftIndex] * (1 - fraction) + data[rightIndex] * fraction;
 }
 
 function findWrappedBuffer(buffers: WrappedAudioBuffer[], sourceTime: number) {

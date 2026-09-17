@@ -45,6 +45,7 @@ describe('audio mix planning', () => {
     expect(segment).toMatchObject({
       clipId: 'c1',
       assetId: 'a1',
+      clipStart: 2,
       timelineStart: 3,
       timelineEnd: 5,
       sourceStart: 3,
@@ -70,6 +71,57 @@ describe('audio mix planning', () => {
     const [segment] = buildAudioMixSegments(project, 3, 5);
     expect(segment.sourceStart).toBe(11);
     expect(segmentSourceTime(segment, 4)).toBe(9);
+  });
+
+  it('includes embedded audio candidates from video-track video assets', () => {
+    const project = baseProject();
+    project.assets.push({
+      id: 'v1',
+      name: 'camera.webm',
+      kind: 'video',
+      mime: 'video/webm',
+      size: 1,
+      duration: 8,
+      width: 1920,
+      height: 1080,
+      storageName: 'camera.webm',
+    });
+    project.tracks.push({
+      id: 'video',
+      name: 'Video',
+      kind: 'video',
+      muted: false,
+      locked: false,
+      visible: true,
+      clips: [{
+        id: 'video-clip',
+        kind: 'asset',
+        name: 'camera',
+        assetId: 'v1',
+        start: 0,
+        duration: 4,
+        inPoint: 0,
+        volume: 1,
+        muted: false,
+        speed: 1,
+        reverse: false,
+        transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
+      }],
+    });
+
+    expect(buildAudioMixSegments(project, 0, 4).map((segment) => segment.clipId)).toEqual(['c1', 'video-clip']);
+  });
+
+  it('carries clip effects into the mixer plan', () => {
+    const project = baseProject();
+    project.tracks[0].clips[0].effects = [{
+      id: 'gain',
+      kind: 'gain',
+      enabled: true,
+      parameters: { gainDb: { value: -3 } },
+    }];
+    const [segment] = buildAudioMixSegments(project, 3, 4);
+    expect(segment.effects.map((effect) => effect.kind)).toEqual(['gain']);
   });
 
   it('ignores muted clips and empty intersections', () => {
