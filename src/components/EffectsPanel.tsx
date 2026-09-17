@@ -88,8 +88,44 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
     });
   };
 
+  const setFade = (key: 'fadeIn' | 'fadeOut', value: number) => {
+    const safe = Number.isFinite(value) ? Math.max(0, Math.min(clip.duration, value)) : 0;
+    onClip({ [key]: safe } as Pick<Clip, 'fadeIn' | 'fadeOut'>);
+  };
+
   return (
     <section className="effectsEditor">
+      {clip.assetId && (
+        <div className="effectCard audioFadeCard">
+          <div className="effectCardHeader"><strong>音声フェード</strong><span className="effectPending">clip</span></div>
+          <div className="audioFadeGrid">
+            <label className="effectParameter">
+              <span>フェードイン <b>{formatSeconds(clip.fadeIn ?? 0)}</b></span>
+              <input
+                type="number"
+                min={0}
+                max={clip.duration}
+                step={0.05}
+                value={Number((clip.fadeIn ?? 0).toFixed(3))}
+                onChange={(event) => setFade('fadeIn', Number(event.target.value))}
+              />
+            </label>
+            <label className="effectParameter">
+              <span>フェードアウト <b>{formatSeconds(clip.fadeOut ?? 0)}</b></span>
+              <input
+                type="number"
+                min={0}
+                max={clip.duration}
+                step={0.05}
+                value={Number((clip.fadeOut ?? 0).toFixed(3))}
+                onChange={(event) => setFade('fadeOut', Number(event.target.value))}
+              />
+            </label>
+          </div>
+          <div className="effectsTime">Preview / MP4 / WebM で同じlinear envelopeを使用</div>
+        </div>
+      )}
+
       <div className="effectsTime">再生ヘッド: {localTime.toFixed(3)}s / clip</div>
       <div className="effectsAddRow">
         <select value={kind} onChange={(event) => setKind(event.target.value)} aria-label="追加するエフェクト">
@@ -220,4 +256,9 @@ function safeColor(value: EffectParameterValue, fallback: EffectParameterValue) 
 function formatNumber(value: number) {
   if (Math.abs(value) >= 100) return Math.round(value).toString();
   return Number(value.toFixed(2)).toString();
+}
+
+function formatSeconds(value: number) {
+  const safe = Math.max(0, Number.isFinite(value) ? value : 0);
+  return `${Number(safe.toFixed(2))}s`;
 }
