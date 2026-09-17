@@ -14,6 +14,15 @@ export type BlendMode =
   | 'add';
 
 export type EffectParameterValue = number | string | boolean | number[];
+export type ProjectExportContainer = 'auto' | 'mp4' | 'webm';
+export type ProjectExportQuality = 'compact' | 'balanced' | 'high';
+
+export interface ProjectExportSettings {
+  container?: ProjectExportContainer;
+  outputHeight?: number;
+  quality?: ProjectExportQuality;
+  includeAudio?: boolean;
+}
 
 export interface AssetMeta {
   id: string;
@@ -175,4 +184,5 @@ export interface Project {
   markers?: TimelineMarker[];
   inPoint?: number;
   outPoint?: number;
+  exportSettings?: ProjectExportSettings;
 }
