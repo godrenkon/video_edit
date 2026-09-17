@@ -7,3 +7,12 @@
 .exportSettingsSummary { padding: 7px; border-radius: 6px; background: #10181d; display: grid; grid-template-columns: auto auto 1fr; gap: 7px; align-items: center; color: var(--muted); font-size: 8px; }
 .exportSettingsSummary b { color: var(--cyan); font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .exportSettingsSummary span:last-child { text-align: right; }
+.audioOnlyExport { padding-top: 7px; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+.audioOnlyTitle { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 8px; }
+.audioOnlyTitle span { color: #d8e2e7; font-size: 9px; }
+.audioOnlyTitle b { margin-left: auto; color: var(--cyan); font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.audioExportButton { min-height: 30px; border: 1px solid var(--line); border-radius: 6px; background: #131a20; color: #c9d4da; display: flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer; font-size: 8px; }
+.audioExportButton:hover { filter: brightness(1.18); }
+.audioExportButton.cancel { color: #ffb2b2; border-color: #5b3030; }
+.audioExportProgress { width: 100%; height: 7px; accent-color: var(--cyan); }
+.audioExportStatus { padding: 6px 7px; border-radius: 6px; background: #10181d; color: var(--muted); font-size: 8px; line-height: 1.4; }
