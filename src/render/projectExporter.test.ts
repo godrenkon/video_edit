@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { CodecCapability } from '../core/capabilities';
+import type { BrowserCapabilityReport, CodecCapability } from '../core/capabilities';
 import type { Project } from '../types/editor';
 import {
+  canEncodeAac,
+  canEncodeH264,
   canEncodeOpus,
   defaultVideoBitrate,
   projectHasAudibleAudio,
   projectRenderRange,
+  selectPreferredExportContainer,
   selectWebMVideoCodec,
 } from './projectExporter';
 
@@ -30,6 +33,10 @@ function project(patch: Partial<Project> = {}): Project {
 
 function codec(id: string, encode: CodecCapability['encode']): CodecCapability {
   return { id, label: id, decode: 'supported', encode };
+}
+
+function capabilities(videoCodecs: CodecCapability[], audioCodecs: CodecCapability[]) {
+  return { videoCodecs, audioCodecs } satisfies Pick<BrowserCapabilityReport, 'videoCodecs' | 'audioCodecs'>;
 }
 
 describe('project export planning', () => {
@@ -70,9 +77,38 @@ describe('project export planning', () => {
     expect(selectWebMVideoCodec([codec('vp9', 'unsupported')])).toBeNull();
   });
 
-  it('requires an actual supported Opus encoder for WebM audio', () => {
+  it('checks container-specific audio and video encoders', () => {
     expect(canEncodeOpus([codec('aac', 'supported'), codec('opus', 'unsupported')])).toBe(false);
     expect(canEncodeOpus([codec('opus', 'supported')])).toBe(true);
+    expect(canEncodeAac([codec('aac', 'supported')])).toBe(true);
+    expect(canEncodeAac([codec('aac', 'unsupported')])).toBe(false);
+    expect(canEncodeH264([codec('h264', 'supported')])).toBe(true);
+    expect(canEncodeH264([codec('vp9', 'supported')])).toBe(false);
+  });
+
+  it('prefers MP4 when H264 and required AAC audio are available', () => {
+    const report = capabilities(
+      [codec('h264', 'supported'), codec('vp9', 'supported')],
+      [codec('aac', 'supported'), codec('opus', 'supported')],
+    );
+    expect(selectPreferredExportContainer(report, true)).toBe('mp4');
+    expect(selectPreferredExportContainer(report, false)).toBe('mp4');
+  });
+
+  it('falls back to WebM when MP4 audio support is incomplete', () => {
+    const report = capabilities(
+      [codec('h264', 'supported'), codec('vp9', 'supported')],
+      [codec('aac', 'unsupported'), codec('opus', 'supported')],
+    );
+    expect(selectPreferredExportContainer(report, true)).toBe('webm');
+  });
+
+  it('returns no automatic container when no complete encode path exists', () => {
+    const report = capabilities(
+      [codec('h264', 'unsupported'), codec('vp9', 'unsupported')],
+      [codec('aac', 'supported'), codec('opus', 'supported')],
+    );
+    expect(selectPreferredExportContainer(report, true)).toBeNull();
   });
 
   it('detects audible audio inside the render range', () => {
