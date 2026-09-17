@@ -1,4 +1,5 @@
 import type { Clip, MouthCue, Project, Track } from '../types/editor';
+import { clipFadeGain } from './audioEnvelope';
 
 export interface ActiveTimelineItem {
   track: Track;
@@ -57,20 +58,35 @@ export function visualTimelineItems(project: Project, timeSeconds: number) {
 /**
  * Returns timeline items that can contribute sound. Dedicated audio tracks are
  * always eligible, while video tracks contribute when their asset is a video
- * container (which may carry an embedded audio track). The decoder/mixer later
- * treats silent video containers as a no-op rather than failing the render.
+ * container (which may carry an embedded audio track). Preview volume includes
+ * the same clip fade envelope used by the deterministic offline audio mixer.
  */
 export function audioTimelineItems(project: Project, timeSeconds: number) {
   const assetKinds = new Map(project.assets.map((asset) => [asset.id, asset.kind]));
   const candidates = project.tracks.filter((track) => track.kind === 'audio' || track.kind === 'video');
   const hasSolo = candidates.some((track) => track.solo);
 
-  return activeTimelineItems(project, timeSeconds).filter(({ track, clip }) => {
-    if (track.kind !== 'audio' && track.kind !== 'video') return false;
-    if (track.muted || (hasSolo && !track.solo) || clip.muted || !clip.assetId) return false;
-    if (track.kind === 'audio') return true;
-    return assetKinds.get(clip.assetId) === 'video';
-  });
+  return activeTimelineItems(project, timeSeconds)
+    .filter(({ track, clip }) => {
+      if (track.kind !== 'audio' && track.kind !== 'video') return false;
+      if (track.muted || (hasSolo && !track.solo) || clip.muted || !clip.assetId) return false;
+      if (track.kind === 'audio') return true;
+      return assetKinds.get(clip.assetId) === 'video';
+    })
+    .map((item) => {
+      const fadeGain = clipFadeGain({
+        duration: item.clip.duration,
+        fadeIn: item.clip.fadeIn,
+        fadeOut: item.clip.fadeOut,
+      }, clipLocalTime(item.clip, timeSeconds));
+      return {
+        ...item,
+        clip: {
+          ...item.clip,
+          volume: Math.max(0, Math.min(1, item.clip.volume * fadeGain)),
+        },
+      };
+    });
 }
 
 export function mouthCueState(cues: MouthCue[], localSeconds: number): 0 | 1 | 2 {
