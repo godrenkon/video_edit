@@ -40,6 +40,10 @@ export function Timeline(props: Props) {
   const px = zoom;
   const width = Math.max(1200, project.duration * px + 120);
   const ticks = useMemo(() => Array.from({ length: Math.ceil(project.duration) + 1 }, (_, i) => i), [project.duration]);
+  const markers = useMemo(() => [...(project.markers ?? [])].sort((a, b) => a.time - b.time), [project.markers]);
+  const hasExplicitRange = project.inPoint != null || project.outPoint != null;
+  const rangeStart = Math.max(0, Math.min(project.duration, project.inPoint ?? 0));
+  const rangeEnd = Math.max(rangeStart, Math.min(project.duration, project.outPoint ?? project.duration));
 
   const seekFromPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('.clip')) return;
@@ -86,6 +90,27 @@ export function Timeline(props: Props) {
             <div className="ruler">
               {ticks.map((tick) => <div key={tick} className="tick" style={{ left: tick * px }}><span>{tick}s</span></div>)}
             </div>
+            {hasExplicitRange && (
+              <div
+                className="exportRangeBand"
+                style={{ left: rangeStart * px, width: Math.max(1, (rangeEnd - rangeStart) * px) }}
+                title={`書き出し範囲 ${rangeStart.toFixed(2)}s - ${rangeEnd.toFixed(2)}s`}
+              >
+                <i className="rangeStartFlag">I</i>
+                <i className="rangeEndFlag">O</i>
+              </div>
+            )}
+            {markers.map((marker) => (
+              <div
+                className="timelineMarker"
+                key={marker.id}
+                style={{ left: Math.max(0, Math.min(project.duration, marker.time)) * px, '--marker-color': marker.color ?? '#ffc86b' } as React.CSSProperties}
+                title={`${marker.name} / ${marker.time.toFixed(2)}s`}
+              >
+                <i />
+                <span>{marker.name}</span>
+              </div>
+            ))}
             <div className="playhead" style={{ left: time * px }}><i /></div>
             {project.tracks.map((track) => (
               <div className="trackLane" key={track.id}>
