@@ -53,7 +53,7 @@ export async function exportProjectWav(
   const startedAt = performance.now();
 
   try {
-    if (options.preferOpfs !== false && navigator.storage?.getDirectory) {
+    if (options.preferOpfs !== false && hasOpfs()) {
       const output = await createOpfsWavWriter(fileName);
       try {
         await output.write(0, createWavHeader(totalFrames, sampleRate, channels));
@@ -229,6 +229,13 @@ async function createOpfsWavWriter(fileName: string) {
     getFile: () => handle.getFile(),
     remove: () => directory.removeEntry(safeName).catch(() => undefined),
   };
+}
+
+function hasOpfs() {
+  const storage = navigator.storage as unknown as {
+    getDirectory?: () => Promise<FileSystemDirectoryHandle>;
+  };
+  return typeof storage.getDirectory === 'function';
 }
 
 function ensureWavExtension(fileName: string) {
