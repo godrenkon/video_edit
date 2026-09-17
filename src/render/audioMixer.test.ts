@@ -46,14 +46,32 @@ describe('audio mix planning', () => {
       clipId: 'c1',
       assetId: 'a1',
       clipStart: 2,
+      clipDuration: 6,
       timelineStart: 3,
       timelineEnd: 5,
       sourceStart: 3,
       speed: 2,
       reverse: false,
       gain: 0.5,
+      fadeIn: 0,
+      fadeOut: 0,
     });
     expect(segmentSourceTime(segment, 4)).toBe(5);
+  });
+
+  it('keeps fade durations anchored to the full clip when a render chunk starts mid-clip', () => {
+    const project = baseProject();
+    project.tracks[0].clips[0].fadeIn = 2;
+    project.tracks[0].clips[0].fadeOut = 1.5;
+    const [segment] = buildAudioMixSegments(project, 3.25, 4.25);
+    expect(segment).toMatchObject({
+      clipStart: 2,
+      clipDuration: 6,
+      timelineStart: 3.25,
+      timelineEnd: 4.25,
+      fadeIn: 2,
+      fadeOut: 1.5,
+    });
   });
 
   it('respects muted and solo tracks', () => {
