@@ -1,7 +1,8 @@
-import { Flag, RotateCcw, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Flag, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { uid } from '../core/project';
+import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrackSolo, setTrackVisible } from '../core/trackOps';
 import { constrainNormalizedCrop, cropToNormalized } from '../render/cropGeometry';
-import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker } from '../types/editor';
+import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker, TrackKind } from '../types/editor';
 import { EffectsPanel } from './EffectsPanel';
 import '../creation-tools.css';
 
@@ -80,6 +81,17 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
 
   const deleteMarker = (markerId: string) => {
     onProject({ markers: markers.filter((marker) => marker.id !== markerId) });
+  };
+
+  const commitTracks = (next: Project) => onProject({ tracks: next.tracks });
+  const createTrack = (kind: TrackKind) => commitTracks(addTrack(project, kind));
+  const changeTrackName = (trackId: string, name: string) => commitTracks(renameTrack(project, trackId, name));
+  const shiftTrack = (trackId: string, direction: -1 | 1) => commitTracks(moveTrack(project, trackId, direction));
+  const toggleTrackSolo = (trackId: string, solo: boolean) => commitTracks(setTrackSolo(project, trackId, solo));
+  const toggleTrackVisible = (trackId: string, visible: boolean) => commitTracks(setTrackVisible(project, trackId, visible));
+  const deleteTrack = (trackId: string) => {
+    const result = removeTrack(project, trackId);
+    if (result.removed) commitTracks(result.project);
   };
 
   return (
@@ -216,6 +228,33 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
           </div>
           <Field label="背景"><input type="color" value={project.background} onChange={(e) => onProject({ background: e.target.value })} /></Field>
 
+          <h3 className="sectionTitleRow"><span>トラック</span><span className="trackCount">{project.tracks.length}</span></h3>
+          <div className="trackAddGrid">
+            {(['video', 'audio', 'overlay', 'subtitle'] as TrackKind[]).map((kind) => (
+              <button type="button" key={kind} onClick={() => createTrack(kind)}><Plus size={11} />{trackKindLabel(kind)}</button>
+            ))}
+          </div>
+          <div className="trackManagerList">
+            {project.tracks.map((track, index) => {
+              const removable = canRemoveTrack(project, track.id);
+              return (
+                <div className="trackManagerRow" key={track.id}>
+                  <span className={`trackKindBadge ${track.kind}`}>{trackKindShort(track.kind)}</span>
+                  <input value={track.name} onChange={(e) => changeTrackName(track.id, e.target.value)} aria-label={`${track.name}の名前`} />
+                  {(track.kind === 'audio' || track.kind === 'video') && (
+                    <button type="button" className={`trackToggleBtn ${track.solo ? 'active' : ''}`} onClick={() => toggleTrackSolo(track.id, !track.solo)} title="Solo">S</button>
+                  )}
+                  {track.kind !== 'audio' && (
+                    <button type="button" className={`trackToggleBtn ${track.visible === false ? '' : 'active'}`} onClick={() => toggleTrackVisible(track.id, track.visible === false)} title="表示">V</button>
+                  )}
+                  <button type="button" className="miniBtn" disabled={index === 0} onClick={() => shiftTrack(track.id, -1)} title="上へ"><ChevronUp size={12} /></button>
+                  <button type="button" className="miniBtn" disabled={index === project.tracks.length - 1} onClick={() => shiftTrack(track.id, 1)} title="下へ"><ChevronDown size={12} /></button>
+                  <button type="button" className="miniBtn danger" disabled={!removable.allowed} onClick={() => deleteTrack(track.id)} title={removable.allowed ? '空トラックを削除' : removalReason(removable.reason)}><Trash2 size={12} /></button>
+                </div>
+              );
+            })}
+          </div>
+
           <h3>書き出し範囲</h3>
           <div className="twoFields">
             <NumberField label="In" value={inPoint} step={1 / Math.max(1, project.fps)} onChange={setInPoint} />
@@ -297,6 +336,26 @@ function formatSeconds(value: number) {
   const minutes = Math.floor(safe / 60);
   const seconds = safe - minutes * 60;
   return `${String(minutes).padStart(2, '0')}:${seconds.toFixed(2).padStart(5, '0')}`;
+}
+
+function trackKindLabel(kind: TrackKind) {
+  if (kind === 'video') return 'ビデオ';
+  if (kind === 'audio') return '音声';
+  if (kind === 'subtitle') return '字幕';
+  return 'オーバーレイ';
+}
+
+function trackKindShort(kind: TrackKind) {
+  if (kind === 'video') return 'V';
+  if (kind === 'audio') return 'A';
+  if (kind === 'subtitle') return 'S';
+  return 'O';
+}
+
+function removalReason(reason: 'not-found' | 'not-empty' | 'last-of-kind' | undefined) {
+  if (reason === 'not-empty') return 'クリップがあるトラックは削除できません';
+  if (reason === 'last-of-kind') return '同じ種類の最後のトラックは削除できません';
+  return '削除できません';
 }
 
 function defaultsForGenerator(kind: GeneratorPayload['kind']): GeneratorPayload['data'] {
