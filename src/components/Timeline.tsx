@@ -3,6 +3,8 @@ import { useMemo } from 'react';
 import type { Clip, Project } from '../types/editor';
 import '../timeline-enhancements.css';
 
+type TimelineEdge = 'left' | 'right';
+
 interface Props {
   project: Project;
   time: number;
@@ -16,6 +18,8 @@ interface Props {
   onMoveClip: (clipId: string, start: number) => void;
   onTrimClipLeft: (clipId: string, start: number) => void;
   onTrimClip: (clipId: string, duration: number) => void;
+  onRippleTrimClip: (clipId: string, edge: TimelineEdge, boundary: number) => void;
+  onRollEditClip: (clipId: string, edge: TimelineEdge, boundary: number) => void;
   onToggleMuteTrack: (trackId: string) => void;
   onToggleLockTrack: (trackId: string) => void;
 }
@@ -34,6 +38,8 @@ export function Timeline(props: Props) {
     onMoveClip,
     onTrimClipLeft,
     onTrimClip,
+    onRippleTrimClip,
+    onRollEditClip,
     onToggleMuteTrack,
     onToggleLockTrack,
   } = props;
@@ -125,6 +131,8 @@ export function Timeline(props: Props) {
                     onMove={onMoveClip}
                     onTrimLeft={onTrimClipLeft}
                     onTrimRight={onTrimClip}
+                    onRippleTrim={onRippleTrimClip}
+                    onRollEdit={onRollEditClip}
                   />
                 ))}
               </div>
@@ -136,7 +144,18 @@ export function Timeline(props: Props) {
   );
 }
 
-function TimelineClip({ clip, px, selected, locked, onSelect, onMove, onTrimLeft, onTrimRight }: {
+function TimelineClip({
+  clip,
+  px,
+  selected,
+  locked,
+  onSelect,
+  onMove,
+  onTrimLeft,
+  onTrimRight,
+  onRippleTrim,
+  onRollEdit,
+}: {
   clip: Clip;
   px: number;
   selected: boolean;
@@ -145,6 +164,8 @@ function TimelineClip({ clip, px, selected, locked, onSelect, onMove, onTrimLeft
   onMove: (id: string, start: number) => void;
   onTrimLeft: (id: string, start: number) => void;
   onTrimRight: (id: string, duration: number) => void;
+  onRippleTrim: (id: string, edge: TimelineEdge, boundary: number) => void;
+  onRollEdit: (id: string, edge: TimelineEdge, boundary: number) => void;
 }) {
   const drag = (e: React.PointerEvent) => {
     if (locked || (e.target as HTMLElement).closest('.trimHandle')) return;
@@ -155,11 +176,7 @@ function TimelineClip({ clip, px, selected, locked, onSelect, onMove, onTrimLeft
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
     const move = (ev: PointerEvent) => onMove(clip.id, Math.max(0, initial + (ev.clientX - startX) / px));
-    const up = () => {
-      target.removeEventListener('pointermove', move);
-      target.removeEventListener('pointerup', up);
-      target.removeEventListener('pointercancel', up);
-    };
+    const up = () => cleanupPointerDrag(target, move, up);
     target.addEventListener('pointermove', move);
     target.addEventListener('pointerup', up);
     target.addEventListener('pointercancel', up);
@@ -169,16 +186,18 @@ function TimelineClip({ clip, px, selected, locked, onSelect, onMove, onTrimLeft
     if (locked) return;
     e.stopPropagation();
     onSelect(clip.id);
+    const mode = trimMode(e);
     const startX = e.clientX;
     const initialStart = clip.start;
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
-    const move = (ev: PointerEvent) => onTrimLeft(clip.id, Math.max(0, initialStart + (ev.clientX - startX) / px));
-    const up = () => {
-      target.removeEventListener('pointermove', move);
-      target.removeEventListener('pointerup', up);
-      target.removeEventListener('pointercancel', up);
+    const move = (ev: PointerEvent) => {
+      const boundary = Math.max(0, initialStart + (ev.clientX - startX) / px);
+      if (mode === 'roll') onRollEdit(clip.id, 'left', boundary);
+      else if (mode === 'ripple') onRippleTrim(clip.id, 'left', boundary);
+      else onTrimLeft(clip.id, boundary);
     };
+    const up = () => cleanupPointerDrag(target, move, up);
     target.addEventListener('pointermove', move);
     target.addEventListener('pointerup', up);
     target.addEventListener('pointercancel', up);
@@ -188,16 +207,20 @@ function TimelineClip({ clip, px, selected, locked, onSelect, onMove, onTrimLeft
     if (locked) return;
     e.stopPropagation();
     onSelect(clip.id);
+    const mode = trimMode(e);
     const startX = e.clientX;
-    const initial = clip.duration;
+    const initialDuration = clip.duration;
+    const initialBoundary = clip.start + clip.duration;
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
-    const move = (ev: PointerEvent) => onTrimRight(clip.id, Math.max(0.1, initial + (ev.clientX - startX) / px));
-    const up = () => {
-      target.removeEventListener('pointermove', move);
-      target.removeEventListener('pointerup', up);
-      target.removeEventListener('pointercancel', up);
+    const move = (ev: PointerEvent) => {
+      const deltaSeconds = (ev.clientX - startX) / px;
+      const boundary = Math.max(clip.start + 0.1, initialBoundary + deltaSeconds);
+      if (mode === 'roll') onRollEdit(clip.id, 'right', boundary);
+      else if (mode === 'ripple') onRippleTrim(clip.id, 'right', boundary);
+      else onTrimRight(clip.id, Math.max(0.1, initialDuration + deltaSeconds));
     };
+    const up = () => cleanupPointerDrag(target, move, up);
     target.addEventListener('pointermove', move);
     target.addEventListener('pointerup', up);
     target.addEventListener('pointercancel', up);
@@ -211,9 +234,21 @@ function TimelineClip({ clip, px, selected, locked, onSelect, onMove, onTrimLeft
       onClick={(e) => { e.stopPropagation(); onSelect(clip.id); }}
       title={`${clip.name} / ${clip.duration.toFixed(2)}s`}
     >
-      <div className="trimHandle left" onPointerDown={trimLeft} />
+      <div className="trimHandle left" onPointerDown={trimLeft} title="トリム / Shift: リップル / Alt: ロール" />
       <span>{clip.name}</span>
-      <div className="trimHandle right" onPointerDown={trimRight} />
+      <div className="trimHandle right" onPointerDown={trimRight} title="トリム / Shift: リップル / Alt: ロール" />
     </div>
   );
+}
+
+function trimMode(event: React.PointerEvent) {
+  if (event.altKey) return 'roll' as const;
+  if (event.shiftKey) return 'ripple' as const;
+  return 'trim' as const;
+}
+
+function cleanupPointerDrag(target: HTMLElement, move: (event: PointerEvent) => void, up: () => void) {
+  target.removeEventListener('pointermove', move);
+  target.removeEventListener('pointerup', up);
+  target.removeEventListener('pointercancel', up);
 }
