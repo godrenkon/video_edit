@@ -1,4 +1,7 @@
-import type { EffectInstance, EffectParameter, EffectParameterValue, Keyframe } from '../types/editor';
+import { evaluateEffectParameter } from '../core/keyframes';
+import type { EffectInstance } from '../types/editor';
+
+export { evaluateEffectParameter } from '../core/keyframes';
 
 const CANVAS_FILTER_EFFECTS = new Set([
   'brightness-contrast',
@@ -7,24 +10,6 @@ const CANVAS_FILTER_EFFECTS = new Set([
   'blur',
   'drop-shadow',
 ]);
-
-export function evaluateEffectParameter(parameter: EffectParameter, timeSeconds: number): EffectParameterValue {
-  const keyframes = parameter.keyframes?.filter(validKeyframe).slice().sort((a, b) => a.time - b.time) ?? [];
-  if (keyframes.length === 0) return cloneValue(parameter.value);
-  if (timeSeconds <= keyframes[0].time) return cloneValue(keyframes[0].value);
-  if (timeSeconds >= keyframes[keyframes.length - 1].time) return cloneValue(keyframes[keyframes.length - 1].value);
-
-  let rightIndex = 1;
-  while (rightIndex < keyframes.length && keyframes[rightIndex].time < timeSeconds) rightIndex += 1;
-  const left = keyframes[rightIndex - 1];
-  const right = keyframes[rightIndex];
-  if (left.interpolation === 'hold') return cloneValue(left.value);
-
-  const span = Math.max(Number.EPSILON, right.time - left.time);
-  const linear = clamp01((timeSeconds - left.time) / span);
-  const amount = left.interpolation === 'bezier' ? smoothstep(linear) : linear;
-  return interpolateValue(left.value, right.value, amount);
-}
 
 export function effectNumber(effect: EffectInstance, parameterId: string, timeSeconds: number, fallback: number) {
   const parameter = effect.parameters[parameterId];
@@ -79,26 +64,6 @@ export function canvasFilterForEffects(effects: EffectInstance[], clipLocalTime:
   }
 
   return filters.length ? filters.join(' ') : 'none';
-}
-
-function interpolateValue(left: EffectParameterValue, right: EffectParameterValue, amount: number): EffectParameterValue {
-  if (typeof left === 'number' && typeof right === 'number') return left + (right - left) * amount;
-  if (Array.isArray(left) && Array.isArray(right) && left.length === right.length) {
-    return left.map((value, index) => value + (right[index] - value) * amount);
-  }
-  return amount < 1 ? cloneValue(left) : cloneValue(right);
-}
-
-function validKeyframe(keyframe: Keyframe) {
-  return Number.isFinite(keyframe.time) && keyframe.time >= 0;
-}
-
-function cloneValue(value: EffectParameterValue): EffectParameterValue {
-  return Array.isArray(value) ? [...value] : value;
-}
-
-function smoothstep(value: number) {
-  return value * value * (3 - 2 * value);
 }
 
 function withAlpha(color: string, alpha: number) {

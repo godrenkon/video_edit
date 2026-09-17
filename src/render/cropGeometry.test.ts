@@ -41,11 +41,10 @@ describe('crop geometry', () => {
   });
 
   it('prevents opposing normalized edges from removing the entire image', () => {
-    expect(constrainNormalizedCrop({ top: 0.8, right: 0.8, bottom: 0.8, left: 0.8 }, 'left')).toEqual({
-      top: 0.8,
-      right: 0.8,
-      bottom: 0.19,
-      left: 0.19,
-    });
+    const constrained = constrainNormalizedCrop({ top: 0.8, right: 0.8, bottom: 0.8, left: 0.8 }, 'left');
+    expect(constrained.top).toBeCloseTo(0.8, 10);
+    expect(constrained.right).toBeCloseTo(0.8, 10);
+    expect(constrained.bottom).toBeCloseTo(0.19, 10);
+    expect(constrained.left).toBeCloseTo(0.19, 10);
   });
 });
