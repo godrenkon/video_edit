@@ -1,0 +1,9 @@
+.exportSettingsCard { margin: 7px 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #0c1216; display: grid; gap: 7px; }
+.exportSettingsTitle { display: flex; align-items: center; gap: 6px; color: #d8e2e7; font-size: 10px; }
+.exportSettingField { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 7px; align-items: center; color: var(--muted); font-size: 9px; }
+.exportSettingField select { width: 100%; min-width: 0; height: 29px; border: 1px solid var(--line); border-radius: 6px; background: #0a0f12; color: var(--text); padding: 0 7px; }
+.exportAudioToggle { min-height: 29px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 9px; }
+.exportAudioToggle input { width: 15px; height: 15px; accent-color: var(--green); }
+.exportSettingsSummary { padding: 7px; border-radius: 6px; background: #10181d; display: grid; grid-template-columns: auto auto 1fr; gap: 7px; align-items: center; color: var(--muted); font-size: 8px; }
+.exportSettingsSummary b { color: var(--cyan); font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.exportSettingsSummary span:last-child { text-align: right; }
