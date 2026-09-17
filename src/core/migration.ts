@@ -1,4 +1,4 @@
-import type { Clip, Project, Track } from '../types/editor';
+import type { Clip, Project, ProjectExportSettings, Track } from '../types/editor';
 
 const CURRENT_PROJECT_VERSION = 2 as const;
 
@@ -53,6 +53,7 @@ export function migrateProject(input: unknown): Project {
       : [],
     inPoint: optionalFiniteNumber(input.inPoint),
     outPoint: optionalFiniteNumber(input.outPoint),
+    exportSettings: migrateExportSettings(input.exportSettings),
   };
 
   return project;
@@ -83,6 +84,7 @@ function migrateClip(clip: Record<string, unknown>, index: number): Clip {
   const rawKind = clip.kind;
   const allowedKinds: Clip['kind'][] = ['asset', 'zundamon', 'text', 'shape', 'subtitle', 'generator'];
   const kind: Clip['kind'] = allowedKinds.includes(rawKind as Clip['kind']) ? rawKind as Clip['kind'] : 'asset';
+  const duration = finiteNumber(clip.duration, 0.1, 0.1);
 
   return {
     ...(clip as unknown as Clip),
@@ -90,10 +92,12 @@ function migrateClip(clip: Record<string, unknown>, index: number): Clip {
     kind,
     name: stringValue(clip.name, `Clip ${index + 1}`),
     start: finiteNumber(clip.start, 0, 0),
-    duration: finiteNumber(clip.duration, 0.1, 0.1),
+    duration,
     inPoint: finiteNumber(clip.inPoint, 0, 0),
     volume: finiteNumber(clip.volume, 1, 0),
     muted: Boolean(clip.muted),
+    fadeIn: optionalClampedNumber(clip.fadeIn, 0, duration),
+    fadeOut: optionalClampedNumber(clip.fadeOut, 0, duration),
     transform: {
       x: finiteNumber(transform.x, 0),
       y: finiteNumber(transform.y, 0),
@@ -104,6 +108,20 @@ function migrateClip(clip: Record<string, unknown>, index: number): Clip {
       anchorY: optionalFiniteNumber(transform.anchorY),
     },
   };
+}
+
+function migrateExportSettings(value: unknown): ProjectExportSettings | undefined {
+  if (!isRecord(value)) return undefined;
+  const container = value.container === 'mp4' || value.container === 'webm' || value.container === 'auto'
+    ? value.container
+    : undefined;
+  const quality = value.quality === 'compact' || value.quality === 'balanced' || value.quality === 'high'
+    ? value.quality
+    : undefined;
+  const outputHeight = optionalClampedNumber(value.outputHeight, 16, 8192);
+  const includeAudio = typeof value.includeAudio === 'boolean' ? value.includeAudio : undefined;
+  if (!container && !quality && outputHeight === undefined && includeAudio === undefined) return undefined;
+  return { container, quality, outputHeight, includeAudio };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -128,4 +146,9 @@ function optionalFiniteNumber(value: unknown) {
   if (value === undefined || value === null || value === '') return undefined;
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : undefined;
+}
+
+function optionalClampedNumber(value: unknown, min: number, max: number) {
+  const n = optionalFiniteNumber(value);
+  return n === undefined ? undefined : Math.min(max, Math.max(min, n));
 }
