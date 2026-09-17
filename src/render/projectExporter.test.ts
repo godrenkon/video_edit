@@ -8,6 +8,7 @@ import {
   defaultVideoBitrate,
   projectHasAudibleAudio,
   projectRenderRange,
+  resolveExportDimensions,
   selectPreferredExportContainer,
   selectWebMVideoCodec,
 } from './projectExporter';
@@ -64,6 +65,20 @@ describe('project export planning', () => {
       endSeconds: 18,
       durationSeconds: 0,
     });
+  });
+
+  it('keeps project dimensions when no export override is supplied', () => {
+    expect(resolveExportDimensions(project(), {})).toEqual({ width: 1920, height: 1080 });
+  });
+
+  it('preserves aspect ratio when only one export dimension is supplied', () => {
+    expect(resolveExportDimensions(project(), { outputWidth: 1280 })).toEqual({ width: 1280, height: 720 });
+    expect(resolveExportDimensions(project(), { outputHeight: 2160 })).toEqual({ width: 3840, height: 2160 });
+  });
+
+  it('normalizes explicit export dimensions to even encoder-safe values and bounds', () => {
+    expect(resolveExportDimensions(project(), { outputWidth: 1279, outputHeight: 719 })).toEqual({ width: 1280, height: 720 });
+    expect(resolveExportDimensions(project(), { outputWidth: 99_999, outputHeight: 1 })).toEqual({ width: 8192, height: 16 });
   });
 
   it('prefers broadly useful WebM codecs in VP9, VP8, AV1 order', () => {
