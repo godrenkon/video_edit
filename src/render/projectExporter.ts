@@ -1,5 +1,5 @@
 import { probeCapabilities, type BrowserCapabilityReport, type CodecCapability } from '../core/capabilities';
-import type { Project } from '../types/editor';
+import type { Project, ProjectExportQuality } from '../types/editor';
 import { ProjectAudioMixer, buildAudioMixSegments } from './audioMixer';
 import { Canvas2DProjectRenderer, type RenderCanvas, type RenderContext2D } from './canvas2dRenderer';
 import { renderCanvasToMp4Buffer, renderCanvasToOpfsMp4 } from './mp4Writer';
@@ -30,6 +30,7 @@ export interface ProjectVideoExportOptions {
   fileName?: string;
   codec?: WebMVideoCodec;
   bitrate?: number;
+  quality?: ProjectExportQuality;
   outputWidth?: number;
   outputHeight?: number;
   includeAudio?: boolean;
@@ -79,6 +80,21 @@ export function projectRenderRange(project: Project): ProjectRenderRange {
     startSeconds,
     endSeconds,
     durationSeconds: Math.max(0, endSeconds - startSeconds),
+  };
+}
+
+export function resolveProjectExportOptions(
+  project: Project,
+  options: ProjectAutoVideoExportOptions = {},
+): ProjectAutoVideoExportOptions {
+  const saved = project.exportSettings;
+  const explicitDimensions = finitePositive(options.outputWidth) !== null || finitePositive(options.outputHeight) !== null;
+  return {
+    ...options,
+    container: options.container ?? saved?.container ?? 'auto',
+    quality: options.quality ?? saved?.quality ?? 'balanced',
+    outputHeight: explicitDimensions ? options.outputHeight : options.outputHeight ?? saved?.outputHeight,
+    includeAudio: options.includeAudio ?? saved?.includeAudio ?? true,
   };
 }
 
@@ -151,24 +167,30 @@ export function defaultVideoBitrate(width: number, height: number, fps: number) 
   return Math.round(clamp(pixelsPerSecond * 0.12, 2_000_000, 50_000_000));
 }
 
+export function qualityVideoBitrate(width: number, height: number, fps: number, quality: ProjectExportQuality = 'balanced') {
+  const multiplier = quality === 'compact' ? 0.65 : quality === 'high' ? 1.5 : 1;
+  return Math.round(clamp(defaultVideoBitrate(width, height, fps) * multiplier, 1_000_000, 50_000_000));
+}
+
 export async function exportProjectVideo(
   project: Project,
   options: ProjectAutoVideoExportOptions = {},
 ): Promise<ProjectVideoExportResult> {
-  const capabilities = options.capabilities ?? await probeCapabilities();
+  const effective = resolveProjectExportOptions(project, options);
+  const capabilities = effective.capabilities ?? await probeCapabilities();
   const range = projectRenderRange(project);
   if (range.durationSeconds <= 0) throw new Error('書き出し範囲が空です。');
-  const hasAudio = options.includeAudio !== false && projectHasAudibleAudio(project, range);
+  const hasAudio = effective.includeAudio !== false && projectHasAudibleAudio(project, range);
 
   let container: ProjectExportContainer | null;
-  if (options.container && options.container !== 'auto') container = options.container;
+  if (effective.container && effective.container !== 'auto') container = effective.container;
   else container = selectPreferredExportContainer(capabilities, hasAudio);
 
   if (!container) {
     throw new Error('このブラウザでは利用可能な動画書き出し形式が見つかりません。H.264/AAC または WebM 用コーデックを確認してください。');
   }
 
-  const shared = { ...options, capabilities };
+  const shared = { ...effective, capabilities };
   if (container === 'mp4') return exportProjectMp4(project, shared);
   return exportProjectWebM(project, shared);
 }
@@ -177,19 +199,20 @@ export async function exportProjectWebM(
   project: Project,
   options: ProjectVideoExportOptions = {},
 ): Promise<ProjectWebMExportResult> {
+  const effective = resolveProjectExportOptions(project, options);
   const range = projectRenderRange(project);
   if (range.durationSeconds <= 0) throw new Error('書き出し範囲が空です。');
 
-  const capabilities = options.capabilities ?? await probeCapabilities();
-  const codec = options.codec ?? selectWebMVideoCodec(capabilities.videoCodecs);
+  const capabilities = effective.capabilities ?? await probeCapabilities();
+  const codec = effective.codec ?? selectWebMVideoCodec(capabilities.videoCodecs);
   if (!codec) throw new Error('このブラウザでは WebM 動画をエンコードできる対応コーデックが見つかりません。');
 
-  const hasAudio = options.includeAudio !== false && projectHasAudibleAudio(project, range);
+  const hasAudio = effective.includeAudio !== false && projectHasAudibleAudio(project, range);
   if (hasAudio && !canEncodeOpus(capabilities.audioCodecs)) {
     throw new Error('このブラウザでは WebM 音声用の Opus エンコードが利用できません。');
   }
 
-  const context = createProjectRenderContext(project, options, hasAudio);
+  const context = createProjectRenderContext(project, effective, hasAudio);
   const renderOptions = {
     canvas: context.canvas,
     width: context.dimensions.width,
@@ -198,21 +221,21 @@ export async function exportProjectWebM(
     durationSeconds: range.durationSeconds,
     codec,
     bitrate: context.bitrate,
-    signal: options.signal,
-    onProgress: options.onProgress,
+    signal: effective.signal,
+    onProgress: effective.onProgress,
     audio: context.audioMixer ? {
       codec: 'opus' as const,
-      bitrate: options.audioBitrate ?? 160_000,
-      chunkSeconds: options.audioChunkSeconds ?? 2,
+      bitrate: effective.audioBitrate ?? 160_000,
+      chunkSeconds: effective.audioChunkSeconds ?? 2,
       sampleRate: context.audioSampleRate,
       renderChunk: context.renderAudioChunk,
     } : undefined,
     drawFrame: context.drawFrame,
   };
-  const fileName = ensureExtension(options.fileName ?? `${project.name || 'render'}.webm`, '.webm');
+  const fileName = ensureExtension(effective.fileName ?? `${project.name || 'render'}.webm`, '.webm');
 
   try {
-    const useOpfs = options.preferOpfs !== false && capabilities.base.opfs;
+    const useOpfs = effective.preferOpfs !== false && capabilities.base.opfs;
     if (useOpfs) {
       const result = await renderCanvasToOpfsWebM(fileName, renderOptions);
       return {
@@ -249,20 +272,21 @@ export async function exportProjectMp4(
   project: Project,
   options: ProjectVideoExportOptions = {},
 ): Promise<ProjectMp4ExportResult> {
+  const effective = resolveProjectExportOptions(project, options);
   const range = projectRenderRange(project);
   if (range.durationSeconds <= 0) throw new Error('書き出し範囲が空です。');
 
-  const capabilities = options.capabilities ?? await probeCapabilities();
+  const capabilities = effective.capabilities ?? await probeCapabilities();
   if (!canEncodeH264(capabilities.videoCodecs)) {
     throw new Error('このブラウザでは MP4 用の H.264 エンコードが利用できません。');
   }
 
-  const hasAudio = options.includeAudio !== false && projectHasAudibleAudio(project, range);
+  const hasAudio = effective.includeAudio !== false && projectHasAudibleAudio(project, range);
   if (hasAudio && !canEncodeAac(capabilities.audioCodecs)) {
     throw new Error('このブラウザでは MP4 音声用の AAC エンコードが利用できません。');
   }
 
-  const context = createProjectRenderContext(project, options, hasAudio);
+  const context = createProjectRenderContext(project, effective, hasAudio);
   const renderOptions = {
     canvas: context.canvas,
     width: context.dimensions.width,
@@ -270,21 +294,21 @@ export async function exportProjectMp4(
     fps: project.fps,
     durationSeconds: range.durationSeconds,
     bitrate: context.bitrate,
-    signal: options.signal,
-    onProgress: options.onProgress,
+    signal: effective.signal,
+    onProgress: effective.onProgress,
     audio: context.audioMixer ? {
       codec: 'aac' as const,
-      bitrate: options.audioBitrate ?? 192_000,
-      chunkSeconds: options.audioChunkSeconds ?? 2,
+      bitrate: effective.audioBitrate ?? 192_000,
+      chunkSeconds: effective.audioChunkSeconds ?? 2,
       sampleRate: context.audioSampleRate,
       renderChunk: context.renderAudioChunk,
     } : undefined,
     drawFrame: context.drawFrame,
   };
-  const fileName = ensureExtension(options.fileName ?? `${project.name || 'render'}.mp4`, '.mp4');
+  const fileName = ensureExtension(effective.fileName ?? `${project.name || 'render'}.mp4`, '.mp4');
 
   try {
-    const useOpfs = options.preferOpfs !== false && capabilities.base.opfs;
+    const useOpfs = effective.preferOpfs !== false && capabilities.base.opfs;
     if (useOpfs) {
       const result = await renderCanvasToOpfsMp4(fileName, renderOptions);
       return {
@@ -327,7 +351,7 @@ function createProjectRenderContext(project: Project, options: ProjectVideoExpor
   const assets = new RenderAssetStore(project.assets);
   const audioMixer = hasAudio ? new ProjectAudioMixer(project.assets) : null;
   const renderer = new Canvas2DProjectRenderer(compositionCanvas, assets);
-  const bitrate = options.bitrate ?? defaultVideoBitrate(dimensions.width, dimensions.height, project.fps);
+  const bitrate = options.bitrate ?? qualityVideoBitrate(dimensions.width, dimensions.height, project.fps, options.quality);
   const audioSampleRate = Math.max(8_000, Math.round(options.audioSampleRate ?? 48_000));
 
   const renderAudioChunk = (startSeconds: number, durationSeconds: number, signal?: AbortSignal) => {
