@@ -23,6 +23,10 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
   const crop = selectedClip && selectedAsset && selectedAsset.kind !== 'audio'
     ? cropToNormalized(selectedClip.crop, selectedAsset.width ?? project.width, selectedAsset.height ?? project.height)
     : null;
+  const selectedSpeed = Math.max(0.0001, selectedClip?.speed ?? 1);
+  const maxSourceInPoint = selectedClip && selectedAsset && (selectedAsset.kind === 'video' || selectedAsset.kind === 'audio')
+    ? Math.max(0, selectedAsset.duration - selectedClip.duration * selectedSpeed)
+    : 0;
 
   const patchText = (patch: Partial<TextPayload>) => {
     const current: TextPayload = selectedClip?.text ?? { text: 'テキスト' };
@@ -170,8 +174,9 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
               <h3>再生</h3>
               <div className="twoFields">
                 <NumberField label="速度" value={selectedClip.speed ?? 1} step={0.05} onChange={(v) => onClip({ speed: Math.max(0.0625, Math.min(16, v)) })} />
-                <NumberField label="開始オフセット" value={selectedClip.inPoint} step={0.01} onChange={(v) => onClip({ inPoint: Math.max(0, Math.min(selectedAsset.duration || Number.MAX_SAFE_INTEGER, v)) })} />
+                <NumberField label="開始オフセット" value={selectedClip.inPoint} step={0.01} onChange={(v) => onClip({ inPoint: Math.max(0, Math.min(maxSourceInPoint, v)) })} />
               </div>
+              <div className="infoCard">使用可能な開始オフセット: 0 ～ {maxSourceInPoint.toFixed(2)}s（速度とクリップ尺を反映）</div>
               <label className="checkboxField">
                 <span>逆再生</span>
                 <input type="checkbox" checked={Boolean(selectedClip.reverse)} onChange={(e) => onClip({ reverse: e.target.checked })} />
