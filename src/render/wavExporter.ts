@@ -87,7 +87,7 @@ export async function exportProjectWav(
       }
     }
 
-    const chunks: BlobPart[] = [createWavHeader(totalFrames, sampleRate, channels)];
+    const chunks: BlobPart[] = [toArrayBuffer(createWavHeader(totalFrames, sampleRate, channels))];
     await renderPcmChunks({
       project,
       mixer,
@@ -97,7 +97,7 @@ export async function exportProjectWav(
       channels,
       chunkFrames,
       signal: options.signal,
-      onChunk: async (_frameOffset, bytes) => { chunks.push(bytes); },
+      onChunk: async (_frameOffset, bytes) => { chunks.push(toArrayBuffer(bytes)); },
       onProgress: options.onProgress,
       startedAt,
     });
@@ -214,7 +214,7 @@ async function createOpfsWavWriter(fileName: string) {
     fileName: safeName,
     write: async (position: number, data: Uint8Array) => {
       if (terminal) throw new Error('WAV output is already closed');
-      await writable.write({ type: 'write', position, data });
+      await writable.write({ type: 'write', position, data: toArrayBuffer(data) });
     },
     close: async () => {
       if (terminal) return;
@@ -234,6 +234,12 @@ async function createOpfsWavWriter(fileName: string) {
 function ensureWavExtension(fileName: string) {
   const safe = sanitizeRenderFileName(fileName || 'audio.wav').replace(/\.(wav|wave)$/i, '');
   return `${safe || 'audio'}.wav`;
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
 }
 
 function writeAscii(view: DataView, offset: number, text: string) {
