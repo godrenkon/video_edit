@@ -2,12 +2,14 @@ import { Maximize2, Pause, Play, SkipBack, Volume2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import {
   audioTimelineItems,
+  clipLocalTime,
   clipSourceTime,
   visualTimelineItems,
   zundamonVisualState,
 } from '../render/timelineEvaluation';
 import { previewCropLayout } from '../render/cropGeometry';
 import { canvasFilterForEffects } from '../render/effectEvaluation';
+import { PreviewAudioGraph } from '../render/previewAudioGraph';
 import {
   deterministicNoiseByte,
   generatorColor,
@@ -33,13 +35,13 @@ function clipPreviewTransform(clip: Clip, project: Project, extraY = 0) {
 }
 
 function layerStyle(clip: Clip, project: Project, time: number, extraY = 0): CSSProperties {
-  const clipLocalTime = Math.max(0, Math.min(clip.duration, time - clip.start));
+  const clipLocal = Math.max(0, Math.min(clip.duration, time - clip.start));
   return {
     transform: clipPreviewTransform(clip, project, extraY),
     transformOrigin: `${(clip.transform.anchorX ?? 0.5) * 100}% ${(clip.transform.anchorY ?? 0.5) * 100}%`,
     opacity: Math.max(0, Math.min(1, clip.transform.opacity)),
     mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
-    filter: canvasFilterForEffects(clip.effects ?? [], clipLocalTime),
+    filter: canvasFilterForEffects(clip.effects ?? [], clipLocal),
   };
 }
 
@@ -59,7 +61,7 @@ function assetLayerStyles(
   );
   if (!layout) return null;
 
-  const clipLocalTime = Math.max(0, Math.min(clip.duration, time - clip.start));
+  const clipLocal = Math.max(0, Math.min(clip.duration, time - clip.start));
   const anchorX = Math.max(0, Math.min(1, clip.transform.anchorX ?? 0.5));
   const anchorY = Math.max(0, Math.min(1, clip.transform.anchorY ?? 0.5));
   const xPercent = clip.transform.x / Math.max(1, project.width) * 100;
@@ -77,7 +79,7 @@ function assetLayerStyles(
       transform: `rotate(${clip.transform.rotation}deg) scale(${clip.transform.scale}) translate(${-anchorX * 100}%, ${-anchorY * 100}%)`,
       opacity: Math.max(0, Math.min(1, clip.transform.opacity)),
       mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
-      filter: canvasFilterForEffects(clip.effects ?? [], clipLocalTime),
+      filter: canvasFilterForEffects(clip.effects ?? [], clipLocal),
       pointerEvents: 'none',
     },
     source: {
@@ -204,8 +206,31 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
 
 function AudioLayer({ clip, asset, time, playing, trackMuted }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean; trackMuted: boolean }) {
   const ref = useRef<HTMLAudioElement>(null);
+  const graphRef = useRef<PreviewAudioGraph | null>(null);
   const sourceTime = clipSourceTime(clip, time);
+  const localTime = clipLocalTime(clip, time);
   const playbackRate = Math.max(0.0625, Math.min(16, clip.speed ?? 1));
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !asset?.objectUrl) return;
+    let graph: PreviewAudioGraph | null = null;
+    try {
+      graph = new PreviewAudioGraph(el);
+      graphRef.current = graph;
+      graph.setEffects(clip.effects, localTime);
+    } catch (error) {
+      console.warn('Realtime audio effect preview is unavailable', error);
+    }
+    return () => {
+      if (graphRef.current === graph) graphRef.current = null;
+      graph?.detach();
+    };
+  }, [asset?.objectUrl]);
+
+  useEffect(() => {
+    graphRef.current?.setEffects(clip.effects, localTime);
+  }, [clip.effects, localTime]);
 
   useEffect(() => {
     const el = ref.current;
@@ -221,8 +246,12 @@ function AudioLayer({ clip, asset, time, playing, trackMuted }: { clip: Clip; as
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (playing && !clip.reverse) el.play().catch(() => undefined);
-    else el.pause();
+    if (playing && !clip.reverse) {
+      graphRef.current?.resume().catch(() => undefined);
+      el.play().catch(() => undefined);
+    } else {
+      el.pause();
+    }
   }, [clip.reverse, playing]);
 
   if (!asset?.objectUrl) return null;
