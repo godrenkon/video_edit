@@ -43,9 +43,9 @@ Current implementation branch: `main`.
 - [x] snapping to playhead / markers / clip edges
 - [x] one-frame nudge
 - [x] ripple trim core
-- [ ] ripple trim drag UI
+- [x] ripple trim drag UI (Shift + trim handle)
 - [x] roll edit core
-- [ ] roll edit drag UI
+- [x] roll edit drag UI (Alt + trim handle, adjacent cuts only)
 - [x] slip edit core
 - [x] bounded slip / source-offset inspector UI
 - [ ] slide edit
@@ -131,8 +131,8 @@ Current implementation branch: `main`.
 - [ ] transparent WebM where supported
 - [ ] WAV / audio-only
 - [ ] PNG still / image sequence
-- [ ] bitrate / quality preset UI
-- [ ] 720p / 1080p / 1440p / 4K preset UI
+- [x] bitrate / quality preset UI
+- [x] 720p / 1080p / 1440p / 4K preset UI
 - [ ] hardware encoder preference / benchmark
 - [ ] render queue
 - [ ] resumable render recovery
@@ -205,8 +205,8 @@ Current implementation branch: `main`.
 - [ ] lower-third templates
 - [x] basic subtitle clip editor
 - [x] final-export text/subtitle compositor
-- [ ] SRT import/export
-- [ ] VTT import/export
+- [x] SRT import/export
+- [x] VTT import/export
 - [ ] ASS subset
 - [ ] word-by-word highlight
 - [ ] transcript document model
