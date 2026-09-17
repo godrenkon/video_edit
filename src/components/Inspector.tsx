@@ -1,6 +1,7 @@
-import { RotateCcw, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Flag, RotateCcw, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { uid } from '../core/project';
 import { constrainNormalizedCrop, cropToNormalized } from '../render/cropGeometry';
-import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload } from '../types/editor';
+import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker } from '../types/editor';
 import { EffectsPanel } from './EffectsPanel';
 import '../creation-tools.css';
 
@@ -44,6 +45,43 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
     onClip({ crop: empty ? undefined : next });
   };
 
+  const markers = [...(project.markers ?? [])].sort((a, b) => a.time - b.time);
+  const inPoint = Math.max(0, Math.min(project.duration, project.inPoint ?? 0));
+  const outPoint = Math.max(inPoint, Math.min(project.duration, project.outPoint ?? project.duration));
+
+  const setInPoint = (value: number) => {
+    const next = Math.max(0, Math.min(value, project.outPoint ?? project.duration, project.duration));
+    onProject({ inPoint: next });
+  };
+
+  const setOutPoint = (value: number) => {
+    const next = Math.max(project.inPoint ?? 0, Math.min(project.duration, value));
+    onProject({ outPoint: next });
+  };
+
+  const addMarker = () => {
+    const time = Math.max(0, Math.min(project.duration, timelineTime));
+    const marker: TimelineMarker = {
+      id: uid('marker'),
+      time,
+      name: `マーカー ${markers.length + 1}`,
+      color: '#ffc86b',
+    };
+    onProject({ markers: [...markers, marker].sort((a, b) => a.time - b.time) });
+  };
+
+  const patchMarker = (markerId: string, patch: Partial<TimelineMarker>) => {
+    onProject({
+      markers: markers
+        .map((marker) => marker.id === markerId ? { ...marker, ...patch } : marker)
+        .sort((a, b) => a.time - b.time),
+    });
+  };
+
+  const deleteMarker = (markerId: string) => {
+    onProject({ markers: markers.filter((marker) => marker.id !== markerId) });
+  };
+
   return (
     <aside className="panel inspectorPanel">
       <div className="panelHeader"><div><strong>インスペクター</strong><span>properties</span></div><SlidersHorizontal size={17} /></div>
@@ -82,7 +120,7 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
               <h3>字幕</h3>
               <Field label="内容"><textarea rows={4} value={selectedClip.subtitle.text} onChange={(e) => onClip({ subtitle: { ...selectedClip.subtitle!, text: e.target.value } })} /></Field>
               <Field label="話者"><input value={selectedClip.subtitle.speaker ?? ''} placeholder="任意" onChange={(e) => onClip({ subtitle: { ...selectedClip.subtitle!, speaker: e.target.value || undefined } })} /></Field>
-              <div className="infoCard">字幕は現在、白文字＋黒縁＋半透明背景の読みやすい既定styleでPreview/WebMへ描画されます。</div>
+              <div className="infoCard">字幕は現在、白文字＋黒縁＋半透明背景の読みやすい既定styleでPreview/最終書き出しへ描画されます。</div>
             </>
           )}
 
@@ -127,7 +165,7 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
                 <input type="checkbox" checked={Boolean(selectedClip.reverse)} onChange={(e) => onClip({ reverse: e.target.checked })} />
               </label>
               {selectedAsset.kind === 'audio' && selectedClip.reverse && (
-                <div className="infoCard">逆再生音声は最終WebM書き出しへ反映されます。HTML Audioの制約によりPreview再生中は無音です。</div>
+                <div className="infoCard">逆再生音声は最終書き出しへ反映されます。HTML Audioの制約によりPreview再生中は無音です。</div>
               )}
             </>
           )}
@@ -177,6 +215,52 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
             <NumberField label="FPS" value={project.fps} step={1} onChange={(v) => onProject({ fps: Math.max(1, Math.min(120, Math.round(v))) })} />
           </div>
           <Field label="背景"><input type="color" value={project.background} onChange={(e) => onProject({ background: e.target.value })} /></Field>
+
+          <h3>書き出し範囲</h3>
+          <div className="twoFields">
+            <NumberField label="In" value={inPoint} step={1 / Math.max(1, project.fps)} onChange={setInPoint} />
+            <NumberField label="Out" value={outPoint} step={1 / Math.max(1, project.fps)} onChange={setOutPoint} />
+          </div>
+          <div className="projectActionGrid">
+            <button type="button" onClick={() => setInPoint(timelineTime)}>現在位置を In</button>
+            <button type="button" onClick={() => setOutPoint(timelineTime)}>現在位置を Out</button>
+            <button type="button" onClick={() => onProject({ inPoint: undefined, outPoint: undefined })}>全範囲</button>
+          </div>
+          <div className="infoCard">最終書き出しは {formatSeconds(inPoint)} ～ {formatSeconds(outPoint)}（{formatSeconds(outPoint - inPoint)}）です。</div>
+
+          <h3 className="sectionTitleRow"><span>マーカー</span><button type="button" className="miniBtn" onClick={addMarker} title="現在位置にマーカーを追加"><Flag size={12} /></button></h3>
+          {markers.length === 0 && <div className="markerEmpty">マーカーなし</div>}
+          <div className="markerList">
+            {markers.map((marker) => (
+              <div className="markerRow" key={marker.id}>
+                <input
+                  className="markerColor"
+                  type="color"
+                  value={safeColor(marker.color, '#ffc86b')}
+                  onChange={(e) => patchMarker(marker.id, { color: e.target.value })}
+                  aria-label={`${marker.name}の色`}
+                />
+                <input
+                  className="markerName"
+                  value={marker.name}
+                  onChange={(e) => patchMarker(marker.id, { name: e.target.value })}
+                  aria-label="マーカー名"
+                />
+                <input
+                  className="markerTime"
+                  type="number"
+                  min={0}
+                  max={project.duration}
+                  step={1 / Math.max(1, project.fps)}
+                  value={Number(marker.time.toFixed(3))}
+                  onChange={(e) => patchMarker(marker.id, { time: Math.max(0, Math.min(project.duration, Number(e.target.value))) })}
+                  aria-label={`${marker.name}の時刻`}
+                />
+                <button type="button" className="miniBtn danger" onClick={() => deleteMarker(marker.id)} title="マーカーを削除"><X size={12} /></button>
+              </div>
+            ))}
+          </div>
+
           <div className="infoCard">クリップを選択すると、内容・速度・切り抜き・位置・エフェクトなどを編集できます。</div>
         </div>
       )}
@@ -206,6 +290,13 @@ function asString(value: unknown) {
 
 function asNumber(value: unknown, fallback: number) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function formatSeconds(value: number) {
+  const safe = Math.max(0, Number.isFinite(value) ? value : 0);
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe - minutes * 60;
+  return `${String(minutes).padStart(2, '0')}:${seconds.toFixed(2).padStart(5, '0')}`;
 }
 
 function defaultsForGenerator(kind: GeneratorPayload['kind']): GeneratorPayload['data'] {
