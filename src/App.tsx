@@ -26,7 +26,7 @@ import {
   type RecoverySnapshotInfo,
 } from './core/storage';
 import { beginEditorSession, markEditorSessionClean } from './core/session';
-import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipRight } from './core/timelineOps';
+import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { exportProjectWebM } from './render/projectExporter';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
@@ -586,11 +586,15 @@ export default function App() {
           (p) => moveClip(p, id, start, time, snapThreshold),
           { label: 'クリップ移動', key: `clip:${id}:move` },
         )}
+        onTrimClipLeft={(id, start) => updateProject(
+          (p) => trimClipLeft(p, id, start, time, snapThreshold),
+          { label: '左トリム', key: `clip:${id}:trim-left` },
+        )}
         onTrimClip={(id, duration) => updateProject((p) => {
           const location = findClip(p, id);
           if (!location) return p;
           return trimClipRight(p, id, location.clip.start + duration, time, snapThreshold);
-        }, { label: 'トリム', key: `clip:${id}:trim` })}
+        }, { label: '右トリム', key: `clip:${id}:trim-right` })}
         onToggleMuteTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, muted: !t.muted } : t) }), { label: 'トラックミュート' })}
         onToggleLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, locked: !t.locked } : t) }), { label: 'トラックロック' })}
       />

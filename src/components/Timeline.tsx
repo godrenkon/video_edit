@@ -1,6 +1,7 @@
 import { Eye, EyeOff, Lock, Scissors, Trash2, Unlock, ZoomIn, ZoomOut } from 'lucide-react';
 import { useMemo } from 'react';
 import type { Clip, Project } from '../types/editor';
+import '../timeline-enhancements.css';
 
 interface Props {
   project: Project;
@@ -13,6 +14,7 @@ interface Props {
   onSplitSelected: () => void;
   onRippleDeleteSelected: () => void;
   onMoveClip: (clipId: string, start: number) => void;
+  onTrimClipLeft: (clipId: string, start: number) => void;
   onTrimClip: (clipId: string, duration: number) => void;
   onToggleMuteTrack: (trackId: string) => void;
   onToggleLockTrack: (trackId: string) => void;
@@ -30,6 +32,7 @@ export function Timeline(props: Props) {
     onSplitSelected,
     onRippleDeleteSelected,
     onMoveClip,
+    onTrimClipLeft,
     onTrimClip,
     onToggleMuteTrack,
     onToggleLockTrack,
@@ -95,7 +98,8 @@ export function Timeline(props: Props) {
                     locked={track.locked}
                     onSelect={onSelect}
                     onMove={onMoveClip}
-                    onTrim={onTrimClip}
+                    onTrimLeft={onTrimClipLeft}
+                    onTrimRight={onTrimClip}
                   />
                 ))}
               </div>
@@ -107,17 +111,18 @@ export function Timeline(props: Props) {
   );
 }
 
-function TimelineClip({ clip, px, selected, locked, onSelect, onMove, onTrim }: {
+function TimelineClip({ clip, px, selected, locked, onSelect, onMove, onTrimLeft, onTrimRight }: {
   clip: Clip;
   px: number;
   selected: boolean;
   locked: boolean;
   onSelect: (id: string) => void;
   onMove: (id: string, start: number) => void;
-  onTrim: (id: string, duration: number) => void;
+  onTrimLeft: (id: string, start: number) => void;
+  onTrimRight: (id: string, duration: number) => void;
 }) {
   const drag = (e: React.PointerEvent) => {
-    if (locked) return;
+    if (locked || (e.target as HTMLElement).closest('.trimHandle')) return;
     e.stopPropagation();
     onSelect(clip.id);
     const startX = e.clientX;
@@ -135,14 +140,34 @@ function TimelineClip({ clip, px, selected, locked, onSelect, onMove, onTrim }: 
     target.addEventListener('pointercancel', up);
   };
 
-  const trim = (e: React.PointerEvent) => {
+  const trimLeft = (e: React.PointerEvent) => {
     if (locked) return;
     e.stopPropagation();
+    onSelect(clip.id);
+    const startX = e.clientX;
+    const initialStart = clip.start;
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => onTrimLeft(clip.id, Math.max(0, initialStart + (ev.clientX - startX) / px));
+    const up = () => {
+      target.removeEventListener('pointermove', move);
+      target.removeEventListener('pointerup', up);
+      target.removeEventListener('pointercancel', up);
+    };
+    target.addEventListener('pointermove', move);
+    target.addEventListener('pointerup', up);
+    target.addEventListener('pointercancel', up);
+  };
+
+  const trimRight = (e: React.PointerEvent) => {
+    if (locked) return;
+    e.stopPropagation();
+    onSelect(clip.id);
     const startX = e.clientX;
     const initial = clip.duration;
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
-    const move = (ev: PointerEvent) => onTrim(clip.id, Math.max(0.1, initial + (ev.clientX - startX) / px));
+    const move = (ev: PointerEvent) => onTrimRight(clip.id, Math.max(0.1, initial + (ev.clientX - startX) / px));
     const up = () => {
       target.removeEventListener('pointermove', move);
       target.removeEventListener('pointerup', up);
@@ -161,8 +186,9 @@ function TimelineClip({ clip, px, selected, locked, onSelect, onMove, onTrim }: 
       onClick={(e) => { e.stopPropagation(); onSelect(clip.id); }}
       title={`${clip.name} / ${clip.duration.toFixed(2)}s`}
     >
+      <div className="trimHandle left" onPointerDown={trimLeft} />
       <span>{clip.name}</span>
-      <div className="trimHandle" onPointerDown={trim} />
+      <div className="trimHandle right" onPointerDown={trimRight} />
     </div>
   );
 }
