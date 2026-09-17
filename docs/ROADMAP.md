@@ -129,7 +129,7 @@ Current implementation branch: `main`.
 - [x] core Canvas/CSS effect + keyframe parity for supported effects
 - [ ] full effect / keyframe rendering parity across all registered effects
 - [ ] transparent WebM where supported
-- [ ] WAV / audio-only
+- [x] WAV / audio-only chunked export with OPFS + memory fallback
 - [ ] PNG still / image sequence
 - [x] bitrate / quality preset UI
 - [x] 720p / 1080p / 1440p / 4K preset UI
@@ -137,7 +137,7 @@ Current implementation branch: `main`.
 - [ ] render queue
 - [ ] resumable render recovery
 
-> Deterministic offline export is implemented for capability-dependent MP4/H.264/AAC and WebM/VP9/VP8/AV1/Opus paths. The editor prefers MP4 when the browser exposes the required H.264/AAC encoders and falls back to WebM otherwise. Browser fixture validation, encoded-file long-duration A/V sync tests, full effect parity, and long-render memory acceptance remain incomplete.
+> Deterministic offline export is implemented for capability-dependent MP4/H.264/AAC and WebM/VP9/VP8/AV1/Opus paths. The editor also supports deterministic chunked PCM WAV audio-only delivery. Browser fixture validation, encoded-file long-duration A/V sync tests, full effect parity, and long-render memory acceptance remain incomplete.
 
 ## Phase 4 — Audio / Fairlight-style Workflow
 
