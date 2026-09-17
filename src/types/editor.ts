@@ -133,6 +133,8 @@ export interface Clip {
   inPoint: number;
   volume: number;
   muted: boolean;
+  fadeIn?: number;
+  fadeOut?: number;
   transform: Transform;
   zundamon?: ZundamonPayload;
   crop?: Crop;
