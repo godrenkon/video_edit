@@ -126,4 +126,15 @@ describe('timeline evaluation', () => {
     expect(visualTimelineItems(project, 1).map((item) => item.clip.id)).toEqual(['video', 'overlay']);
     expect(audioTimelineItems(project, 1).map((item) => item.clip.id)).toEqual(['audio']);
   });
+
+  it('applies clip fade envelope to preview audio volume without mutating the project clip', () => {
+    const source = makeClip('audio', 2, 8, { volume: 0.8, fadeIn: 2, fadeOut: 2 });
+    const project = makeProject([makeTrack('audio', 'audio', [source])]);
+
+    expect(audioTimelineItems(project, 2)[0].clip.volume).toBe(0);
+    expect(audioTimelineItems(project, 3)[0].clip.volume).toBeCloseTo(0.4, 8);
+    expect(audioTimelineItems(project, 6)[0].clip.volume).toBeCloseTo(0.8, 8);
+    expect(audioTimelineItems(project, 9)[0].clip.volume).toBeCloseTo(0.4, 8);
+    expect(source.volume).toBe(0.8);
+  });
 });
