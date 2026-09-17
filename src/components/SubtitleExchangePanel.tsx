@@ -1,9 +1,16 @@
 import { Download, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { addTrack } from '../core/trackOps';
-import { subtitleClipsFromSrt, subtitleClipsToSrt } from '../core/subtitles';
+import {
+  subtitleClipsFromSrt,
+  subtitleClipsFromWebVtt,
+  subtitleClipsToSrt,
+  subtitleClipsToWebVtt,
+} from '../core/subtitles';
 import type { Project } from '../types/editor';
 import '../subtitle-exchange.css';
+
+type SubtitleFileFormat = 'srt' | 'vtt';
 
 interface Props {
   project: Project;
@@ -12,19 +19,29 @@ interface Props {
 
 export function SubtitleExchangePanel({ project, onProject }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const importFormatRef = useRef<SubtitleFileFormat>('srt');
   const [status, setStatus] = useState('');
   const subtitleClips = project.tracks
     .filter((track) => track.kind === 'subtitle')
     .flatMap((track) => track.clips)
     .filter((clip) => clip.kind === 'subtitle');
 
-  const importSrt = async (file: File | undefined) => {
+  const chooseImport = (format: SubtitleFileFormat) => {
+    importFormatRef.current = format;
+    inputRef.current?.click();
+  };
+
+  const importSubtitles = async (file: File | undefined) => {
     if (!file) return;
+    const format = importFormatRef.current;
     try {
       const text = await file.text();
-      const clips = subtitleClipsFromSrt(text, { y: project.height * 0.34 });
+      const options = { y: project.height * 0.34 };
+      const clips = format === 'vtt'
+        ? subtitleClipsFromWebVtt(text, options)
+        : subtitleClipsFromSrt(text, options);
       if (clips.length === 0) {
-        setStatus('有効な字幕キューが見つかりませんでした');
+        setStatus(`有効な${formatLabel(format)}字幕キューが見つかりませんでした`);
         return;
       }
 
@@ -41,52 +58,65 @@ export function SubtitleExchangePanel({ project, onProject }: Props) {
         ? { ...track, clips: [...track.clips, ...clips].sort((a, b) => a.start - b.start) }
         : track);
       onProject({ tracks });
-      setStatus(`${clips.length}件の字幕を追加しました`);
+      setStatus(`${formatLabel(format)}から${clips.length}件の字幕を追加しました`);
     } catch (error) {
       console.error(error);
-      setStatus(error instanceof Error ? `読み込みエラー: ${error.message}` : 'SRT読み込みエラー');
+      setStatus(error instanceof Error ? `読み込みエラー: ${error.message}` : `${formatLabel(format)}読み込みエラー`);
     } finally {
       if (inputRef.current) inputRef.current.value = '';
     }
   };
 
-  const exportSrt = () => {
-    const text = subtitleClipsToSrt(subtitleClips);
-    if (!text) {
+  const exportSubtitles = (format: SubtitleFileFormat) => {
+    const text = format === 'vtt'
+      ? subtitleClipsToWebVtt(subtitleClips)
+      : subtitleClipsToSrt(subtitleClips);
+    const hasCues = subtitleClips.length > 0 && (format === 'vtt' ? text.trim() !== 'WEBVTT' : Boolean(text));
+    if (!hasCues) {
       setStatus('書き出せる字幕がありません');
       return;
     }
-    const blob = new Blob([`\uFEFF${text}`], { type: 'application/x-subrip;charset=utf-8' });
+
+    const isVtt = format === 'vtt';
+    const blob = new Blob([isVtt ? text : `\uFEFF${text}`], {
+      type: isVtt ? 'text/vtt;charset=utf-8' : 'application/x-subrip;charset=utf-8',
+    });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `${sanitizeFileName(project.name)}.srt`;
+    anchor.download = `${sanitizeFileName(project.name)}.${format}`;
     anchor.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-    setStatus(`${subtitleClips.length}件の字幕を書き出しました`);
+    setStatus(`${subtitleClips.length}件の字幕を${formatLabel(format)}で書き出しました`);
   };
 
   return (
     <section className="subtitleExchangeCard">
       <div className="subtitleExchangeTitle">
-        <strong>SRT字幕</strong>
+        <strong>字幕交換 SRT / WebVTT</strong>
         <span>{subtitleClips.length} clips</span>
       </div>
       <div className="subtitleExchangeActions">
-        <button type="button" onClick={() => inputRef.current?.click()}><Upload size={12} />SRT読み込み</button>
-        <button type="button" onClick={exportSrt} disabled={subtitleClips.length === 0}><Download size={12} />SRT書き出し</button>
+        <button type="button" onClick={() => chooseImport('srt')}><Upload size={12} />SRT読込</button>
+        <button type="button" onClick={() => exportSubtitles('srt')} disabled={subtitleClips.length === 0}><Download size={12} />SRT出力</button>
+        <button type="button" onClick={() => chooseImport('vtt')}><Upload size={12} />VTT読込</button>
+        <button type="button" onClick={() => exportSubtitles('vtt')} disabled={subtitleClips.length === 0}><Download size={12} />VTT出力</button>
       </div>
       <input
         ref={inputRef}
         type="file"
-        accept=".srt,application/x-subrip,text/plain"
+        accept={importFormatRef.current === 'vtt' ? '.vtt,text/vtt,text/plain' : '.srt,application/x-subrip,text/plain'}
         hidden
-        onChange={(event) => importSrt(event.target.files?.[0])}
+        onChange={(event) => importSubtitles(event.target.files?.[0])}
       />
-      <div className="subtitleExchangeNote">読み込みは既存字幕を残したまま編集可能な字幕トラックへ追記します。</div>
+      <div className="subtitleExchangeNote">読み込みは既存字幕を残したまま編集可能な字幕トラックへ追記します。SRT/VTTとも内部では同じ字幕クリップとして編集できます。</div>
       {status && <div className="subtitleExchangeStatus">{status}</div>}
     </section>
   );
+}
+
+function formatLabel(format: SubtitleFileFormat) {
+  return format === 'vtt' ? 'WebVTT' : 'SRT';
 }
 
 function sanitizeFileName(name: string) {
