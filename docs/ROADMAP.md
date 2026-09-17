@@ -42,17 +42,21 @@ Current implementation branch: `main`.
 - [x] frame quantization
 - [x] snapping to playhead / markers / clip edges
 - [x] one-frame nudge
-- [ ] ripple trim
-- [ ] roll edit
+- [x] ripple trim core
+- [ ] ripple trim drag UI
+- [x] roll edit core
+- [ ] roll edit drag UI
 - [x] slip edit core
-- [ ] slip edit UI
+- [x] bounded slip / source-offset inspector UI
 - [ ] slide edit
 - [ ] insert / overwrite
 - [ ] lift / extract
 - [ ] multi-select
 - [ ] copy / paste / duplicate UI
 - [x] duplicate operation core
-- [ ] track add / remove / reorder
+- [x] track add / remove / reorder UI
+- [x] safe empty-track deletion rules
+- [x] track rename / solo / visibility controls
 - [ ] transitions
 - [x] text / subtitles / generator creation UI
 - [x] data model for text / subtitle / generator clips
@@ -66,8 +70,9 @@ Current implementation branch: `main`.
 - [x] speed / reverse data model
 - [ ] clip grouping / compound clips
 - [x] grouping field in clip model
-- [ ] marker UI
+- [x] marker UI
 - [x] marker data model
+- [x] in / out range inspector UI and timeline visualization
 - [ ] waveform display
 - [ ] thumbnails on video clips
 
@@ -110,6 +115,7 @@ Current implementation branch: `main`.
 - [x] chunked audio-track decode and mix
 - [x] mute / solo / clip volume handling in offline audio mix
 - [x] speed / reverse mapping in offline audio mix
+- [x] clip fade envelope in offline audio mix
 - [x] in/out range export core
 - [x] OPFS direct long-form output path
 - [x] memory output fallback
@@ -137,13 +143,16 @@ Current implementation branch: `main`.
 
 - [ ] waveform cache
 - [x] clip gain in offline export mix
-- [ ] fades
+- [x] clip fade in / fade out model, UI, preview envelope and offline export
 - [x] pan rendering
 - [ ] track mixer UI
 - [x] mute / solo semantics in offline export
 - [ ] bus routing
 - [x] initial high-pass / low-pass rendering
 - [x] compressor rendering
+- [x] Inspector controls for gain / pan / high-pass / low-pass / compressor
+- [x] realtime Web Audio preview graph for supported clip audio effects
+- [ ] exact DSP parity tests between Web Audio preview and offline processor
 - [ ] limiter
 - [ ] gate / expander
 - [ ] de-esser
@@ -151,6 +160,7 @@ Current implementation branch: `main`.
 - [ ] loudness meter
 - [ ] automatic ducking
 - [x] effect parameter keyframe evaluation in offline audio processing
+- [x] effect parameter keyframe updates in realtime Web Audio preview
 - [ ] dedicated automation lanes UI
 - [ ] AudioWorklet DSP layer
 - [ ] VOICEVOX-oriented voice presets
