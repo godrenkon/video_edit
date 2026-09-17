@@ -23,6 +23,7 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
     ...(clip.assetId ? listEffects('audio').filter((effect) => isAudioEffectSupported(effect.kind)) : []),
   ], [clip.assetId]);
   const [kind, setKind] = useState(available[0]?.kind ?? '');
+  const selectedKind = available.some((effect) => effect.kind === kind) ? kind : available[0]?.kind ?? '';
   const effects = clip.effects ?? [];
   const frameDuration = 1 / Math.max(1, fps);
   const localTime = quantize(Math.max(0, Math.min(clip.duration, timelineTime - clip.start)), fps);
@@ -36,8 +37,8 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
   };
 
   const addEffect = () => {
-    if (!kind) return;
-    onClip({ effects: [...effects, createEffectInstance(kind)] });
+    if (!selectedKind) return;
+    onClip({ effects: [...effects, createEffectInstance(selectedKind)] });
   };
 
   const updateParameter = (
@@ -132,12 +133,12 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
 
       <div className="effectsTime">再生ヘッド: {localTime.toFixed(3)}s / clip</div>
       <div className="effectsAddRow">
-        <select value={kind} onChange={(event) => setKind(event.target.value)} aria-label="追加するエフェクト">
+        <select value={selectedKind} onChange={(event) => setKind(event.target.value)} aria-label="追加するエフェクト">
           {available.map((effect) => (
             <option key={effect.kind} value={effect.kind}>{effect.domain === 'audio' ? `音声 / ${effect.label}` : effect.label}</option>
           ))}
         </select>
-        <button type="button" className="miniBtn" onClick={addEffect} disabled={!kind} title="エフェクトを追加"><Plus size={14} /></button>
+        <button type="button" className="miniBtn" onClick={addEffect} disabled={!selectedKind} title="エフェクトを追加"><Plus size={14} /></button>
       </div>
 
       {effects.length === 0 && <div className="effectsEmpty">エフェクトなし</div>}
