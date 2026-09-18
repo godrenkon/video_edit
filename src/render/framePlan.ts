@@ -10,7 +10,7 @@ import type {
   Transform,
 } from '../types/editor';
 import { visualTimelineItems, zundamonVisualState } from './timelineEvaluation';
-import { transitionOpacity } from './transitionEnvelope';
+import { transitionMotionOffset, transitionOpacity } from './transitionEnvelope';
 
 export interface VisualFrameLayerPlan {
   clipId: string;
@@ -41,6 +41,8 @@ export interface VisualFrameLayerPlan {
 export function buildVisualFramePlan(project: Project, timeSeconds: number): VisualFrameLayerPlan[] {
   return visualTimelineItems(project, timeSeconds).map(({ clip, track, trackIndex, sourceTime }) => {
     const zundamon = clip.kind === 'zundamon' ? zundamonVisualState(clip, timeSeconds) : null;
+    const clipLocalTime = Math.max(0, Math.min(clip.duration, timeSeconds - clip.start));
+    const transitionOffset = transitionMotionOffset(clip, clipLocalTime, project.width, project.height);
     return {
       clipId: clip.id,
       trackId: track.id,
@@ -48,13 +50,13 @@ export function buildVisualFramePlan(project: Project, timeSeconds: number): Vis
       kind: clip.kind,
       assetId: zundamon?.assetId ?? clip.assetId ?? null,
       sourceTime,
-      clipLocalTime: Math.max(0, Math.min(clip.duration, timeSeconds - clip.start)),
+      clipLocalTime,
       transform: {
-        x: clip.transform.x,
-        y: clip.transform.y + (zundamon?.bobOffset ?? 0),
+        x: clip.transform.x + transitionOffset.x,
+        y: clip.transform.y + transitionOffset.y + (zundamon?.bobOffset ?? 0),
         scale: clip.transform.scale,
         rotation: clip.transform.rotation,
-        opacity: clip.transform.opacity * transitionOpacity(clip, Math.max(0, Math.min(clip.duration, timeSeconds - clip.start))),
+        opacity: clip.transform.opacity * transitionOpacity(clip, clipLocalTime),
         anchorX: clip.transform.anchorX ?? 0.5,
         anchorY: clip.transform.anchorY ?? 0.5,
       },
