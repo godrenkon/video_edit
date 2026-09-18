@@ -8,22 +8,25 @@ export type ResolvedAudioEffect =
   | { id: string; kind: 'low-pass'; frequency: number }
   | { id: string; kind: 'compressor'; thresholdDb: number; ratio: number; attack: number; release: number }
   | { id: string; kind: 'limiter'; ceilingDb: number; ceiling: number }
-  | { id: string; kind: 'gate-expander'; thresholdDb: number; ratio: number; rangeDb: number; attack: number; release: number };
+  | { id: string; kind: 'gate-expander'; thresholdDb: number; ratio: number; rangeDb: number; attack: number; release: number }
+  | { id: string; kind: 'de-esser'; frequency: number; thresholdDb: number; ratio: number; maxReductionDb: number; attack: number; release: number };
 
 interface StereoLowPassState { left: number; right: number }
 interface StereoHighPassState { inLeft: number; inRight: number; outLeft: number; outRight: number }
 interface CompressorState { gain: number }
 interface ExpanderState { gain: number }
+interface DeEsserState { inLeft: number; inRight: number; outLeft: number; outRight: number; gain: number }
 
 export interface AudioEffectState {
   lowPass: Map<string, StereoLowPassState>;
   highPass: Map<string, StereoHighPassState>;
   compressor: Map<string, CompressorState>;
   expander: Map<string, ExpanderState>;
+  deEsser: Map<string, DeEsserState>;
   lastTimelineTime: number | null;
 }
 
-const SUPPORTED_AUDIO_EFFECTS = new Set(['gain', 'pan', 'high-pass', 'low-pass', 'compressor', 'limiter', 'gate-expander']);
+const SUPPORTED_AUDIO_EFFECTS = new Set(['gain', 'pan', 'high-pass', 'low-pass', 'compressor', 'limiter', 'gate-expander', 'de-esser']);
 
 export function createAudioEffectState(): AudioEffectState {
   return {
@@ -31,6 +34,7 @@ export function createAudioEffectState(): AudioEffectState {
     highPass: new Map(),
     compressor: new Map(),
     expander: new Map(),
+    deEsser: new Map(),
     lastTimelineTime: null,
   };
 }
@@ -40,6 +44,7 @@ export function resetAudioEffectState(state: AudioEffectState) {
   state.highPass.clear();
   state.compressor.clear();
   state.expander.clear();
+  state.deEsser.clear();
   state.lastTimelineTime = null;
 }
 
@@ -48,7 +53,7 @@ export function isAudioEffectSupported(kind: string) {
 }
 
 export function isRealtimeAudioEffectSupported(kind: string) {
-  return SUPPORTED_AUDIO_EFFECTS.has(kind) && kind !== 'gate-expander';
+  return SUPPORTED_AUDIO_EFFECTS.has(kind) && kind !== 'gate-expander' && kind !== 'de-esser';
 }
 
 export function resolveAudioEffects(effects: EffectInstance[], clipLocalTime: number): ResolvedAudioEffect[] {
@@ -90,6 +95,17 @@ export function resolveAudioEffects(effects: EffectInstance[], clipLocalTime: nu
         rangeDb: effectNumber(effect, 'range', clipLocalTime, 60, 0, 100),
         attack: effectNumber(effect, 'attack', clipLocalTime, 0.005, 0, 1),
         release: effectNumber(effect, 'release', clipLocalTime, 0.08, 0, 2),
+      });
+    } else if (effect.kind === 'de-esser') {
+      result.push({
+        id: effect.id,
+        kind: 'de-esser',
+        frequency: effectNumber(effect, 'frequency', clipLocalTime, 6000, 2000, 14_000),
+        thresholdDb: effectNumber(effect, 'threshold', clipLocalTime, -28, -60, 0),
+        ratio: effectNumber(effect, 'ratio', clipLocalTime, 6, 1, 20),
+        maxReductionDb: effectNumber(effect, 'maxReduction', clipLocalTime, 12, 0, 30),
+        attack: effectNumber(effect, 'attack', clipLocalTime, 0.002, 0, 0.2),
+        release: effectNumber(effect, 'release', clipLocalTime, 0.08, 0, 1),
       });
     }
   }
@@ -173,6 +189,40 @@ export function processAudioEffects(
       l *= memory.gain;
       r *= memory.gain;
       state.expander.set(effect.id, memory);
+    } else if (effect.kind === 'de-esser') {
+      const cutoff = clamp(effect.frequency, 2000, rate * 0.45);
+      const dt = 1 / rate;
+      const rc = 1 / (Math.PI * 2 * cutoff);
+      const alpha = rc / (rc + dt);
+      const memory = state.deEsser.get(effect.id) ?? {
+        inLeft: l,
+        inRight: r,
+        outLeft: 0,
+        outRight: 0,
+        gain: 1,
+      };
+      const highLeft = alpha * (memory.outLeft + l - memory.inLeft);
+      const highRight = alpha * (memory.outRight + r - memory.inRight);
+      memory.inLeft = l;
+      memory.inRight = r;
+      memory.outLeft = highLeft;
+      memory.outRight = highRight;
+
+      const detectorPeak = Math.max(Math.abs(highLeft), Math.abs(highRight), 1e-12);
+      const detectorDb = 20 * Math.log10(detectorPeak);
+      const overDb = Math.max(0, detectorDb - effect.thresholdDb);
+      const reductionDb = Math.min(
+        effect.maxReductionDb,
+        overDb - overDb / Math.max(1, effect.ratio),
+      );
+      const targetGain = 10 ** (-reductionDb / 20);
+      const time = targetGain < memory.gain ? effect.attack : effect.release;
+      const coefficient = time <= 0 ? 0 : Math.exp(-1 / (Math.max(1e-5, time) * rate));
+      memory.gain = targetGain + coefficient * (memory.gain - targetGain);
+
+      l = (l - highLeft) + highLeft * memory.gain;
+      r = (r - highRight) + highRight * memory.gain;
+      state.deEsser.set(effect.id, memory);
     }
   }
 
