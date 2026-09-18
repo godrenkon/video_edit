@@ -170,7 +170,7 @@ Current implementation branch: `main`.
 - [x] effect parameter keyframe updates in realtime Web Audio preview
 - [ ] dedicated automation lanes UI
 - [ ] AudioWorklet DSP layer
-- [ ] VOICEVOX-oriented voice presets
+- [x] VOICEVOX-oriented realtime-compatible voice effect presets
 - [x] audio effect descriptors for gain / pan / filters / compressor
 
 ## Phase 5 — Effects / Color / Motion
@@ -240,7 +240,7 @@ Current implementation branch: `main`.
 - [x] vowel-aware あいうえお mouth image selection with open-mouth fallback
 - [ ] fallback phoneme/audio analysis
 - [ ] emotion / expression automation
-- [ ] subtitle auto-placement from narration
+- [x] VOICEVOX AudioQuery subtitle auto-placement with timed word highlight
 - [ ] per-line expression controls
 - [ ] batch generate clips from narration files
 - [ ] credit-template generator
