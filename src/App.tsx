@@ -4,6 +4,7 @@ import { rippleTrimClip, rollEditBoundary, slideEditClip } from './core/advanced
 import { detectCapabilities } from './core/capabilities';
 import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
+import { insertClipAt, overwriteClipAt } from './core/editModes';
 import { analyzeMouthCues, buildAssetMeta } from './core/media';
 import {
   clampProjectDuration,
@@ -257,22 +258,20 @@ export default function App() {
     setSaveState('素材追加済み');
   };
 
-  const addAssetToTimeline = (assetId: string) => {
+  const addAssetToTimeline = (assetId: string, mode: 'insert' | 'overwrite') => {
     if (rendering) return;
-    const asset = project.assets.find((a) => a.id === assetId);
-    if (!asset) return;
-    const kind = trackKindForAsset(asset.kind);
     updateProject((p) => {
-      const target = p.tracks.find((t) => t.kind === kind && !t.locked);
+      const asset = p.assets.find((item) => item.id === assetId);
+      if (!asset) return p;
+      const kind = trackKindForAsset(asset.kind);
+      const target = p.tracks.find((track) => track.kind === kind && !track.locked);
       if (!target) return p;
       const duration = asset.kind === 'image' ? 5 : Math.max(0.1, asset.duration);
-      return {
-        ...p,
-        tracks: p.tracks.map((track) => track.id === target.id
-          ? { ...track, clips: [...track.clips, defaultClip(asset.name, asset.id, time, duration)] }
-          : track),
-      };
-    }, { label: 'タイムラインに追加' });
+      const incoming = defaultClip(asset.name, asset.id, time, duration);
+      return mode === 'overwrite'
+        ? overwriteClipAt(p, target.id, incoming, time)
+        : insertClipAt(p, target.id, incoming, time);
+    }, { label: mode === 'overwrite' ? '上書き編集' : '挿入編集' });
   };
 
   const addSyntheticClip = useCallback((clip: Clip, trackKind: TrackKind, label: string) => {
