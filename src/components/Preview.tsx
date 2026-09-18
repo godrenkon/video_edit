@@ -8,7 +8,7 @@ import {
   zundamonVisualState,
 } from '../render/timelineEvaluation';
 import { previewCropLayout } from '../render/cropGeometry';
-import { canvasFilterForEffects, resolveVignetteEffects, vignetteCssBackground } from '../render/effectEvaluation';
+import { canvasFilterForEffects, resolveTemperatureTintEffects, resolveVignetteEffects, vignetteCssBackground } from '../render/effectEvaluation';
 import { PreviewAudioGraph } from '../render/previewAudioGraph';
 import { previewSyncTolerance } from '../render/previewClock';
 import { transitionOpacity } from '../render/transitionEnvelope';
@@ -135,7 +135,7 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
     return (
       <div className="previewAssetFrame" style={styles.frame}>
         <video ref={videoRef} className="previewAssetSource" src={mediaUrl} muted playsInline style={styles.source} />
-        <VignetteOverlays clip={clip} time={time} />
+        <VisualEffectOverlays clip={clip} time={time} />
       </div>
     );
   }
@@ -143,7 +143,7 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
     return (
       <div className="previewAssetFrame" style={styles.frame}>
         <img className="previewAssetSource" src={mediaUrl} alt="" draggable={false} style={styles.source} />
-        <VignetteOverlays clip={clip} time={time} />
+        <VisualEffectOverlays clip={clip} time={time} />
       </div>
     );
   }
@@ -161,7 +161,7 @@ function ZundamonLayer({ clip, assets, project, time }: { clip: Clip; assets: As
   return (
     <div className="previewAssetFrame" style={styles.frame}>
       <img className="previewAssetSource zundamonMedia" src={asset.objectUrl} alt="" draggable={false} style={styles.source} />
-      <VignetteOverlays clip={clip} time={time} />
+      <VisualEffectOverlays clip={clip} time={time} />
     </div>
   );
 }
@@ -203,7 +203,7 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
     return (
       <div className="previewSynthetic previewTextLayer" style={style}>
         <div style={{ background: text.backgroundColor ?? undefined }}>{highlightedText}</div>
-        <VignetteOverlays clip={clip} time={time} />
+        <VisualEffectOverlays clip={clip} time={time} />
       </div>
     );
   }
@@ -215,7 +215,7 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
         <div className="previewSynthetic previewGenerator" style={common}>
           <div className="previewBarsTop" />
           <div className="previewBarsBottom" />
-          <VignetteOverlays clip={clip} time={time} />
+          <VisualEffectOverlays clip={clip} time={time} />
         </div>
       );
     }
@@ -231,7 +231,7 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
     }
     return (
       <div className="previewSynthetic previewGenerator" style={{ ...common, background }}>
-        <VignetteOverlays clip={clip} time={time} />
+        <VisualEffectOverlays clip={clip} time={time} />
       </div>
     );
   }
@@ -239,15 +239,24 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
   return null;
 }
 
-function VignetteOverlays({ clip, time }: { clip: Clip; time: number }) {
+function VisualEffectOverlays({ clip, time }: { clip: Clip; time: number }) {
   const localTime = clipLocalTime(clip, time);
+  const washes = resolveTemperatureTintEffects(clip.effects ?? [], localTime);
   const vignettes = resolveVignetteEffects(clip.effects ?? [], localTime);
-  if (vignettes.length === 0) return null;
+  if (washes.length === 0 && vignettes.length === 0) return null;
   return (
     <>
+      {washes.map((wash, index) => (
+        <i
+          key={`wash-${wash.source}-${index}`}
+          className="previewColorWashOverlay"
+          style={{ background: wash.color, opacity: wash.alpha, mixBlendMode: wash.blendMode }}
+          aria-hidden="true"
+        />
+      ))}
       {vignettes.map((vignette, index) => (
         <i
-          key={index}
+          key={`vignette-${index}`}
           className="previewVignetteOverlay"
           style={{ background: vignetteCssBackground(vignette) }}
           aria-hidden="true"
