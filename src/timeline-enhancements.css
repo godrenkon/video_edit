@@ -8,3 +8,6 @@
 .timelineMarker { --marker-color: #ffc86b; position: absolute; top: 0; bottom: 0; z-index: 4; width: 1px; background: color-mix(in srgb, var(--marker-color) 65%, transparent); pointer-events: none; }
 .timelineMarker > i { position: absolute; top: 2px; left: -4px; width: 9px; height: 9px; transform: rotate(45deg); border-radius: 1px; background: var(--marker-color); }
 .timelineMarker > span { position: absolute; top: 3px; left: 8px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--marker-color); font-size: 8px; text-shadow: 0 1px 2px #000; }
+
+.clip.grouped { box-shadow: inset 0 0 0 1px rgba(104, 211, 255, .35); }
+.clip.grouped.selected { box-shadow: inset 0 0 0 1px rgba(104, 211, 255, .65), 0 0 0 1px rgba(104, 211, 255, .3); }
