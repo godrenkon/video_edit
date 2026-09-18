@@ -125,6 +125,13 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
                 <Field label="縁色"><input type="color" value={safeColor(selectedClip.text.strokeColor, '#000000')} onChange={(e) => patchText({ strokeColor: e.target.value })} /></Field>
               </div>
               <NumberField label="縁取り" value={selectedClip.text.strokeWidth ?? 0} step={1} onChange={(v) => patchText({ strokeWidth: Math.max(0, v) })} />
+              <h3>文字シャドウ</h3>
+              <div className="twoFields">
+                <Field label="影の色"><input type="color" value={safeColor(selectedClip.text.shadowColor, '#000000')} onChange={(e) => patchText({ shadowColor: e.target.value })} /></Field>
+                <NumberField label="ぼかし" value={selectedClip.text.shadowBlur ?? 0} step={1} onChange={(v) => patchText({ shadowBlur: Math.max(0, Math.min(100, v)) })} />
+                <NumberField label="X" value={selectedClip.text.shadowOffsetX ?? 0} step={1} onChange={(v) => patchText({ shadowOffsetX: Math.max(-200, Math.min(200, v)) })} />
+                <NumberField label="Y" value={selectedClip.text.shadowOffsetY ?? 0} step={1} onChange={(v) => patchText({ shadowOffsetY: Math.max(-200, Math.min(200, v)) })} />
+              </div>
               <Field label="揃え">
                 <select value={selectedClip.text.align ?? 'center'} onChange={(e) => patchText({ align: e.target.value as TextPayload['align'] })}>
                   <option value="left">左</option><option value="center">中央</option><option value="right">右</option>
