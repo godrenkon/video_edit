@@ -57,7 +57,8 @@ Current implementation branch: `main`.
 - [x] track add / remove / reorder UI
 - [x] safe empty-track deletion rules
 - [x] track rename / solo / visibility controls
-- [ ] transitions
+- [x] dissolve transitions with Inspector UI + Preview/export parity
+- [ ] advanced transition library
 - [x] text / subtitles / generator creation UI
 - [x] data model for text / subtitle / generator clips
 - [x] initial keyframe editor UI
@@ -94,7 +95,8 @@ Current implementation branch: `main`.
 - [ ] WebGL2 fallback
 - [x] deterministic frame-aligned preview timeline clock
 - [ ] frame-accurate decoded-frame playback engine
-- [ ] dropped-frame / decode-latency diagnostics
+- [x] preview FPS / dropped-frame / frame-delay diagnostics
+- [ ] decode-latency diagnostics
 - [ ] timeline virtualization for long projects
 
 ## Phase 3 — Export / Deliver
@@ -156,7 +158,7 @@ Current implementation branch: `main`.
 - [x] Inspector controls for gain / pan / high-pass / low-pass / compressor
 - [x] realtime Web Audio preview graph for supported clip audio effects
 - [ ] exact DSP parity tests between Web Audio preview and offline processor
-- [ ] limiter
+- [x] initial stereo-linked offline peak limiter + realtime preview approximation
 - [ ] gate / expander
 - [ ] de-esser
 - [ ] noise suppression
