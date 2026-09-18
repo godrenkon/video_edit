@@ -58,7 +58,8 @@ Current implementation branch: `main`.
 - [x] safe empty-track deletion rules
 - [x] track rename / solo / visibility controls
 - [x] dissolve transitions with Inspector UI + Preview/export parity
-- [ ] advanced transition library
+- [x] slide transition library (left / right / up / down) with Preview/export parity
+- [ ] wipe / dip / custom transition expansion
 - [x] text / subtitles / generator creation UI
 - [x] data model for text / subtitle / generator clips
 - [x] initial keyframe editor UI
