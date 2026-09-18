@@ -106,6 +106,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (selectedClipId && !selectedClipIds.includes(selectedClipId)) {
+      setSelectedClipIds([selectedClipId]);
+      return;
+    }
+    if (!selectedClipId && selectedClipIds.length > 0) {
+      setSelectedClipIds([]);
+      return;
+    }
     const existing = existingClipIds(project, selectedClipIds);
     if (existing.length !== selectedClipIds.length) {
       setSelectedClipIds(existing);
