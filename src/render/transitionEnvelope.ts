@@ -1,11 +1,26 @@
 import type { Clip, ClipTransition, TransitionKind } from '../types/editor';
 
+type SlideTransitionKind = Extract<TransitionKind, 'slide-left' | 'slide-right' | 'slide-up' | 'slide-down'>;
+type WipeTransitionKind = Extract<TransitionKind, 'wipe-left' | 'wipe-right' | 'wipe-up' | 'wipe-down'>;
+
+export interface TransitionRevealRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const FULL_REVEAL: TransitionRevealRect = { x: 0, y: 0, width: 1, height: 1 };
 const TRANSITION_KINDS = new Set<TransitionKind>([
   'dissolve',
   'slide-left',
   'slide-right',
   'slide-up',
   'slide-down',
+  'wipe-left',
+  'wipe-right',
+  'wipe-up',
+  'wipe-down',
 ]);
 
 export function transitionOpacity(clip: Pick<Clip, 'duration' | 'transitionIn' | 'transitionOut'>, clipLocalTime: number) {
@@ -30,7 +45,7 @@ export function transitionMotionOffset(
   let y = 0;
 
   const transitionIn = normalizeTransition(clip.transitionIn, duration);
-  if (transitionIn && transitionIn.kind !== 'dissolve' && local < transitionIn.duration) {
+  if (transitionIn && isSlideKind(transitionIn.kind) && local < transitionIn.duration) {
     const progress = clamp(local / transitionIn.duration, 0, 1);
     const distance = 1 - progress;
     const offset = motionForKind(transitionIn.kind, distance, width, height, 'in');
@@ -39,7 +54,7 @@ export function transitionMotionOffset(
   }
 
   const transitionOut = normalizeTransition(clip.transitionOut, duration);
-  if (transitionOut && transitionOut.kind !== 'dissolve') {
+  if (transitionOut && isSlideKind(transitionOut.kind)) {
     const start = Math.max(0, duration - transitionOut.duration);
     if (local > start) {
       const progress = clamp((local - start) / transitionOut.duration, 0, 1);
@@ -50,6 +65,32 @@ export function transitionMotionOffset(
   }
 
   return { x, y };
+}
+
+export function transitionRevealRect(
+  clip: Pick<Clip, 'duration' | 'transitionIn' | 'transitionOut'>,
+  clipLocalTime: number,
+): TransitionRevealRect {
+  const duration = Math.max(0, finite(clip.duration, 0));
+  const local = clamp(finite(clipLocalTime, 0), 0, duration);
+  let reveal = { ...FULL_REVEAL };
+
+  const transitionIn = normalizeTransition(clip.transitionIn, duration);
+  if (transitionIn && isWipeKind(transitionIn.kind) && local < transitionIn.duration) {
+    const visible = clamp(local / transitionIn.duration, 0, 1);
+    reveal = intersectReveal(reveal, wipeRevealForKind(transitionIn.kind, visible, 'in'));
+  }
+
+  const transitionOut = normalizeTransition(clip.transitionOut, duration);
+  if (transitionOut && isWipeKind(transitionOut.kind)) {
+    const start = Math.max(0, duration - transitionOut.duration);
+    if (local > start) {
+      const visible = clamp((duration - local) / transitionOut.duration, 0, 1);
+      reveal = intersectReveal(reveal, wipeRevealForKind(transitionOut.kind, visible, 'out'));
+    }
+  }
+
+  return reveal;
 }
 
 export function normalizeTransition(transition: ClipTransition | undefined, clipDuration: number): ClipTransition | undefined {
@@ -75,7 +116,7 @@ function transitionGainOut(transition: ClipTransition | undefined, local: number
 }
 
 function motionForKind(
-  kind: Exclude<TransitionKind, 'dissolve'>,
+  kind: SlideTransitionKind,
   amount: number,
   width: number,
   height: number,
@@ -86,6 +127,53 @@ function motionForKind(
   if (kind === 'slide-right') return { x: -sign * width * amount, y: 0 };
   if (kind === 'slide-up') return { x: 0, y: sign * height * amount };
   return { x: 0, y: -sign * height * amount };
+}
+
+function wipeRevealForKind(
+  kind: WipeTransitionKind,
+  visibleAmount: number,
+  phase: 'in' | 'out',
+): TransitionRevealRect {
+  const visible = clamp(visibleAmount, 0, 1);
+  if (kind === 'wipe-left') {
+    return phase === 'in'
+      ? { x: 1 - visible, y: 0, width: visible, height: 1 }
+      : { x: 0, y: 0, width: visible, height: 1 };
+  }
+  if (kind === 'wipe-right') {
+    return phase === 'in'
+      ? { x: 0, y: 0, width: visible, height: 1 }
+      : { x: 1 - visible, y: 0, width: visible, height: 1 };
+  }
+  if (kind === 'wipe-up') {
+    return phase === 'in'
+      ? { x: 0, y: 1 - visible, width: 1, height: visible }
+      : { x: 0, y: 0, width: 1, height: visible };
+  }
+  return phase === 'in'
+    ? { x: 0, y: 0, width: 1, height: visible }
+    : { x: 0, y: 1 - visible, width: 1, height: visible };
+}
+
+function intersectReveal(a: TransitionRevealRect, b: TransitionRevealRect): TransitionRevealRect {
+  const left = Math.max(a.x, b.x);
+  const top = Math.max(a.y, b.y);
+  const right = Math.min(a.x + a.width, b.x + b.width);
+  const bottom = Math.min(a.y + a.height, b.y + b.height);
+  return {
+    x: clamp(left, 0, 1),
+    y: clamp(top, 0, 1),
+    width: clamp(right - left, 0, 1),
+    height: clamp(bottom - top, 0, 1),
+  };
+}
+
+function isSlideKind(kind: TransitionKind): kind is SlideTransitionKind {
+  return kind.startsWith('slide-');
+}
+
+function isWipeKind(kind: TransitionKind): kind is WipeTransitionKind {
+  return kind.startsWith('wipe-');
 }
 
 function finite(value: number, fallback: number) {
