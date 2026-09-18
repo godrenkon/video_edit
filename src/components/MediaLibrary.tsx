@@ -39,10 +39,13 @@ export function MediaLibrary({
   const [editMode, setEditMode] = useState<'insert' | 'overwrite'>('insert');
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [kindFilter, setKindFilter] = useState<'all' | AssetMeta['kind']>('all');
+  const [sortMode, setSortMode] = useState<'import' | 'name' | 'rating'>('import');
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return assets.filter((asset) => {
       if (favoritesOnly && !asset.favorite) return false;
+      if (kindFilter !== 'all' && asset.kind !== kindFilter) return false;
       if (!needle) return true;
       const haystack = [
         asset.name,
@@ -52,7 +55,13 @@ export function MediaLibrary({
       ].join(' ').toLowerCase();
       return haystack.includes(needle);
     });
-  }, [assets, favoritesOnly, query]);
+  }, [assets, favoritesOnly, kindFilter, query]);
+  const visibleAssets = useMemo(() => {
+    if (sortMode === 'import') return filtered;
+    const copy = [...filtered];
+    if (sortMode === 'name') return copy.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    return copy.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name, 'ja'));
+  }, [filtered, sortMode]);
   const selectedAsset = assets.find((asset) => asset.id === selectedAssetId) ?? null;
 
   return (
@@ -89,6 +98,15 @@ export function MediaLibrary({
         <div className="searchBox"><Search size={14} /><input placeholder="名前・タグ・メモを検索" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
         <button type="button" className={`favoriteFilter ${favoritesOnly ? 'active' : ''}`} onClick={() => setFavoritesOnly((value) => !value)} title="お気に入りだけ表示"><Star size={13} fill={favoritesOnly ? 'currentColor' : 'none'} /></button>
       </div>
+      <div className="mediaFilterRow">
+        <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)} aria-label="素材種別フィルター">
+          <option value="all">すべて</option><option value="video">動画</option><option value="audio">音声</option><option value="image">画像</option>
+        </select>
+        <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)} aria-label="素材並び順">
+          <option value="import">読み込み順</option><option value="name">名前順</option><option value="rating">評価順</option>
+        </select>
+        <span>{visibleAssets.length}/{assets.length}</span>
+      </div>
       {selectedAsset && (
         <div className="assetMetaEditor">
           <div className="assetMetaHeader">
@@ -108,14 +126,14 @@ export function MediaLibrary({
         </div>
       )}
       <div className="assetList">
-        {filtered.length === 0 && (
+        {visibleAssets.length === 0 && (
           <button className="emptyImport" onClick={() => input.current?.click()}>
             <Plus size={22} />
             <strong>素材を追加</strong>
             <span>動画・画像・音声をここに読み込む</span>
           </button>
         )}
-        {filtered.map((asset) => (
+        {visibleAssets.map((asset) => (
           <div className={`assetRow ${selectedAssetId === asset.id ? 'selected' : ''}`} key={asset.id} onClick={() => setSelectedAssetId(asset.id)} onDoubleClick={() => onAdd(asset.id, editMode)}>
             <div className={`assetIcon ${asset.kind}`}>{iconFor(asset.kind)}</div>
             <div className="assetText">
