@@ -437,6 +437,18 @@ export default function App() {
 
       const mod = e.ctrlKey || e.metaKey;
       const lower = e.key.toLowerCase();
+      if (mod && lower === 'a') {
+        e.preventDefault();
+        const ids = project.tracks.flatMap((track) => track.clips.map((clip) => clip.id));
+        setSelectedClipIds(ids);
+        setSelectedClipId(ids.at(-1) ?? null);
+        return;
+      }
+      if (e.key === 'Escape' && selectedClipIds.length > 0) {
+        e.preventDefault();
+        clearClipSelection();
+        return;
+      }
       if (mod && lower === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -495,7 +507,7 @@ export default function App() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [showRecovery, rendering, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, nudgeSelected, undo, redo]);
+  }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, nudgeSelected, undo, redo]);
 
   const manualSave = async () => {
     try {
