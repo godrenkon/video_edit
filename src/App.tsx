@@ -76,6 +76,11 @@ export default function App() {
     return null;
   }, [project.tracks, selectedClipId]);
 
+  const selectedTrackId = useMemo(() => {
+    if (!selectedClipId) return null;
+    return project.tracks.find((track) => track.clips.some((clip) => clip.id === selectedClipId))?.id ?? null;
+  }, [project.tracks, selectedClipId]);
+
   useEffect(() => () => {
     renderAbort.current?.abort('Editor closed');
   }, []);
@@ -264,7 +269,10 @@ export default function App() {
       const asset = p.assets.find((item) => item.id === assetId);
       if (!asset) return p;
       const kind = trackKindForAsset(asset.kind);
-      const target = p.tracks.find((track) => track.kind === kind && !track.locked);
+      const selectedTrack = selectedTrackId
+        ? p.tracks.find((track) => track.id === selectedTrackId && track.kind === kind && !track.locked)
+        : undefined;
+      const target = selectedTrack ?? p.tracks.find((track) => track.kind === kind && !track.locked);
       if (!target) return p;
       const duration = asset.kind === 'image' ? 5 : Math.max(0.1, asset.duration);
       const incoming = defaultClip(asset.name, asset.id, time, duration);
