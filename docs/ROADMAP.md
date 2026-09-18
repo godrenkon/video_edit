@@ -52,8 +52,8 @@ Current implementation branch: `main`.
 - [ ] insert / overwrite
 - [ ] lift / extract
 - [ ] multi-select
-- [ ] copy / paste / duplicate UI
-- [x] duplicate operation core
+- [x] single-clip copy / paste / duplicate UI + Ctrl/Cmd shortcuts
+- [x] copy / paste / duplicate operation core with fresh nested identities
 - [x] track add / remove / reorder UI
 - [x] safe empty-track deletion rules
 - [x] track rename / solo / visibility controls
@@ -130,7 +130,8 @@ Current implementation branch: `main`.
 - [ ] full effect / keyframe rendering parity across all registered effects
 - [ ] transparent WebM where supported
 - [x] WAV / audio-only chunked export with OPFS + memory fallback
-- [ ] PNG still / image sequence
+- [x] PNG still export at playhead using the final compositor
+- [ ] PNG image sequence
 - [x] bitrate / quality preset UI
 - [x] 720p / 1080p / 1440p / 4K preset UI
 - [ ] hardware encoder preference / benchmark
@@ -291,7 +292,7 @@ Large AI models must be optional and selected according to WebGPU/device capabil
 - [ ] search everything
 - [ ] customizable workspace
 - [ ] shortcut customization
-- [ ] fullscreen preview
+- [x] fullscreen preview
 - [ ] PWA install
 - [ ] offline mode
 - [ ] file-system folder import where available
