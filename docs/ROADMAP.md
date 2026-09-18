@@ -59,7 +59,8 @@ Current implementation branch: `main`.
 - [x] track rename / solo / visibility controls
 - [x] dissolve transitions with Inspector UI + Preview/export parity
 - [x] slide transition library (left / right / up / down) with Preview/export parity
-- [ ] wipe / dip / custom transition expansion
+- [x] wipe transition library (left / right / up / down) with Preview/export parity
+- [ ] dip / custom transition expansion
 - [x] text / subtitles / generator creation UI
 - [x] data model for text / subtitle / generator clips
 - [x] initial keyframe editor UI
