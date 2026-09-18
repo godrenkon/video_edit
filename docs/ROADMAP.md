@@ -49,7 +49,7 @@ Current implementation branch: `main`.
 - [x] slip edit core
 - [x] bounded slip / source-offset inspector UI
 - [x] slide edit core + Alt-drag UI for gapless adjacent triplets
-- [ ] insert / overwrite
+- [x] insert / overwrite core + media-library edit mode UI
 - [x] lift / extract via toolbar + Delete / Shift+Delete
 - [ ] multi-select
 - [x] single-clip copy / paste / duplicate UI + Ctrl/Cmd shortcuts
