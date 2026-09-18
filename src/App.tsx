@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles } from 'lucide-react';
 import { rippleTrimClip, rollEditBoundary } from './core/advancedTimelineOps';
 import { detectCapabilities } from './core/capabilities';
-import { duplicateClipAfter } from './core/clipboardOps';
+import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
 import { analyzeMouthCues, buildAssetMeta } from './core/media';
 import {
@@ -65,6 +65,7 @@ export default function App() {
   const lastFrame = useRef<number | null>(null);
   const history = useRef(new HistoryController<Project>(120, 750));
   const renderAbort = useRef<AbortController | null>(null);
+  const clipClipboard = useRef<ClipClipboardPayload | null>(null);
 
   const selectedClip = useMemo(() => {
     for (const track of project.tracks) {
@@ -339,6 +340,25 @@ export default function App() {
     setSelectedClipId(null);
   }, [rendering, selectedClipId, updateProject]);
 
+  const copySelectedClip = useCallback(() => {
+    if (!selectedClipId || rendering) return;
+    const payload = copyClip(project, selectedClipId);
+    if (!payload) return;
+    clipClipboard.current = payload;
+    setSaveState('クリップをコピーしました');
+  }, [project, rendering, selectedClipId]);
+
+  const pasteCopiedClip = useCallback(() => {
+    if (!clipClipboard.current || rendering) return;
+    const result = pasteClipAt(project, clipClipboard.current, time);
+    if (!result.clipId || result.project === project) return;
+    history.current.record(project, 'クリップ貼り付け');
+    setPlaying(false);
+    setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
+    setSelectedClipId(result.clipId);
+    setSaveState('クリップを貼り付けました');
+  }, [project, rendering, time]);
+
   const duplicateSelectedClip = useCallback(() => {
     if (!selectedClipId || rendering) return;
     const result = duplicateClipAfter(project, selectedClipId);
@@ -387,6 +407,16 @@ export default function App() {
         duplicateSelectedClip();
         return;
       }
+      if (mod && lower === 'c') {
+        e.preventDefault();
+        copySelectedClip();
+        return;
+      }
+      if (mod && lower === 'v') {
+        e.preventDefault();
+        pasteCopiedClip();
+        return;
+      }
       if (e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault();
         nudgeSelected(-1);
@@ -414,7 +444,7 @@ export default function App() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [showRecovery, rendering, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, nudgeSelected, undo, redo]);
+  }, [showRecovery, rendering, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, nudgeSelected, undo, redo]);
 
   const manualSave = async () => {
     try {
@@ -601,6 +631,8 @@ export default function App() {
         onSelect={setSelectedClipId}
         onSplitSelected={splitSelectedClip}
         onDuplicateSelected={duplicateSelectedClip}
+        onCopySelected={copySelectedClip}
+        onPasteCopied={pasteCopiedClip}
         onRippleDeleteSelected={rippleDeleteSelectedClip}
         onMoveClip={(id, start) => updateProject(
           (p) => moveClip(p, id, start, time, snapThreshold),
