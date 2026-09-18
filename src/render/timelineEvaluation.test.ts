@@ -146,6 +146,30 @@ describe('timeline evaluation', () => {
     expect(audioTimelineItems(project, 1)).toEqual([]);
   });
 
+  it('ducks the target bus in preview when source-bus narration is active', () => {
+    const voice = makeClip('voice', 2, 4, { volume: 1 });
+    const music = makeClip('music', 0, 10, { volume: 1 });
+    const project = makeProject([
+      makeTrack('voice-track', 'audio', [voice], { busId: 'voice' }),
+      makeTrack('music-track', 'audio', [music], { busId: 'music' }),
+    ]);
+    project.audioDucking = {
+      enabled: true,
+      sourceBus: 'voice',
+      targetBus: 'music',
+      reductionDb: -12,
+      attack: 0.5,
+      release: 1,
+    };
+
+    const atThree = audioTimelineItems(project, 3);
+    const musicItem = atThree.find((item) => item.track.id === 'music-track');
+    expect(musicItem?.track.gain).toBeCloseTo(10 ** (-12 / 20), 8);
+
+    const before = audioTimelineItems(project, 1);
+    expect(before.find((item) => item.track.id === 'music-track')?.track.gain).toBe(1);
+  });
+
   it('applies clip fade envelope to preview audio volume without mutating the project clip', () => {
     const source = makeClip('audio', 2, 8, { volume: 0.8, fadeIn: 2, fadeOut: 2 });
     const project = makeProject([makeTrack('audio', 'audio', [source])]);
