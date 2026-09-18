@@ -1,5 +1,5 @@
 import { Captions, FileAudio, FileImage, Film, FolderOpen, FolderPlus, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AssetBin, AssetMeta } from '../types/editor';
 import type { LowerThirdPreset } from '../core/project';
 import { MicrophoneRecorder } from './MicrophoneRecorder';
@@ -9,6 +9,9 @@ import { CameraRecorder } from './CameraRecorder';
 interface Props {
   assets: AssetMeta[];
   assetBins: AssetBin[];
+  focusAssetId?: string | null;
+  focusBinId?: string | null;
+  focusToken?: number;
   timelineTime: number;
   onImport: (files: File[]) => void | Promise<void>;
   onPunchInVoiceover: (file: File, startTime: number) => void | Promise<void>;
@@ -47,6 +50,9 @@ const formatBytes = (bytes: number) => {
 export function MediaLibrary({
   assets,
   assetBins,
+  focusAssetId,
+  focusBinId,
+  focusToken,
   timelineTime,
   onImport,
   onPunchInVoiceover,
@@ -81,6 +87,21 @@ export function MediaLibrary({
   const [binFilter, setBinFilter] = useState('all');
   const [newBinName, setNewBinName] = useState('');
   const [lowerThirdPreset, setLowerThirdPreset] = useState<LowerThirdPreset>('clean');
+
+  useEffect(() => {
+    if (focusAssetId) {
+      const asset = assets.find((item) => item.id === focusAssetId);
+      if (asset) {
+        setSelectedAssetId(asset.id);
+        setBinFilter(asset.binId ?? 'all');
+      }
+      return;
+    }
+    if (focusBinId && assetBins.some((bin) => bin.id === focusBinId)) {
+      setBinFilter(focusBinId);
+      setSelectedAssetId(null);
+    }
+  }, [assetBins, assets, focusAssetId, focusBinId, focusToken]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return assets.filter((asset) => {
