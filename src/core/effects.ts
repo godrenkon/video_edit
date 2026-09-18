@@ -116,6 +116,14 @@ export const BUILTIN_EFFECTS: EffectDescriptor[] = [
     n('attack', 'Attack(s)', 0.005, 0, 1, 0.001),
     n('release', 'Release(s)', 0.08, 0, 2, 0.001),
   ]),
+  audio('de-esser', 'ディエッサー', 'Dynamics', [
+    n('frequency', '検出周波数(Hz)', 6000, 2000, 14000, 10),
+    n('threshold', 'Threshold(dB)', -28, -60, 0, 0.1),
+    n('ratio', 'Ratio', 6, 1, 20, 0.1),
+    n('maxReduction', '最大Reduction(dB)', 12, 0, 30, 0.5),
+    n('attack', 'Attack(s)', 0.002, 0, 0.2, 0.001),
+    n('release', 'Release(s)', 0.08, 0, 1, 0.001),
+  ]),
 ];
 
 const byKind = new Map(BUILTIN_EFFECTS.map((descriptor) => [descriptor.kind, descriptor]));
