@@ -123,21 +123,23 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
     else video.pause();
   }, [clip.reverse, frozen, playbackRate, playing]);
 
-  if (!asset?.objectUrl) return null;
+  if (!asset) return null;
+  const mediaUrl = asset.kind === 'video' ? (asset.proxyObjectUrl ?? asset.objectUrl) : asset.objectUrl;
+  if (!mediaUrl) return null;
   const styles = assetLayerStyles(clip, asset, project, time);
   if (!styles) return null;
 
   if (asset.kind === 'video') {
     return (
       <div className="previewAssetFrame" style={styles.frame}>
-        <video ref={videoRef} className="previewAssetSource" src={asset.objectUrl} muted playsInline style={styles.source} />
+        <video ref={videoRef} className="previewAssetSource" src={mediaUrl} muted playsInline style={styles.source} />
       </div>
     );
   }
   if (asset.kind === 'image') {
     return (
       <div className="previewAssetFrame" style={styles.frame}>
-        <img className="previewAssetSource" src={asset.objectUrl} alt="" draggable={false} style={styles.source} />
+        <img className="previewAssetSource" src={mediaUrl} alt="" draggable={false} style={styles.source} />
       </div>
     );
   }
