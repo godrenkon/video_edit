@@ -251,6 +251,26 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
                 <NumberField label="回転" value={selectedClip.transform.rotation} step={1} onChange={(v) => onTransform('rotation', v)} />
               </div>
               <RangeField label="不透明度" value={selectedClip.transform.opacity} min={0} max={1} step={0.01} onChange={(v) => onTransform('opacity', v)} />
+              {selectedAsset?.kind !== 'audio' && (
+                <>
+                  <h3>トランジション</h3>
+                  <div className="twoFields">
+                    <NumberField
+                      label="ディゾルブ In"
+                      value={selectedClip.transitionIn?.duration ?? 0}
+                      step={0.05}
+                      onChange={(v) => onClip({ transitionIn: v > 0 ? { kind: 'dissolve', duration: Math.min(selectedClip.duration, Math.max(0, v)) } : undefined })}
+                    />
+                    <NumberField
+                      label="ディゾルブ Out"
+                      value={selectedClip.transitionOut?.duration ?? 0}
+                      step={0.05}
+                      onChange={(v) => onClip({ transitionOut: v > 0 ? { kind: 'dissolve', duration: Math.min(selectedClip.duration, Math.max(0, v)) } : undefined })}
+                    />
+                  </div>
+                  <div className="infoCard">重なったクリップ同士ではクロスディゾルブとして動作し、単独部分では背景へのフェードになります。</div>
+                </>
+              )}
               <Field label="合成">
                 <select value={selectedClip.blendMode ?? 'normal'} onChange={(e) => onClip({ blendMode: e.target.value as BlendMode })}>
                   {blendModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
