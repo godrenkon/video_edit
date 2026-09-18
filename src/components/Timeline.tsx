@@ -1,6 +1,7 @@
 import { ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, Link2, Lock, Scissors, Trash2, Unlink2, Unlock, X, ZoomIn, ZoomOut } from 'lucide-react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AssetMeta, Clip, Project } from '../types/editor';
+import { clipIntersectsTimelineWindow, timelineVisibleWindow, visibleSecondTicks } from '../core/timelineVirtualization';
 import { TimelineWaveform } from './TimelineWaveform';
 import { TimelineThumbnailStrip } from './TimelineThumbnailStrip';
 import '../timeline-enhancements.css';
@@ -71,12 +72,32 @@ export function Timeline(props: Props) {
   } = props;
   const px = zoom;
   const width = Math.max(1200, project.duration * px + 120);
-  const ticks = useMemo(() => Array.from({ length: Math.ceil(project.duration) + 1 }, (_, i) => i), [project.duration]);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState({ scrollLeft: 0, width: 0 });
+  const visibleWindow = useMemo(
+    () => timelineVisibleWindow(viewport.scrollLeft, viewport.width, px, project.duration),
+    [project.duration, px, viewport.scrollLeft, viewport.width],
+  );
+  const ticks = useMemo(() => visibleSecondTicks(visibleWindow, project.duration), [project.duration, visibleWindow]);
   const markers = useMemo(() => [...(project.markers ?? [])].sort((a, b) => a.time - b.time), [project.markers]);
   const assetById = useMemo(() => new Map(project.assets.map((asset) => [asset.id, asset])), [project.assets]);
   const hasExplicitRange = project.inPoint != null || project.outPoint != null;
   const rangeStart = Math.max(0, Math.min(project.duration, project.inPoint ?? 0));
   const rangeEnd = Math.max(rangeStart, Math.min(project.duration, project.outPoint ?? project.duration));
+
+  useEffect(() => {
+    const element = scrollerRef.current;
+    if (!element) return;
+    const update = () => setViewport({ scrollLeft: element.scrollLeft, width: element.clientWidth });
+    update();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    observer?.observe(element);
+    window.addEventListener('resize', update);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
 
   const seekFromPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('.clip')) return;
@@ -144,7 +165,7 @@ export function Timeline(props: Props) {
             </div>
           ))}
         </div>
-        <div className="timelineScroller">
+        <div className="timelineScroller" ref={scrollerRef} onScroll={(event) => setViewport({ scrollLeft: event.currentTarget.scrollLeft, width: event.currentTarget.clientWidth })}>
           <div className="timelineCanvas" style={{ width }} onPointerDown={seekFromPointer}>
             <div className="ruler">
               {ticks.map((tick) => <div key={tick} className="tick" style={{ left: tick * px }}><span>{tick}s</span></div>)}
@@ -159,7 +180,7 @@ export function Timeline(props: Props) {
                 <i className="rangeEndFlag">O</i>
               </div>
             )}
-            {markers.map((marker) => (
+            {markers.filter((marker) => marker.time >= visibleWindow.start && marker.time <= visibleWindow.end).map((marker) => (
               <div
                 className="timelineMarker"
                 key={marker.id}
@@ -173,7 +194,7 @@ export function Timeline(props: Props) {
             <div className="playhead" style={{ left: time * px }}><i /></div>
             {project.tracks.map((track) => (
               <div className="trackLane" key={track.id}>
-                {track.clips.map((clip) => (
+                {track.clips.filter((clip) => selectedClipIds.includes(clip.id) || clipIntersectsTimelineWindow(clip, visibleWindow)).map((clip) => (
                   <TimelineClip
                     key={clip.id}
                     clip={clip}
