@@ -164,6 +164,18 @@ describe('timeline operations', () => {
     expect(slipClipSource(input, 'a', 99).tracks[0].clips[0].inPoint).toBe(4);
   });
 
+  it('moves a frozen source frame with slip edits and clamps it to media bounds', () => {
+    const source = clip('a', 4, 2, { inPoint: 2, speed: 1, freezeFrameAt: 3 });
+    const input = project([track('v1', [source])], [asset('a', 8)]);
+    const shifted = slipClipSource(input, 'a', 4).tracks[0].clips[0];
+    expect(shifted.inPoint).toBe(4);
+    expect(shifted.freezeFrameAt).toBe(5);
+
+    const clamped = slipClipSource(input, 'a', 99).tracks[0].clips[0];
+    expect(clamped.inPoint).toBe(6);
+    expect(clamped.freezeFrameAt).toBe(7);
+  });
+
   it('ripples only the source track by default', () => {
     const input = project([
       track('v1', [clip('delete', 2, 3), clip('after', 6, 2)]),
