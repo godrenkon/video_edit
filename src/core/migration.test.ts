@@ -57,7 +57,14 @@ describe('migrateProject', () => {
       favorite: true,
       notes: 'usable shot',
     });
-    expect(project.tracks[0]).toMatchObject({ muted: false, locked: false, visible: true, solo: false });
+    expect(project.tracks[0]).toMatchObject({
+      muted: false,
+      locked: false,
+      visible: true,
+      solo: false,
+      gain: 4,
+      pan: -1,
+    });
     expect(project.tracks[0].clips[0]).toMatchObject({
       id: 'clip-1',
       kind: 'asset',
