@@ -4,6 +4,7 @@ import type { AssetMeta } from '../types/editor';
 import type { LowerThirdPreset } from '../core/project';
 import { MicrophoneRecorder } from './MicrophoneRecorder';
 import { ScreenRecorder } from './ScreenRecorder';
+import { CameraRecorder } from './CameraRecorder';
 
 interface Props {
   assets: AssetMeta[];
@@ -117,6 +118,7 @@ export function MediaLibrary({
       </div>
       <MicrophoneRecorder onImport={onImport} />
       <ScreenRecorder onImport={onImport} />
+      <CameraRecorder onImport={onImport} />
       <div className="lowerThirdCreate">
         <span>下部テロップ</span>
         <select value={lowerThirdPreset} onChange={(event) => setLowerThirdPreset(event.target.value as LowerThirdPreset)}>
