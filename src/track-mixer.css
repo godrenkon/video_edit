@@ -1,0 +1,20 @@
+.trackMixerPanel { margin: 8px 0 10px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #0a1014; display: grid; gap: 7px; }
+.trackMixerHeader { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.trackMixerHeader strong { font-size: 10px; }
+.trackMixerHeader span, .trackMixerNote { color: var(--muted); font-size: 8px; }
+.trackMixerChannels { display: grid; gap: 7px; }
+.trackMixerStrip { padding: 7px; border: 1px solid var(--line); border-radius: 7px; background: #0d1419; display: grid; gap: 6px; }
+.trackMixerName { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.trackMixerName strong { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 9px; }
+.trackMixerBadge { width: 18px; height: 18px; border-radius: 4px; display: grid; place-items: center; font-size: 8px; font-weight: 800; background: #172129; color: var(--muted); }
+.trackMixerBadge.audio { color: #9de2a6; }
+.trackMixerBadge.video { color: #8dd8ff; }
+.trackMixerButtons { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 5px; }
+.trackMixerButtons button, .trackMixerReset { height: 25px; border: 1px solid var(--line); border-radius: 5px; background: #11191f; color: var(--muted); font-size: 8px; cursor: pointer; }
+.trackMixerButtons button.active.mute { color: #ff9a9a; border-color: rgba(255,154,154,.45); }
+.trackMixerButtons button.active.solo { color: #ffc86b; border-color: rgba(255,200,107,.45); }
+.trackMixerControl { display: grid; gap: 3px; font-size: 8px; color: var(--muted); }
+.trackMixerControl span { display: flex; justify-content: space-between; gap: 8px; }
+.trackMixerControl b { color: var(--text); font-weight: 600; }
+.trackMixerControl input[type=range] { width: 100%; accent-color: var(--green); }
+.trackMixerReset { width: 100%; }
