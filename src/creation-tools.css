@@ -42,3 +42,9 @@
 .mediaEditMode > div { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
 .mediaEditMode button { min-width: 48px; height: 25px; border: 1px solid var(--line); border-radius: 5px; background: #10171c; color: #9facb3; cursor: pointer; font-size: 8px; }
 .mediaEditMode button.active { border-color: var(--cyan); color: var(--cyan); background: #102027; }
+
+.lowerThirdCreate { margin: 5px 8px 0; display: grid; grid-template-columns: auto minmax(0,1fr) 46px; gap: 5px; align-items: center; padding: 6px 7px; border: 1px solid var(--line); border-radius: 7px; background: #0c1216; color: var(--muted); font-size: 8px; }
+.lowerThirdCreate select, .lowerThirdCreate button { min-width: 0; height: 26px; border: 1px solid var(--line); border-radius: 5px; background: #11181d; color: var(--text); font-size: 8px; }
+.lowerThirdCreate select { padding: 0 5px; }
+.lowerThirdCreate button { cursor: pointer; }
+.lowerThirdCreate button:hover { filter: brightness(1.18); }
