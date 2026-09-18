@@ -35,6 +35,7 @@ export function TrackMixerPanel({
             onSolo={(solo) => apply(setTrackSolo(project, track.id, solo))}
             onGain={(gain) => apply(setTrackGain(project, track.id, gain))}
             onPan={(pan) => apply(setTrackPan(project, track.id, pan))}
+            onReset={() => apply(setTrackPan(setTrackGain(project, track.id, 1), track.id, 0))}
           />
         ))}
       </div>
@@ -49,12 +50,14 @@ function TrackStrip({
   onSolo,
   onGain,
   onPan,
+  onReset,
 }: {
   track: Track;
   onMute: (muted: boolean) => void;
   onSolo: (solo: boolean) => void;
   onGain: (gain: number) => void;
   onPan: (pan: number) => void;
+  onReset: () => void;
 }) {
   const gainDb = linearToDb(track.gain ?? 1);
   const pan = track.pan ?? 0;
@@ -109,7 +112,7 @@ function TrackStrip({
       <button
         type="button"
         className="trackMixerReset"
-        onClick={() => { onGain(1); onPan(0); }}
+        onClick={onReset}
       >0 dB / C</button>
     </div>
   );
