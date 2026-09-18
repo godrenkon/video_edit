@@ -74,6 +74,8 @@ function migrateTrack(track: Record<string, unknown>, index: number): Track {
     locked: Boolean(track.locked),
     solo: Boolean(track.solo),
     visible: track.visible === undefined ? true : Boolean(track.visible),
+    gain: finiteNumber(track.gain, 1, 0, 4),
+    pan: finiteNumber(track.pan, 0, -1, 1),
     clips: Array.isArray(track.clips)
       ? track.clips.filter(isRecord).map((clip, clipIndex) => migrateClip(clip, clipIndex))
       : [],
