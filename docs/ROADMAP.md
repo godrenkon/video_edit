@@ -152,7 +152,7 @@ Current implementation branch: `main`.
 - [x] pan rendering
 - [x] track mixer UI with mute/solo, gain and pan in Preview/offline export
 - [x] mute / solo semantics in offline export
-- [ ] bus routing
+- [x] Master / Voice / Music / SFX bus routing with Preview/offline parity
 - [x] initial high-pass / low-pass rendering
 - [x] compressor rendering
 - [x] Inspector controls for gain / pan / high-pass / low-pass / compressor
