@@ -262,7 +262,7 @@ Current implementation branch: `main`.
 - [x] bounded browser microphone recording -> normal media import
 - [x] OPFS-streamed screen / tab capture with normal media import
 - [x] OPFS-streamed front/rear camera capture with live preview
-- [ ] countdown
+- [x] shared cancellable 3-second countdown for mic / screen / camera capture
 - [ ] monitoring
 - [ ] punch-in voiceover
 
