@@ -47,6 +47,10 @@ export function isAudioEffectSupported(kind: string) {
   return SUPPORTED_AUDIO_EFFECTS.has(kind);
 }
 
+export function isRealtimeAudioEffectSupported(kind: string) {
+  return SUPPORTED_AUDIO_EFFECTS.has(kind) && kind !== 'gate-expander';
+}
+
 export function resolveAudioEffects(effects: EffectInstance[], clipLocalTime: number): ResolvedAudioEffect[] {
   const result: ResolvedAudioEffect[] = [];
   for (const effect of effects) {
