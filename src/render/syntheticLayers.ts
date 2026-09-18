@@ -9,6 +9,10 @@ export interface TextRenderStyle {
   strokeColor: string | null;
   strokeWidth: number;
   backgroundColor: string | null;
+  shadowColor: string | null;
+  shadowBlur: number;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
   align: 'left' | 'center' | 'right';
 }
 
@@ -23,6 +27,10 @@ export function resolveTextStyle(text: TextPayload | null, subtitleText?: string
     strokeColor: source.strokeColor ?? (subtitleText ? '#000000' : null),
     strokeWidth: finite(source.strokeWidth, subtitleText ? 5 : 0, 0, 40),
     backgroundColor: source.backgroundColor ?? (subtitleText ? 'rgba(0,0,0,0.55)' : null),
+    shadowColor: source.shadowColor ?? null,
+    shadowBlur: finite(source.shadowBlur, 0, 0, 100),
+    shadowOffsetX: finite(source.shadowOffsetX, 0, -200, 200),
+    shadowOffsetY: finite(source.shadowOffsetY, 0, -200, 200),
     align: source.align ?? 'center',
   };
 }
