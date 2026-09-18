@@ -296,7 +296,7 @@ Large AI models must be optional and selected according to WebGPU/device capabil
 - [x] rotating autosave snapshots
 - [x] recovery browser UI
 - [x] persistent safe project settings templates
-- [ ] reusable asset bins
+- [x] reusable asset bins with project persistence, assignment and filtering
 - [x] tags / rating / favorites / notes UI + filtering/sorting
 - [x] persistent favorite effects in effect picker
 - [ ] search everything
