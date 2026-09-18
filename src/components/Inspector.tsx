@@ -30,6 +30,10 @@ const transitionKinds: Array<{ value: 'none' | TransitionKind; label: string }> 
   { value: 'slide-right', label: 'スライド →' },
   { value: 'slide-up', label: 'スライド ↑' },
   { value: 'slide-down', label: 'スライド ↓' },
+  { value: 'wipe-left', label: 'ワイプ ←' },
+  { value: 'wipe-right', label: 'ワイプ →' },
+  { value: 'wipe-up', label: 'ワイプ ↑' },
+  { value: 'wipe-down', label: 'ワイプ ↓' },
 ];
 
 export function Inspector({ project, selectedClip, timelineTime, onProject, onClip, onTransform, onDeleteClip }: Props) {
@@ -375,7 +379,7 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
                       })}
                     />
                   </div>
-                  <div className="infoCard">ディゾルブは重なり部分でクロスフェード、スライドは選択方向へ入退場します。Previewと最終書き出しは同じ進行計算を使います。</div>
+                  <div className="infoCard">ディゾルブはクロスフェード、スライドは位置移動、ワイプは選択方向の境界で表示領域を開閉します。Previewと最終書き出しは同じ進行計算を使います。</div>
                 </>
               )}
               <Field label="合成">
