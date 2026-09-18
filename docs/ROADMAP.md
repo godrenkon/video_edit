@@ -163,7 +163,8 @@ Current implementation branch: `main`.
 - [ ] realtime gate / expander via AudioWorklet
 - [ ] de-esser
 - [ ] noise suppression
-- [ ] loudness meter
+- [x] realtime shared-bus Peak / RMS dBFS meter
+- [ ] LUFS loudness meter
 - [ ] automatic ducking
 - [x] effect parameter keyframe evaluation in offline audio processing
 - [x] effect parameter keyframe updates in realtime Web Audio preview
