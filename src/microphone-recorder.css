@@ -1,4 +1,4 @@
-.micRecorderRow { margin: 0 8px 6px; padding: 6px 7px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 7px; align-items: center; border: 1px solid var(--line); border-radius: 7px; background: #0c1216; }
+.micRecorderRow { margin: 0 8px 6px; padding: 6px 7px; display: grid; grid-template-columns: auto minmax(0,1fr) 28px auto; gap: 7px; align-items: center; border: 1px solid var(--line); border-radius: 7px; background: #0c1216; }
 .micRecorderLabel { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; color: var(--text); white-space: nowrap; }
 .micRecorderStatus { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: 500 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .micRecorderStatus.error { color: #ff9a9a; }
@@ -6,3 +6,7 @@
 .micRecorderRow button.stop, .micRecorderRow.recording { border-color: rgba(255,105,105,.48); }
 .micRecorderRow button.stop { color: #ff9a9a; background: rgba(255,80,80,.08); }
 .micRecorderRow button:disabled { opacity: .45; cursor: default; }
+
+.micRecorderRow button.monitor { min-width: 28px; width: 28px; padding: 0; color: var(--muted); }
+.micRecorderRow button.monitor.active { color: #5fd8ff; border-color: rgba(95,216,255,.45); background: rgba(95,216,255,.08); }
+.micRecorderRow.counting { border-color: rgba(95,216,255,.45); }
