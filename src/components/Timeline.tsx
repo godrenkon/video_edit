@@ -1,6 +1,7 @@
 import { ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, Lock, Scissors, Trash2, Unlock, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useMemo } from 'react';
-import type { Clip, Project } from '../types/editor';
+import type { AssetMeta, Clip, Project } from '../types/editor';
+import { TimelineWaveform } from './TimelineWaveform';
 import '../timeline-enhancements.css';
 
 type TimelineEdge = 'left' | 'right';
@@ -63,6 +64,7 @@ export function Timeline(props: Props) {
   const width = Math.max(1200, project.duration * px + 120);
   const ticks = useMemo(() => Array.from({ length: Math.ceil(project.duration) + 1 }, (_, i) => i), [project.duration]);
   const markers = useMemo(() => [...(project.markers ?? [])].sort((a, b) => a.time - b.time), [project.markers]);
+  const assetById = useMemo(() => new Map(project.assets.map((asset) => [asset.id, asset])), [project.assets]);
   const hasExplicitRange = project.inPoint != null || project.outPoint != null;
   const rangeStart = Math.max(0, Math.min(project.duration, project.inPoint ?? 0));
   const rangeEnd = Math.max(rangeStart, Math.min(project.duration, project.outPoint ?? project.duration));
@@ -164,6 +166,7 @@ export function Timeline(props: Props) {
                   <TimelineClip
                     key={clip.id}
                     clip={clip}
+                    asset={clip.assetId ? assetById.get(clip.assetId) : undefined}
                     px={px}
                     selected={selectedClipIds.includes(clip.id)}
                     multiSelected={selectedClipIds.length > 1}
@@ -189,6 +192,7 @@ export function Timeline(props: Props) {
 
 function TimelineClip({
   clip,
+  asset,
   px,
   selected,
   multiSelected,
@@ -203,6 +207,7 @@ function TimelineClip({
   onRollEdit,
 }: {
   clip: Clip;
+  asset?: AssetMeta;
   px: number;
   selected: boolean;
   multiSelected: boolean;
@@ -305,6 +310,7 @@ function TimelineClip({
       title={`${clip.name} / ${clip.duration.toFixed(2)}s / Ctrl/Cmd+クリック: 複数選択 / Alt+ドラッグ: スライド編集`}
     >
       <div className="trimHandle left" onPointerDown={trimLeft} title="トリム / Shift: リップル / Alt: ロール" />
+      <TimelineWaveform asset={asset} clip={clip} />
       <span>{clip.name}</span>
       <div className="trimHandle right" onPointerDown={trimRight} title="トリム / Shift: リップル / Alt: ロール" />
     </div>
