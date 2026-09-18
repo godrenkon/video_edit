@@ -192,7 +192,7 @@ function serializableProject(project: Project): Project {
     ...project,
     version: 2,
     updatedAt: new Date().toISOString(),
-    assets: project.assets.map(({ objectUrl: _objectUrl, ...asset }) => asset),
+    assets: project.assets.map(({ objectUrl: _objectUrl, proxyObjectUrl: _proxyObjectUrl, ...asset }) => asset),
   };
 }
 
