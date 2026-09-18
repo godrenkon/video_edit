@@ -34,6 +34,7 @@ import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { exportProjectVideo } from './render/projectExporter';
+import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
 import { waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
 import { Inspector } from './components/Inspector';
@@ -69,7 +70,8 @@ export default function App() {
   const [rendering, setRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState<number | null>(null);
   const capabilities = useMemo(() => detectCapabilities(), []);
-  const lastFrame = useRef<number | null>(null);
+  const playbackOrigin = useRef<{ wallMs: number; time: number } | null>(null);
+  const timeRef = useRef(0);
   const history = useRef(new HistoryController<Project>(120, 750));
   const renderAbort = useRef<AbortController | null>(null);
   const clipClipboard = useRef<ClipClipboardPayload | null>(null);
@@ -200,28 +202,42 @@ export default function App() {
   }, [project, hydrated, capabilities.opfs]);
 
   useEffect(() => {
+    timeRef.current = time;
+  }, [time]);
+
+  useEffect(() => {
     if (!playing) {
-      lastFrame.current = null;
+      playbackOrigin.current = null;
       return;
     }
+
+    const originTime = quantizePreviewTime(timeRef.current, project.fps);
+    const wallMs = performance.now();
+    playbackOrigin.current = { wallMs, time: originTime };
+    timeRef.current = originTime;
+    setTime(originTime);
+
     let raf = 0;
     const tick = (now: number) => {
-      if (lastFrame.current == null) lastFrame.current = now;
-      const delta = Math.min(0.1, (now - lastFrame.current) / 1000);
-      lastFrame.current = now;
-      setTime((prev) => {
-        const next = prev + delta;
-        if (next >= project.duration) {
-          setPlaying(false);
-          return project.duration;
-        }
-        return next;
-      });
+      const origin = playbackOrigin.current;
+      if (!origin) return;
+      const next = previewFrameTime(
+        origin.time,
+        (now - origin.wallMs) / 1000,
+        project.fps,
+        project.duration,
+      );
+      timeRef.current = next;
+      setTime(next);
+      if (next >= project.duration) {
+        setPlaying(false);
+        return;
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, project.duration]);
+  }, [playing, project.duration, project.fps]);
 
   const updateProject = useCallback((mutator: (p: Project) => Project, options: UpdateOptions = {}) => {
     setProject((current) => {
