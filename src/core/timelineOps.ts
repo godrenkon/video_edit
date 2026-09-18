@@ -76,6 +76,8 @@ export function splitClipAt(project: Project, clipId: string, absoluteTime: numb
   const right = sliceClipLocalData(source, localTime, source.duration);
 
   left.duration = localTime;
+  left.transitionOut = undefined;
+  right.transitionIn = undefined;
   right.id = uid('clip');
   right.name = `${source.name} (2)`;
   right.start = splitTime;
