@@ -19,6 +19,7 @@ interface Props {
   onPasteCopied: () => void;
   onRippleDeleteSelected: () => void;
   onMoveClip: (clipId: string, start: number) => void;
+  onSlideClip: (clipId: string, start: number) => void;
   onTrimClipLeft: (clipId: string, start: number) => void;
   onTrimClip: (clipId: string, duration: number) => void;
   onRippleTrimClip: (clipId: string, edge: TimelineEdge, boundary: number) => void;
@@ -42,6 +43,7 @@ export function Timeline(props: Props) {
     onPasteCopied,
     onRippleDeleteSelected,
     onMoveClip,
+    onSlideClip,
     onTrimClipLeft,
     onTrimClip,
     onRippleTrimClip,
@@ -152,6 +154,7 @@ export function Timeline(props: Props) {
                     locked={track.locked}
                     onSelect={onSelect}
                     onMove={onMoveClip}
+                    onSlide={onSlideClip}
                     onTrimLeft={onTrimClipLeft}
                     onTrimRight={onTrimClip}
                     onRippleTrim={onRippleTrimClip}
@@ -174,6 +177,7 @@ function TimelineClip({
   locked,
   onSelect,
   onMove,
+  onSlide,
   onTrimLeft,
   onTrimRight,
   onRippleTrim,
@@ -185,6 +189,7 @@ function TimelineClip({
   locked: boolean;
   onSelect: (id: string) => void;
   onMove: (id: string, start: number) => void;
+  onSlide: (id: string, start: number) => void;
   onTrimLeft: (id: string, start: number) => void;
   onTrimRight: (id: string, duration: number) => void;
   onRippleTrim: (id: string, edge: TimelineEdge, boundary: number) => void;
@@ -196,9 +201,14 @@ function TimelineClip({
     onSelect(clip.id);
     const startX = e.clientX;
     const initial = clip.start;
+    const slide = e.altKey;
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
-    const move = (ev: PointerEvent) => onMove(clip.id, Math.max(0, initial + (ev.clientX - startX) / px));
+    const move = (ev: PointerEvent) => {
+      const start = Math.max(0, initial + (ev.clientX - startX) / px);
+      if (slide) onSlide(clip.id, start);
+      else onMove(clip.id, start);
+    };
     const up = () => cleanupPointerDrag(target, move, up);
     target.addEventListener('pointermove', move);
     target.addEventListener('pointerup', up);
@@ -255,7 +265,7 @@ function TimelineClip({
       style={{ left: clip.start * px, width: Math.max(12, clip.duration * px) }}
       onPointerDown={drag}
       onClick={(e) => { e.stopPropagation(); onSelect(clip.id); }}
-      title={`${clip.name} / ${clip.duration.toFixed(2)}s`}
+      title={`${clip.name} / ${clip.duration.toFixed(2)}s / Alt+ドラッグ: スライド編集`}
     >
       <div className="trimHandle left" onPointerDown={trimLeft} title="トリム / Shift: リップル / Alt: ロール" />
       <span>{clip.name}</span>
