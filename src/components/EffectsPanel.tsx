@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { createEffectInstance, getEffectDescriptor, listEffects } from '../core/effects';
 import { createEffectPreset, instantiatePresetEffects, loadEffectPresets, normalizePresetName, saveEffectPresets } from '../core/effectPresets';
 import { uid } from '../core/project';
-import { isAudioEffectSupported } from '../render/audioEffects';
+import { isAudioEffectSupported, isRealtimeAudioEffectSupported } from '../render/audioEffects';
 import {
   evaluateEffectParameter,
   isCanvasFilterEffectSupported,
@@ -210,6 +210,9 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
         const renderSupported = descriptor?.domain === 'audio'
           ? isAudioEffectSupported(effect.kind)
           : isCanvasFilterEffectSupported(effect.kind);
+        const realtimeSupported = descriptor?.domain === 'audio'
+          ? isRealtimeAudioEffectSupported(effect.kind)
+          : renderSupported;
         return (
           <div className="effectCard" key={effect.id}>
             <div className="effectCardHeader">
@@ -222,6 +225,7 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
                 <strong>{descriptor?.domain === 'audio' ? `音声 / ${descriptor.label}` : descriptor?.label ?? effect.kind}</strong>
               </label>
               {!renderSupported && <span className="effectPending">未接続</span>}
+              {renderSupported && !realtimeSupported && <span className="effectPending">書出しのみ</span>}
               <button type="button" className="miniBtn danger" onClick={() => removeEffect(effect.id)} title="エフェクトを削除"><Trash2 size={13} /></button>
             </div>
             {descriptor?.parameters.map((descriptorParameter) => {
