@@ -1,6 +1,7 @@
-import { Bot, Sparkles } from 'lucide-react';
+import { Bot, FileJson2, Sparkles, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import type { AssetMeta } from '../types/editor';
+import { parseVoicevoxAudioQueryMouthCues } from '../core/voicevoxTiming';
+import type { AssetMeta, MouthCue } from '../types/editor';
 
 export interface ZundamonRequest {
   closedAssetId: string;
@@ -11,6 +12,7 @@ export interface ZundamonRequest {
   blinkEvery: number;
   bobAmount: number;
   bobSpeed: number;
+  timingCues?: MouthCue[];
 }
 
 interface Props {
@@ -30,7 +32,31 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
   const [blinkEvery, setBlinkEvery] = useState(4);
   const [bobAmount, setBobAmount] = useState(8);
   const [bobSpeed, setBobSpeed] = useState(0.7);
+  const [timingCues, setTimingCues] = useState<MouthCue[] | undefined>();
+  const [timingLabel, setTimingLabel] = useState('');
+  const [timingStatus, setTimingStatus] = useState('');
   const valid = closed && open && audio;
+
+  const importVoicevoxTiming = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const result = parseVoicevoxAudioQueryMouthCues(await file.text());
+      setTimingCues(result.cues);
+      setTimingLabel(file.name);
+      setTimingStatus(`${result.moraCount}モーラ / ${result.cues.length} cue / 約${result.estimatedDuration.toFixed(2)}秒`);
+    } catch (error) {
+      console.error(error);
+      setTimingCues(undefined);
+      setTimingLabel('');
+      setTimingStatus('AudioQueryを読み込めませんでした');
+    }
+  };
+
+  const clearVoicevoxTiming = () => {
+    setTimingCues(undefined);
+    setTimingLabel('');
+    setTimingStatus('');
+  };
 
   return (
     <section className="zundamonCard">
@@ -41,6 +67,22 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
         <AssetSelect label="口開き *" value={open} assets={images} onChange={setOpen} />
         <AssetSelect label="瞬き" value={blink} assets={images} onChange={setBlink} />
         <AssetSelect label="VOICEVOX音声 *" value={audio} assets={audios} onChange={setAudio} wide />
+      </div>
+      <div className="zTimingImport">
+        <label className="zTimingFile">
+          <FileJson2 size={14} />
+          <span>{timingLabel || 'VOICEVOX AudioQuery JSON（任意）'}</span>
+          <input
+            type="file"
+            accept=".json,application/json"
+            onChange={(e) => {
+              void importVoicevoxTiming(e.target.files?.[0] ?? null);
+              e.currentTarget.value = '';
+            }}
+          />
+        </label>
+        {timingCues && <button type="button" className="miniBtn" onClick={clearVoicevoxTiming} title="VOICEVOX timingを解除"><X size={13} /></button>}
+        {timingStatus && <small>{timingStatus}</small>}
       </div>
       <div className="zControls">
         <label>瞬き <input type="number" min={1.5} max={10} step={0.1} value={blinkEvery} onChange={(e) => setBlinkEvery(Number(e.target.value))} /><span>秒</span></label>
@@ -56,8 +98,9 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
         blinkEvery,
         bobAmount,
         bobSpeed,
-      })}><Sparkles size={16} />{busy ? '音声解析中…' : '自動口パクをタイムラインに作成'}</button>
-      <p>画像はPSDTool等で書き出した透過PNGを素材欄に入れてください。音声解析は端末内だけで実行します。</p>
+        timingCues,
+      })}><Sparkles size={16} />{busy ? '口パク生成中…' : '自動口パクをタイムラインに作成'}</button>
+      <p>{timingCues ? 'VOICEVOX AudioQueryの母音タイミングを優先します。' : 'AudioQuery未指定時は音声を端末内で解析します。'} 画像はPSDTool等で書き出した透過PNGを素材欄に入れてください。</p>
     </section>
   );
 }
