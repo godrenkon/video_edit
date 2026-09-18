@@ -1,6 +1,6 @@
 const CACHE_PREFIX = 'suiram-video-edit-shell-';
 const CACHE_NAME = CACHE_PREFIX + 'v1';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/app-icon.svg'];
+const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/app-icon.svg', '/audio-effects-worklet.js'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
