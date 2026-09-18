@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles } from 'lucide-react';
 import { rippleTrimClip, rollEditBoundary } from './core/advancedTimelineOps';
 import { detectCapabilities } from './core/capabilities';
+import { duplicateClipAfter } from './core/clipboardOps';
 import { HistoryController } from './core/history';
 import { analyzeMouthCues, buildAssetMeta } from './core/media';
 import {
@@ -338,6 +339,17 @@ export default function App() {
     setSelectedClipId(null);
   }, [rendering, selectedClipId, updateProject]);
 
+  const duplicateSelectedClip = useCallback(() => {
+    if (!selectedClipId || rendering) return;
+    const result = duplicateClipAfter(project, selectedClipId);
+    if (!result.clipId || result.project === project) return;
+    history.current.record(project, 'クリップ複製');
+    setPlaying(false);
+    setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
+    setSelectedClipId(result.clipId);
+    setSaveState('クリップを複製しました');
+  }, [project, rendering, selectedClipId]);
+
   const nudgeSelected = useCallback((frames: number) => {
     if (!selectedClipId || rendering) return;
     updateProject((p) => nudgeClip(p, selectedClipId, frames), {
@@ -370,6 +382,11 @@ export default function App() {
         splitSelectedClip();
         return;
       }
+      if (mod && lower === 'd') {
+        e.preventDefault();
+        duplicateSelectedClip();
+        return;
+      }
       if (e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault();
         nudgeSelected(-1);
@@ -397,7 +414,7 @@ export default function App() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [showRecovery, rendering, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, nudgeSelected, undo, redo]);
+  }, [showRecovery, rendering, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, nudgeSelected, undo, redo]);
 
   const manualSave = async () => {
     try {
@@ -583,6 +600,7 @@ export default function App() {
         onTime={(v) => { setPlaying(false); setTime(v); }}
         onSelect={setSelectedClipId}
         onSplitSelected={splitSelectedClip}
+        onDuplicateSelected={duplicateSelectedClip}
         onRippleDeleteSelected={rippleDeleteSelectedClip}
         onMoveClip={(id, start) => updateProject(
           (p) => moveClip(p, id, start, time, snapThreshold),
