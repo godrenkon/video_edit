@@ -1,12 +1,14 @@
-import { Download, Film, Music, X } from 'lucide-react';
+import { Camera, Download, Film, Music, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { resolveExportDimensions } from '../render/projectExporter';
+import { exportProjectPng } from '../render/stillExporter';
 import { exportProjectWav } from '../render/wavExporter';
 import type { Project, ProjectExportContainer, ProjectExportQuality, ProjectExportSettings } from '../types/editor';
 import '../export-settings.css';
 
 interface Props {
   project: Project;
+  timelineTime: number;
   onChange: (settings: ProjectExportSettings) => void;
 }
 
@@ -18,7 +20,7 @@ const resolutionPresets = [
   { label: '4K / 2160p', value: 2160 },
 ] as const;
 
-export function ProjectExportSettingsPanel({ project, onChange }: Props) {
+export function ProjectExportSettingsPanel({ project, timelineTime, onChange }: Props) {
   const settings = project.exportSettings ?? {};
   const container = settings.container ?? 'auto';
   const quality = settings.quality ?? 'balanced';
@@ -28,6 +30,8 @@ export function ProjectExportSettingsPanel({ project, onChange }: Props) {
   const [wavBusy, setWavBusy] = useState(false);
   const [wavProgress, setWavProgress] = useState<number | null>(null);
   const [wavStatus, setWavStatus] = useState('');
+  const [pngBusy, setPngBusy] = useState(false);
+  const [pngStatus, setPngStatus] = useState('');
   const wavAbort = useRef<AbortController | null>(null);
 
   const patch = (next: Partial<ProjectExportSettings>) => onChange({ ...settings, ...next });
@@ -63,6 +67,22 @@ export function ProjectExportSettingsPanel({ project, onChange }: Props) {
   };
 
   const cancelWav = () => wavAbort.current?.abort('ユーザーがWAV書き出しを中止しました');
+
+  const exportPng = async () => {
+    if (pngBusy) return;
+    setPngBusy(true);
+    setPngStatus('現在位置をPNGに描画しています…');
+    try {
+      const result = await exportProjectPng(project, timelineTime);
+      downloadBlob(result.blob, result.fileName);
+      setPngStatus(`${result.width}×${result.height} / ${formatTime(result.timeSeconds)} PNG 完了`);
+    } catch (error) {
+      console.error(error);
+      setPngStatus(error instanceof Error ? error.message : 'PNG書き出しエラー');
+    } finally {
+      setPngBusy(false);
+    }
+  };
 
   return (
     <section className="exportSettingsCard">
@@ -105,6 +125,14 @@ export function ProjectExportSettingsPanel({ project, onChange }: Props) {
         <span>{container === 'auto' ? '対応環境ではMP4、未対応時はWebMへ自動切替' : container.toUpperCase()}</span>
       </div>
 
+      <div className="stillExport">
+        <div className="stillExportTitle"><Camera size={12} /><span>静止画</span><b>{dimensions.width}×{dimensions.height}</b></div>
+        <button type="button" className="audioExportButton" onClick={exportPng} disabled={pngBusy}>
+          <Download size={12} />{pngBusy ? 'PNGを生成中…' : '現在位置をPNGで保存'}
+        </button>
+        {pngStatus && <div className="audioExportStatus">{pngStatus}</div>}
+      </div>
+
       <div className="audioOnlyExport">
         <div className="audioOnlyTitle"><Music size={12} /><span>音声のみ</span><b>48kHz / 16-bit PCM</b></div>
         {wavBusy ? (
@@ -121,6 +149,13 @@ export function ProjectExportSettingsPanel({ project, onChange }: Props) {
       </div>
     </section>
   );
+}
+
+function formatTime(seconds: number) {
+  const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0);
+  const minutes = Math.floor(safe / 60);
+  const rest = safe - minutes * 60;
+  return `${String(minutes).padStart(2, '0')}:${rest.toFixed(3).padStart(6, '0')}`;
 }
 
 function downloadBlob(blob: Blob, fileName: string) {
