@@ -2,8 +2,13 @@ export class MicrophoneMonitor {
   private context: AudioContext | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
   private gainNode: GainNode | null = null;
+  private stream: MediaStream | null = null;
 
   async attach(stream: MediaStream, gain = 0.35) {
+    if (this.stream === stream && this.active) {
+      this.setGain(gain);
+      return;
+    }
     await this.close();
     const AudioContextCtor = window.AudioContext
       ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -19,6 +24,7 @@ export class MicrophoneMonitor {
     this.context = context;
     this.source = source;
     this.gainNode = gainNode;
+    this.stream = stream;
     if (context.state === 'suspended') await context.resume().catch(() => undefined);
   }
 
@@ -32,6 +38,7 @@ export class MicrophoneMonitor {
     this.gainNode?.disconnect();
     this.source = null;
     this.gainNode = null;
+    this.stream = null;
     const context = this.context;
     this.context = null;
     if (context && context.state !== 'closed') await context.close().catch(() => undefined);
