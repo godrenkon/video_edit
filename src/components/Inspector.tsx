@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp, Flag, Plus, RotateCcw, SlidersHorizontal, Trash
 import { uid } from '../core/project';
 import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrackSolo, setTrackVisible } from '../core/trackOps';
 import { constrainNormalizedCrop, cropToNormalized } from '../render/cropGeometry';
+import { clipSourceTime } from '../render/timelineEvaluation';
 import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker, TrackKind } from '../types/editor';
 import { EffectsPanel } from './EffectsPanel';
 import { ProjectExportSettingsPanel } from './ProjectExportSettingsPanel';
@@ -28,6 +29,12 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
   const selectedSpeed = Math.max(0.0001, selectedClip?.speed ?? 1);
   const maxSourceInPoint = selectedClip && selectedAsset && (selectedAsset.kind === 'video' || selectedAsset.kind === 'audio')
     ? Math.max(0, selectedAsset.duration - selectedClip.duration * selectedSpeed)
+    : 0;
+  const currentSourceTime = selectedClip && selectedAsset?.kind === 'video'
+    ? Math.max(0, Math.min(selectedAsset.duration, clipSourceTime(
+        { ...selectedClip, freezeFrameAt: undefined },
+        timelineTime,
+      )))
     : 0;
 
   const patchText = (patch: Partial<TextPayload>) => {
@@ -190,6 +197,32 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
                 <span>逆再生</span>
                 <input type="checkbox" checked={Boolean(selectedClip.reverse)} onChange={(e) => onClip({ reverse: e.target.checked })} />
               </label>
+              {selectedAsset.kind === 'video' && (
+                <>
+                  <label className="checkboxField">
+                    <span>フリーズフレーム</span>
+                    <input
+                      type="checkbox"
+                      checked={typeof selectedClip.freezeFrameAt === 'number'}
+                      onChange={(e) => onClip({ freezeFrameAt: e.target.checked ? currentSourceTime : undefined })}
+                    />
+                  </label>
+                  {typeof selectedClip.freezeFrameAt === 'number' && (
+                    <>
+                      <NumberField
+                        label="固定source時刻"
+                        value={selectedClip.freezeFrameAt}
+                        step={1 / Math.max(1, project.fps)}
+                        onChange={(v) => onClip({ freezeFrameAt: Math.max(0, Math.min(selectedAsset.duration, v)) })}
+                      />
+                      <div className="projectActionGrid">
+                        <button type="button" onClick={() => onClip({ freezeFrameAt: currentSourceTime })}>現在フレームを固定</button>
+                      </div>
+                      <div className="infoCard">固定中は映像source時刻を {selectedClip.freezeFrameAt.toFixed(3)}s に保持し、動画内音声は無音になります。</div>
+                    </>
+                  )}
+                </>
+              )}
               {selectedAsset.kind === 'audio' && selectedClip.reverse && (
                 <div className="infoCard">逆再生音声は最終書き出しへ反映されます。HTML Audioの制約によりPreview再生中は無音です。</div>
               )}
