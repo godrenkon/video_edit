@@ -13,8 +13,10 @@ import {
   createProject,
   defaultClip,
   defaultGeneratorClip,
+  defaultLowerThirdClip,
   defaultSubtitleClip,
   defaultTextClip,
+  type LowerThirdPreset,
   trackKindForAsset,
   uid,
 } from './core/project';
@@ -522,6 +524,14 @@ export default function App() {
     addSyntheticClip(defaultTextClip(time), 'overlay', 'テキストを追加');
   }, [addSyntheticClip, time]);
 
+  const createLowerThird = useCallback((preset: LowerThirdPreset) => {
+    addSyntheticClip(
+      defaultLowerThirdClip(time, project.width, project.height, preset),
+      'overlay',
+      '下部テロップを追加',
+    );
+  }, [addSyntheticClip, project.height, project.width, time]);
+
   const createSubtitle = useCallback(() => {
     addSyntheticClip(defaultSubtitleClip(time, project.height * 0.34), 'subtitle', '字幕を追加');
   }, [addSyntheticClip, project.height, time]);
@@ -876,6 +886,7 @@ export default function App() {
           onCancelProxy={cancelAssetProxy}
           onRemoveProxy={removeAssetProxy}
           onCreateText={createText}
+          onCreateLowerThird={createLowerThird}
           onCreateSubtitle={createSubtitle}
           onCreateGenerator={createGenerator}
         />
