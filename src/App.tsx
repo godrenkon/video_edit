@@ -5,6 +5,7 @@ import { detectCapabilities } from './core/capabilities';
 import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
 import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClips } from './core/groupOps';
+import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
 import { insertClipAt, overwriteClipAt } from './core/editModes';
 import { analyzeMouthCues, buildAssetMeta, mergeRelinkedAsset } from './core/media';
 import {
@@ -464,6 +465,25 @@ export default function App() {
     }
   }, [capabilities.opfs, project.assets, rendering, updateProject]);
 
+  const importFolder = useCallback(async () => {
+    if (rendering || !supportsDirectoryPicker()) return;
+    try {
+      const result = await pickMediaFilesFromFolder();
+      if (result.files.length === 0) {
+        setSaveState('フォルダ内に対応メディアがありません');
+        return;
+      }
+      await importFiles(result.files);
+      setSaveState(result.truncated
+        ? `${result.files.length}件を読み込みました（上限で打ち切り）`
+        : `${result.files.length}件をフォルダから読み込みました`);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      console.error('Folder import failed', error);
+      setSaveState('フォルダ読み込みに失敗しました');
+    }
+  }, [rendering]);
+
   const addAssetToTimeline = (assetId: string, mode: 'insert' | 'overwrite') => {
     if (rendering) return;
     updateProject((p) => {
@@ -845,6 +865,8 @@ export default function App() {
         <MediaLibrary
           assets={project.assets}
           onImport={importFiles}
+          onImportFolder={importFolder}
+          folderImportSupported={supportsDirectoryPicker()}
           onAdd={addAssetToTimeline}
           onDelete={deleteAsset}
           onAssetMeta={updateAssetMeta}
