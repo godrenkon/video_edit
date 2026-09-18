@@ -160,9 +160,9 @@ Current implementation branch: `main`.
 - [ ] exact DSP parity tests between Web Audio preview and offline processor
 - [x] initial stereo-linked offline peak limiter + realtime preview approximation
 - [x] offline gate / downward expander DSP + keyframe support
-- [ ] realtime gate / expander via AudioWorklet
+- [x] realtime gate / expander via AudioWorklet
 - [x] deterministic split-band offline de-esser + keyframe support
-- [ ] realtime de-esser via AudioWorklet
+- [x] realtime de-esser via AudioWorklet
 - [ ] noise suppression
 - [x] realtime shared-bus Peak / RMS dBFS meter
 - [x] realtime K-weighted Momentary LUFS meter
@@ -171,7 +171,7 @@ Current implementation branch: `main`.
 - [x] effect parameter keyframe evaluation in offline audio processing
 - [x] effect parameter keyframe updates in realtime Web Audio preview
 - [ ] dedicated automation lanes UI
-- [ ] AudioWorklet DSP layer
+- [x] initial AudioWorklet DSP layer for gate / expander / de-esser
 - [x] VOICEVOX-oriented realtime-compatible voice effect presets
 - [x] audio effect descriptors for gain / pan / filters / compressor
 
