@@ -118,6 +118,8 @@ export interface SubtitlePayload {
   text: string;
   speaker?: string;
   words?: Array<{ text: string; start: number; end: number }>;
+  wordHighlight?: boolean;
+  highlightColor?: string;
 }
 
 export interface GeneratorPayload {
