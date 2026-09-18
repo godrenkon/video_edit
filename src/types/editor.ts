@@ -14,6 +14,12 @@ export type BlendMode =
   | 'add';
 
 export type EffectParameterValue = number | string | boolean | number[];
+export type TransitionKind = 'dissolve';
+
+export interface ClipTransition {
+  kind: TransitionKind;
+  duration: number;
+}
 export type ProjectExportContainer = 'auto' | 'mp4' | 'webm';
 export type ProjectExportQuality = 'compact' | 'balanced' | 'high';
 
@@ -155,6 +161,8 @@ export interface Clip {
   speed?: number;
   reverse?: boolean;
   freezeFrameAt?: number;
+  transitionIn?: ClipTransition;
+  transitionOut?: ClipTransition;
   effects?: EffectInstance[];
   groupId?: string;
   text?: TextPayload;
