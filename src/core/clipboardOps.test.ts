@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Clip, Project, Track } from '../types/editor';
-import { cloneClipWithFreshIds, duplicateClipAfter } from './clipboardOps';
+import { cloneClipWithFreshIds, copyClip, duplicateClipAfter, pasteClipAt } from './clipboardOps';
 
 function clip(): Clip {
   return {
@@ -79,6 +79,24 @@ describe('clip duplication', () => {
     const copy = cloneClipWithFreshIds(source);
     copy.effects![0].parameters.brightness.keyframes![0].value = 1;
     expect(source.effects![0].parameters.brightness.keyframes![0].value).toBe(0.5);
+  });
+
+  it('copies a clip payload and pastes it at a frame-quantized playhead position', () => {
+    const input = project(clip());
+    const payload = copyClip(input, 'clip-a');
+    expect(payload?.trackKind).toBe('video');
+    const result = pasteClipAt(input, payload!, 8.017);
+    expect(result.clipId).toBeTruthy();
+    expect(result.project.tracks[0].clips[1].start).toBeCloseTo(8.0333333333, 8);
+    expect(result.project.tracks[0].clips[1].id).not.toBe('clip-a');
+  });
+
+  it('does not paste when no unlocked compatible track exists', () => {
+    const input = project(clip(), true);
+    const payload = copyClip(input, 'clip-a');
+    const result = pasteClipAt(input, payload!, 8);
+    expect(result.project).toBe(input);
+    expect(result.clipId).toBeNull();
   });
 
   it('does not duplicate clips on locked tracks', () => {
