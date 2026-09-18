@@ -85,8 +85,8 @@ Current implementation branch: `main`.
 - [x] WebCodecs-backed audio decode path for offline mix
 - [x] bounded source cache configuration
 - [ ] decode workers
-- [ ] proxy generation
-- [ ] proxy/original relink
+- [x] streamed OPFS video proxy generation + progress/cancel/remove UI
+- [x] proxy auto-relink on load + manual original media relink
 - [x] bounded memory + OPFS timeline thumbnail cache
 - [x] OPFS + memory waveform cache
 - [ ] preview render cache
@@ -97,7 +97,7 @@ Current implementation branch: `main`.
 - [ ] frame-accurate decoded-frame playback engine
 - [x] preview FPS / dropped-frame / frame-delay diagnostics
 - [ ] decode-latency diagnostics
-- [ ] timeline virtualization for long projects
+- [x] timeline clip virtualization for long projects
 
 ## Phase 3 — Export / Deliver
 
@@ -198,7 +198,7 @@ Current implementation branch: `main`.
 - [ ] planar tracker
 - [ ] full blend-mode parity tests
 - [ ] motion blur
-- [ ] reusable effect presets
+- [x] reusable persistent effect presets
 
 ## Phase 6 — Text / Subtitle / Transcript
 
@@ -291,14 +291,14 @@ Large AI models must be optional and selected according to WebGPU/device capabil
 - [x] recovery browser UI
 - [ ] project templates
 - [ ] reusable asset bins
-- [ ] tags / rating / favorites UI
+- [x] tags / rating / favorites / notes UI + filtering/sorting
 - [ ] favorite effects
 - [ ] search everything
 - [ ] customizable workspace
 - [ ] shortcut customization
 - [x] fullscreen preview
-- [ ] PWA install
-- [ ] offline mode
+- [x] PWA manifest + standalone install shell
+- [x] service-worker offline app shell after first successful load
 - [ ] file-system folder import where available
 - [ ] plugin contracts: Effect / Generator / Importer / Exporter / Analysis / Character / Automation
 
