@@ -2,6 +2,7 @@ import { ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, Lock, Scissors, Trash
 import { useMemo } from 'react';
 import type { AssetMeta, Clip, Project } from '../types/editor';
 import { TimelineWaveform } from './TimelineWaveform';
+import { TimelineThumbnailStrip } from './TimelineThumbnailStrip';
 import '../timeline-enhancements.css';
 
 type TimelineEdge = 'left' | 'right';
@@ -310,6 +311,7 @@ function TimelineClip({
       title={`${clip.name} / ${clip.duration.toFixed(2)}s / Ctrl/Cmd+クリック: 複数選択 / Alt+ドラッグ: スライド編集`}
     >
       <div className="trimHandle left" onPointerDown={trimLeft} title="トリム / Shift: リップル / Alt: ロール" />
+      <TimelineThumbnailStrip asset={asset} clip={clip} pixelsPerSecond={px} />
       <TimelineWaveform asset={asset} clip={clip} />
       <span>{clip.name}</span>
       <div className="trimHandle right" onPointerDown={trimRight} title="トリム / Shift: リップル / Alt: ロール" />
