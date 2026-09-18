@@ -451,11 +451,12 @@ export default function App() {
       clearTimelineThumbnailCache(assetId);
 
       const merged = mergeRelinkedAsset(current, replacement);
+      history.current.clear();
       updateProject((p) => ({
         ...p,
         assets: p.assets.map((asset) => asset.id === assetId ? merged : asset),
-      }), { label: '元素材を再リンク' });
-      setSaveState(`再リンク済み: ${current.name}`);
+      }), { history: false });
+      setSaveState(`再リンク済み: ${current.name}（履歴をリセット）`);
     } catch (error) {
       console.error('Asset relink failed', error);
       if (replacement?.objectUrl) URL.revokeObjectURL(replacement.objectUrl);
