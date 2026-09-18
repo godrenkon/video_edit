@@ -103,22 +103,23 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
   const sourceTime = clipSourceTime(clip, time);
   const playbackRate = Math.max(0.0625, Math.min(16, clip.speed ?? 1));
   const syncTolerance = previewSyncTolerance(project.fps);
+  const frozen = typeof clip.freezeFrameAt === 'number' && Number.isFinite(clip.freezeFrameAt);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (clip.reverse || !playing || Math.abs(video.currentTime - sourceTime) > syncTolerance) {
+    if (clip.reverse || frozen || !playing || Math.abs(video.currentTime - sourceTime) > syncTolerance) {
       video.currentTime = Math.max(0, sourceTime);
     }
-  }, [clip.reverse, playing, sourceTime, syncTolerance]);
+  }, [clip.reverse, frozen, playing, sourceTime, syncTolerance]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     video.playbackRate = playbackRate;
-    if (playing && !clip.reverse) video.play().catch(() => undefined);
+    if (playing && !clip.reverse && !frozen) video.play().catch(() => undefined);
     else video.pause();
-  }, [clip.reverse, playbackRate, playing]);
+  }, [clip.reverse, frozen, playbackRate, playing]);
 
   if (!asset?.objectUrl) return null;
   const styles = assetLayerStyles(clip, asset, project, time);
