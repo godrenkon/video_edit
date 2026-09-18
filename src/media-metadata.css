@@ -22,3 +22,10 @@
 .proxyActions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 5px; }
 .proxyActions button { height: 27px; border: 1px solid var(--line); border-radius: 5px; background: #11181d; color: var(--text); font-size: 8px; cursor: pointer; }
 .proxyActions button:disabled { opacity: .42; cursor: default; }
+
+.assetRelink { display: grid; gap: 5px; padding-top: 3px; border-top: 1px solid var(--line); }
+.assetRelinkStatus { display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: var(--muted); }
+.assetRelinkStatus b { font-weight: 700; }
+.assetRelinkStatus b.online { color: #8fd9aa; }
+.assetRelinkStatus b.missing { color: #ff9a9a; }
+.assetRelink > button { height: 27px; border: 1px solid var(--line); border-radius: 5px; background: #11181d; color: var(--text); font-size: 8px; cursor: pointer; }
