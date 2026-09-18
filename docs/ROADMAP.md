@@ -85,13 +85,14 @@ Current implementation branch: `main`.
 - [ ] decode workers
 - [ ] proxy generation
 - [ ] proxy/original relink
-- [x] bounded in-memory timeline thumbnail cache
+- [x] bounded memory + OPFS timeline thumbnail cache
 - [x] OPFS + memory waveform cache
 - [ ] preview render cache
 - [x] OffscreenCanvas-capable Canvas 2D compositor path
 - [ ] WebGPU compositor
 - [ ] WebGL2 fallback
-- [ ] frame-accurate playback engine
+- [x] deterministic frame-aligned preview timeline clock
+- [ ] frame-accurate decoded-frame playback engine
 - [ ] dropped-frame / decode-latency diagnostics
 - [ ] timeline virtualization for long projects
 
@@ -142,7 +143,7 @@ Current implementation branch: `main`.
 
 ## Phase 4 — Audio / Fairlight-style Workflow
 
-- [ ] waveform cache
+- [x] waveform cache
 - [x] clip gain in offline export mix
 - [x] clip fade in / fade out model, UI, preview envelope and offline export
 - [x] pan rendering
