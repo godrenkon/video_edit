@@ -137,6 +137,7 @@ export interface ZundamonPayload {
   closedAssetId: string;
   halfAssetId?: string;
   openAssetId: string;
+  vowelAssetIds?: Partial<Record<'a' | 'i' | 'u' | 'e' | 'o', string>>;
   blinkAssetId?: string;
   audioAssetId: string;
   cues: MouthCue[];
