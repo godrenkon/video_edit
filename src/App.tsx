@@ -791,13 +791,17 @@ export default function App() {
     const audio = project.assets.find((a) => a.id === request.audioAssetId);
     if (!audio) return;
     setZBusy(true);
-    setSaveState('ずんだもん音声解析中…');
+    setSaveState(request.timingCues?.length ? 'VOICEVOX timingを反映中…' : 'ずんだもん音声解析中…');
     try {
-      let blob: Blob;
-      if (capabilities.opfs) blob = await readAssetFile(audio.storageName);
-      else if (audio.objectUrl) blob = await (await fetch(audio.objectUrl)).blob();
-      else throw new Error('Audio source not available');
-      const cues = await analyzeMouthCues(blob);
+      const { timingCues, ...zundamonRequest } = request;
+      let cues = timingCues;
+      if (!cues?.length) {
+        let blob: Blob;
+        if (capabilities.opfs) blob = await readAssetFile(audio.storageName);
+        else if (audio.objectUrl) blob = await (await fetch(audio.objectUrl)).blob();
+        else throw new Error('Audio source not available');
+        cues = await analyzeMouthCues(blob);
+      }
       const zClip: Clip = {
         id: uid('clip'),
         kind: 'zundamon',
@@ -812,7 +816,7 @@ export default function App() {
         speed: 1,
         reverse: false,
         effects: [],
-        zundamon: { ...request, cues },
+        zundamon: { ...zundamonRequest, cues },
       };
       const audioClip = defaultClip(audio.name, audio.id, time, audio.duration);
       updateProject((p) => {
@@ -828,7 +832,7 @@ export default function App() {
         };
       }, { label: 'ずんだもんを生成' });
       setSelectedClipId(zClip.id);
-      setSaveState(`口パク ${cues.length} 点を生成`);
+      setSaveState(`${timingCues?.length ? 'VOICEVOX timing' : '音声解析'} / 口パク ${cues.length} 点を生成`);
     } catch (error) {
       console.error(error);
       setSaveState('口パク生成エラー');
