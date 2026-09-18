@@ -32,6 +32,14 @@ describe('migrateProject', () => {
         { id: 'voice', gain: 3, muted: false },
         { id: 'invalid', gain: 1, muted: false },
       ],
+      audioDucking: {
+        enabled: true,
+        sourceBus: 'voice',
+        targetBus: 'music',
+        reductionDb: -99,
+        attack: 9,
+        release: -2,
+      },
       tracks: [
         {
           id: 'track-1',
@@ -70,6 +78,14 @@ describe('migrateProject', () => {
       { id: 'master', gain: 2, muted: false },
       { id: 'voice', gain: 0.5, muted: true },
     ]);
+    expect(project.audioDucking).toEqual({
+      enabled: true,
+      sourceBus: 'voice',
+      targetBus: 'music',
+      reductionDb: -36,
+      attack: 2,
+      release: 0,
+    });
     expect(project.tracks[0]).toMatchObject({
       muted: false,
       locked: false,
@@ -155,6 +171,7 @@ describe('migrateProject', () => {
       tracks: [{ kind: 'audio', busId: 'unknown', clips: [] }],
     });
     expect(project.audioBuses).toBeUndefined();
+    expect(project.audioDucking).toBeUndefined();
     expect(project.tracks[0].busId).toBeUndefined();
   });
 
