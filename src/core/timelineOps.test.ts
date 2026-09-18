@@ -100,6 +100,19 @@ describe('timeline operations', () => {
     expect(right.inPoint).toBe(7.5);
   });
 
+  it('keeps only the original outer dissolve transitions after a split', () => {
+    const source = clip('a', 2, 6, {
+      transitionIn: { kind: 'dissolve', duration: 1 },
+      transitionOut: { kind: 'dissolve', duration: 1.5 },
+    });
+    const output = splitClipAt(project([track('v1', [source])]), 'a', 5);
+    const [left, right] = output.tracks[0].clips;
+    expect(left.transitionIn).toEqual({ kind: 'dissolve', duration: 1 });
+    expect(left.transitionOut).toBeUndefined();
+    expect(right.transitionIn).toBeUndefined();
+    expect(right.transitionOut).toEqual({ kind: 'dissolve', duration: 1.5 });
+  });
+
   it('splits reverse media without changing the sampled source range', () => {
     const source = clip('a', 2, 6, { inPoint: 1, speed: 2, reverse: true });
     const output = splitClipAt(project([track('v1', [source])]), 'a', 5);
