@@ -188,7 +188,7 @@ Current implementation branch: `main`.
 - [ ] graph editor
 - [ ] temperature/tint rendering
 - [ ] sharpen rendering
-- [ ] vignette rendering
+- [x] vignette rendering with shared Preview/export keyframe evaluation
 - [ ] chroma-key rendering
 - [ ] curves / levels
 - [ ] lift / gamma / gain
