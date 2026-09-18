@@ -1,4 +1,4 @@
-import type { Clip, Project, ProjectExportSettings, Track } from '../types/editor';
+import type { Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
 
 const CURRENT_PROJECT_VERSION = 2 as const;
 
@@ -99,6 +99,8 @@ function migrateClip(clip: Record<string, unknown>, index: number): Clip {
     fadeIn: optionalClampedNumber(clip.fadeIn, 0, duration),
     fadeOut: optionalClampedNumber(clip.fadeOut, 0, duration),
     freezeFrameAt: optionalClampedNumber(clip.freezeFrameAt, 0, Number.MAX_SAFE_INTEGER),
+    transitionIn: migrateTransition(clip.transitionIn, duration),
+    transitionOut: migrateTransition(clip.transitionOut, duration),
     transform: {
       x: finiteNumber(transform.x, 0),
       y: finiteNumber(transform.y, 0),
@@ -109,6 +111,12 @@ function migrateClip(clip: Record<string, unknown>, index: number): Clip {
       anchorY: optionalFiniteNumber(transform.anchorY),
     },
   };
+}
+
+function migrateTransition(value: unknown, clipDuration: number): ClipTransition | undefined {
+  if (!isRecord(value) || value.kind !== 'dissolve') return undefined;
+  const duration = optionalClampedNumber(value.duration, 0, clipDuration);
+  return duration && duration > 0 ? { kind: 'dissolve', duration } : undefined;
 }
 
 function migrateExportSettings(value: unknown): ProjectExportSettings | undefined {
