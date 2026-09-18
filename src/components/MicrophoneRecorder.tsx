@@ -1,5 +1,6 @@
 import { Mic, Square } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { runCaptureCountdown } from '../core/captureCountdown';
 import {
   formatRecordingElapsed,
   MAX_MIC_RECORDING_MS,
@@ -14,7 +15,9 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
   const startedAtRef = useRef(0);
+  const countdownAbortRef = useRef<AbortController | null>(null);
   const [recording, setRecording] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState('');
 
@@ -42,7 +45,7 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
   };
 
   const startRecording = async () => {
-    if (!supported || recording) return;
+    if (!supported || recording || countdownAbortRef.current) return;
     setError('');
     setElapsedMs(0);
     chunksRef.current = [];
@@ -97,6 +100,18 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
         onImport([file]);
       };
 
+      const countdownController = new AbortController();
+      countdownAbortRef.current = countdownController;
+      const shouldRecord = await runCaptureCountdown(setCountdown, countdownController.signal);
+      if (countdownAbortRef.current === countdownController) countdownAbortRef.current = null;
+      if (!shouldRecord) {
+        recorder.onstop = null;
+        recorderRef.current = null;
+        chunksRef.current = [];
+        releaseStream();
+        return;
+      }
+
       startedAtRef.current = Date.now();
       setRecording(true);
       recorder.start(1_000);
@@ -107,6 +122,9 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
         if (next >= MAX_MIC_RECORDING_MS) stopRecording();
       }, 250);
     } catch (cause) {
+      countdownAbortRef.current?.abort();
+      countdownAbortRef.current = null;
+      setCountdown(null);
       clearTimer();
       releaseStream();
       recorderRef.current = null;
@@ -119,6 +137,8 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
   };
 
   useEffect(() => () => {
+    countdownAbortRef.current?.abort();
+    countdownAbortRef.current = null;
     clearTimer();
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== 'inactive') {
@@ -134,20 +154,20 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
   }, []);
 
   return (
-    <div className={`micRecorderRow ${recording ? 'recording' : ''}`}>
+    <div className={`micRecorderRow ${recording ? 'recording' : countdown !== null ? 'counting' : ''}`}>
       <span className="micRecorderLabel"><Mic size={13} />マイク録音</span>
       <span className={`micRecorderStatus ${error ? 'error' : ''}`} title={error || undefined}>
-        {error || (recording ? formatRecordingElapsed(elapsedMs) : '最大30:00')}
+        {error || (countdown !== null ? `開始まで ${countdown}` : recording ? formatRecordingElapsed(elapsedMs) : '最大30:00')}
       </span>
       <button
         type="button"
-        className={recording ? 'stop' : ''}
+        className={recording || countdown !== null ? 'stop' : ''}
         disabled={!supported}
-        onClick={recording ? stopRecording : startRecording}
-        title={!supported ? 'このブラウザはマイク録音に未対応です' : recording ? '録音を停止' : 'マイク録音を開始'}
+        onClick={countdown !== null ? () => countdownAbortRef.current?.abort() : recording ? stopRecording : startRecording}
+        title={!supported ? 'このブラウザはマイク録音に未対応です' : countdown !== null ? 'カウントダウンを中止' : recording ? '録音を停止' : 'マイク録音を開始'}
       >
-        {recording ? <Square size={12} fill="currentColor" /> : <Mic size={12} />}
-        {recording ? '停止' : '録音'}
+        {recording || countdown !== null ? <Square size={12} fill="currentColor" /> : <Mic size={12} />}
+        {countdown !== null ? '中止' : recording ? '停止' : '録音'}
       </button>
     </div>
   );
