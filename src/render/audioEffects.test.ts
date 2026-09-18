@@ -70,8 +70,8 @@ describe('audio effects', () => {
     expect(isAudioEffectSupported('limiter')).toBe(true);
     expect(isAudioEffectSupported('gate-expander')).toBe(true);
     expect(isAudioEffectSupported('de-esser')).toBe(true);
-    expect(isRealtimeAudioEffectSupported('gate-expander')).toBe(false);
-    expect(isRealtimeAudioEffectSupported('de-esser')).toBe(false);
+    expect(isRealtimeAudioEffectSupported('gate-expander')).toBe(true);
+    expect(isRealtimeAudioEffectSupported('de-esser')).toBe(true);
     expect(isRealtimeAudioEffectSupported('compressor')).toBe(true);
     expect(isAudioEffectSupported('reverb')).toBe(false);
   });
