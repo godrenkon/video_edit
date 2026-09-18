@@ -5,7 +5,8 @@ type PreviewEffectNode =
   | { effectId: string; kind: 'gain'; node: GainNode }
   | { effectId: string; kind: 'pan'; node: StereoPannerNode }
   | { effectId: string; kind: 'high-pass' | 'low-pass'; node: BiquadFilterNode }
-  | { effectId: string; kind: 'compressor'; node: DynamicsCompressorNode };
+  | { effectId: string; kind: 'compressor'; node: DynamicsCompressorNode }
+  | { effectId: string; kind: 'limiter'; node: DynamicsCompressorNode };
 
 type PreviewGraphState = {
   context: AudioContext;
@@ -108,6 +109,12 @@ export class PreviewAudioGraph {
         setAudioParam(item.node.ratio, effect.ratio, now);
         setAudioParam(item.node.attack, effect.attack, now);
         setAudioParam(item.node.release, effect.release, now);
+      } else if (item.kind === 'limiter' && effect.kind === 'limiter') {
+        setAudioParam(item.node.threshold, effect.ceilingDb, now);
+        setAudioParam(item.node.knee, 0, now);
+        setAudioParam(item.node.ratio, 20, now);
+        setAudioParam(item.node.attack, 0, now);
+        setAudioParam(item.node.release, 0.05, now);
       }
     }
   }
@@ -134,6 +141,9 @@ function createNode(context: AudioContext, effect: ResolvedAudioEffect): Preview
     return { effectId: effect.id, kind: effect.kind, node };
   }
   if (effect.kind === 'compressor') {
+    return { effectId: effect.id, kind: effect.kind, node: context.createDynamicsCompressor() };
+  }
+  if (effect.kind === 'limiter') {
     return { effectId: effect.id, kind: effect.kind, node: context.createDynamicsCompressor() };
   }
   return null;
