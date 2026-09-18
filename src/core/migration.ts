@@ -1,4 +1,4 @@
-import type { AudioBusId, AudioBusSettings, AudioDuckingSettings, Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
+import type { AssetBin, AudioBusId, AudioBusSettings, AudioDuckingSettings, Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
 
 const CURRENT_PROJECT_VERSION = 2 as const;
 
@@ -12,6 +12,8 @@ export function migrateProject(input: unknown): Project {
 
   const tracksRaw = Array.isArray(input.tracks) ? input.tracks : [];
   const assetsRaw = Array.isArray(input.assets) ? input.assets : [];
+  const assetBins = migrateAssetBins(input.assetBins);
+  const validAssetBinIds = new Set(assetBins.map((bin) => bin.id));
 
   const project: Project = {
     version: CURRENT_PROJECT_VERSION,
@@ -40,7 +42,12 @@ export function migrateProject(input: unknown): Project {
       rating: optionalClampedNumber(asset.rating, 0, 5),
       favorite: asset.favorite === undefined ? undefined : Boolean(asset.favorite),
       notes: optionalString(asset.notes),
+      binId: (() => {
+        const binId = optionalString(asset.binId);
+        return binId && validAssetBinIds.has(binId) ? binId : undefined;
+      })(),
     })),
+    assetBins,
     tracks: tracksRaw.filter(isRecord).map(migrateTrack),
     markers: Array.isArray(input.markers)
       ? input.markers.filter(isRecord).map((marker, index) => ({
@@ -60,6 +67,25 @@ export function migrateProject(input: unknown): Project {
   };
 
   return project;
+}
+
+function migrateAssetBins(value: unknown): AssetBin[] {
+  if (!Array.isArray(value)) return [];
+  const seenIds = new Set<string>();
+  const seenNames = new Set<string>();
+  const result: AssetBin[] = [];
+  for (let index = 0; index < value.length; index += 1) {
+    const item = value[index];
+    if (!isRecord(item)) continue;
+    const id = stringValue(item.id, `asset_bin_migrated_${index}`);
+    const name = stringValue(item.name, `Bin ${index + 1}`).trim().replace(/\s+/g, ' ').slice(0, 80);
+    const nameKey = name.toLocaleLowerCase();
+    if (seenIds.has(id) || seenNames.has(nameKey)) continue;
+    seenIds.add(id);
+    seenNames.add(nameKey);
+    result.push({ id, name });
+  }
+  return result;
 }
 
 function migrateTrack(track: Record<string, unknown>, index: number): Track {
