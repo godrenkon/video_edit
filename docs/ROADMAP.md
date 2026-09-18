@@ -51,7 +51,7 @@ Current implementation branch: `main`.
 - [x] slide edit core + Alt-drag UI for gapless adjacent triplets
 - [x] insert / overwrite core + media-library edit mode UI
 - [x] lift / extract via toolbar + Delete / Shift+Delete
-- [ ] multi-select
+- [x] multi-select with Ctrl/Cmd-click, select-all, bulk move/delete/nudge
 - [x] single-clip copy / paste / duplicate UI + Ctrl/Cmd shortcuts
 - [x] copy / paste / duplicate operation core with fresh nested identities
 - [x] track add / remove / reorder UI
