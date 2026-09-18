@@ -11,7 +11,7 @@ import { previewCropLayout } from '../render/cropGeometry';
 import { canvasFilterForEffects, resolveTemperatureTintEffects, resolveVignetteEffects, vignetteCssBackground } from '../render/effectEvaluation';
 import { PreviewAudioGraph } from '../render/previewAudioGraph';
 import { previewSyncTolerance } from '../render/previewClock';
-import { transitionMotionOffset, transitionOpacity } from '../render/transitionEnvelope';
+import { transitionMotionOffset, transitionOpacity, transitionRevealRect } from '../render/transitionEnvelope';
 import { activeSubtitleHighlight, normalizeSubtitleHighlightColor } from '../render/subtitleHighlight';
 import {
   deterministicNoiseByte,
@@ -41,6 +41,16 @@ function clipPreviewTransform(clip: Clip, project: Project, clipLocalTime: numbe
   return `translate(${x}%, ${y}%) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`;
 }
 
+function transitionClipPath(clip: Clip, clipLocalTime: number) {
+  const reveal = transitionRevealRect(clip, clipLocalTime);
+  if (reveal.x <= 0 && reveal.y <= 0 && reveal.width >= 1 && reveal.height >= 1) return undefined;
+  const top = reveal.y * 100;
+  const right = (1 - reveal.x - reveal.width) * 100;
+  const bottom = (1 - reveal.y - reveal.height) * 100;
+  const left = reveal.x * 100;
+  return `inset(${top}% ${right}% ${bottom}% ${left}%)`;
+}
+
 function layerStyle(clip: Clip, project: Project, time: number, extraY = 0): CSSProperties {
   const clipLocal = Math.max(0, Math.min(clip.duration, time - clip.start));
   return {
@@ -49,6 +59,7 @@ function layerStyle(clip: Clip, project: Project, time: number, extraY = 0): CSS
     opacity: Math.max(0, Math.min(1, clip.transform.opacity * transitionOpacity(clip, clipLocal))),
     mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
     filter: canvasFilterForEffects(clip.effects ?? [], clipLocal),
+    clipPath: transitionClipPath(clip, clipLocal),
   };
 }
 
@@ -88,6 +99,7 @@ function assetLayerStyles(
       opacity: Math.max(0, Math.min(1, clip.transform.opacity * transitionOpacity(clip, clipLocal))),
       mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
       filter: canvasFilterForEffects(clip.effects ?? [], clipLocal),
+      clipPath: transitionClipPath(clip, clipLocal),
       pointerEvents: 'none',
     },
     source: {
