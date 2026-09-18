@@ -20,6 +20,7 @@ export type RenderAssetFrame =
 export interface RenderAssetStoreOptions {
   readFile?: (storageName: string) => Promise<File>;
   videoCacheBytes?: number;
+  preferProxy?: boolean;
 }
 
 /**
@@ -31,6 +32,7 @@ export class RenderAssetStore {
   private readonly assets: Map<string, AssetMeta>;
   private readonly readFile: (storageName: string) => Promise<File>;
   private readonly videoCacheBytes: number;
+  private readonly preferProxy: boolean;
   private readonly videoProviders = new Map<string, Promise<MediabunnyVideoProvider>>();
   private readonly imageBitmaps = new Map<string, Promise<ImageBitmap>>();
   private closed = false;
@@ -39,6 +41,7 @@ export class RenderAssetStore {
     this.assets = new Map(assets.map((asset) => [asset.id, asset]));
     this.readFile = options.readFile ?? readAssetFile;
     this.videoCacheBytes = options.videoCacheBytes ?? 24 * 1024 * 1024;
+    this.preferProxy = options.preferProxy ?? false;
   }
 
   async getFrame(assetId: string, sourceTime: number, signal?: AbortSignal): Promise<RenderAssetFrame | null> {
@@ -89,7 +92,7 @@ export class RenderAssetStore {
     let pending = this.videoProviders.get(asset.id);
     if (!pending) {
       pending = (async () => {
-        const file = await this.readFile(asset.proxyStorageName ?? asset.storageName);
+        const file = await this.readFile(this.preferProxy ? asset.proxyStorageName ?? asset.storageName : asset.storageName);
         throwIfAborted(signal);
         const provider = new MediabunnyVideoProvider(file, { maxCacheSize: this.videoCacheBytes });
         try {
