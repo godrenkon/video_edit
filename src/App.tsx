@@ -6,6 +6,7 @@ import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } 
 import { HistoryController } from './core/history';
 import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClips } from './core/groupOps';
 import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
+import { addPunchInVoiceover } from './core/punchInVoiceover';
 import { insertClipAt, overwriteClipAt } from './core/editModes';
 import { analyzeMouthCues, buildAssetMeta, mergeRelinkedAsset } from './core/media';
 import {
@@ -78,6 +79,8 @@ export default function App() {
   const capabilities = useMemo(() => detectCapabilities(), []);
   const playbackOrigin = useRef<{ wallMs: number; time: number } | null>(null);
   const timeRef = useRef(0);
+  const playingRef = useRef(false);
+  const punchPlaybackPrevious = useRef(false);
   const history = useRef(new HistoryController<Project>(120, 750));
   const renderAbort = useRef<AbortController | null>(null);
   const proxyAbort = useRef(new Map<string, AbortController>());
@@ -216,6 +219,10 @@ export default function App() {
   }, [time]);
 
   useEffect(() => {
+    playingRef.current = playing;
+  }, [playing]);
+
+  useEffect(() => {
     if (!playing) {
       playbackOrigin.current = null;
       return;
@@ -332,6 +339,41 @@ export default function App() {
     }
     setSaveState('素材追加済み');
   };
+
+  const setPunchInPlayback = useCallback((active: boolean) => {
+    if (active) {
+      punchPlaybackPrevious.current = playingRef.current;
+      setPlaying(true);
+      return;
+    }
+    setPlaying(punchPlaybackPrevious.current);
+  }, []);
+
+  const importPunchInVoiceover = useCallback(async (file: File, startTime: number) => {
+    if (rendering) return;
+    setSaveState('パンチイン録音を保存中…');
+    let asset: Project['assets'][number] | null = null;
+    try {
+      asset = await buildAssetMeta(file);
+      if (asset.kind !== 'audio') throw new Error('Punch-in recording is not audio');
+      if (capabilities.opfs) await saveAssetFile(asset.storageName, file);
+      const clipId = uid('clip');
+      const recordedAsset = asset;
+      updateProject((p) => addPunchInVoiceover(
+        p,
+        recordedAsset,
+        startTime,
+        { clipId },
+      ).project, { label: 'パンチイン録音' });
+      setSelectedClipId(clipId);
+      setSelectedClipIds([clipId]);
+      setSaveState(`パンチイン配置済み: ${asset.name}`);
+    } catch (error) {
+      console.error('Punch-in voiceover import failed', error);
+      if (asset?.objectUrl) URL.revokeObjectURL(asset.objectUrl);
+      setSaveState('パンチイン録音の保存に失敗しました');
+    }
+  }, [capabilities.opfs, rendering, updateProject]);
 
   const updateAssetMeta = useCallback((assetId: string, patch: Partial<Project['assets'][number]>) => {
     if (rendering) return;
@@ -887,7 +929,10 @@ export default function App() {
       <main className="editorGrid" aria-busy={rendering}>
         <MediaLibrary
           assets={project.assets}
+          timelineTime={time}
           onImport={importFiles}
+          onPunchInVoiceover={importPunchInVoiceover}
+          onPunchInPlayback={setPunchInPlayback}
           onImportFolder={importFolder}
           folderImportSupported={supportsDirectoryPicker()}
           onAdd={addAssetToTimeline}
