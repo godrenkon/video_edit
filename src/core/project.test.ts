@@ -19,9 +19,10 @@ describe('synthetic clip defaults', () => {
       kind: 'text',
       start: 1,
       name: '下部テロップ / Clean',
-      transform: { x: -825.6, y: 367.2, anchorX: 0, anchorY: 0.5 },
+      transform: { x: -825.6, anchorX: 0, anchorY: 0.5 },
       text: { text: '名前\n肩書き / 説明', align: 'left' },
     });
+    expect(clean.transform.y).toBeCloseTo(367.2, 8);
     expect(clean.text?.backgroundColor).toBeTruthy();
     expect(accent.text?.backgroundColor).toBe('#5fd8ff');
     expect(minimal.text?.backgroundColor).toBeUndefined();
