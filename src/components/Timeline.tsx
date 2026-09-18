@@ -1,4 +1,4 @@
-import { ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, Lock, Scissors, Trash2, Unlock, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, Link2, Lock, Scissors, Trash2, Unlink2, Unlock, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useMemo } from 'react';
 import type { AssetMeta, Clip, Project } from '../types/editor';
 import { TimelineWaveform } from './TimelineWaveform';
@@ -24,6 +24,10 @@ interface Props {
   onCopySelected: () => void;
   onPasteCopied: () => void;
   onRippleDeleteSelected: () => void;
+  onGroupSelected: () => void;
+  onUngroupSelected: () => void;
+  canGroup: boolean;
+  canUngroup: boolean;
   onMoveClip: (clipId: string, start: number) => void;
   onSlideClip: (clipId: string, start: number) => void;
   onTrimClipLeft: (clipId: string, start: number) => void;
@@ -52,6 +56,10 @@ export function Timeline(props: Props) {
     onCopySelected,
     onPasteCopied,
     onRippleDeleteSelected,
+    onGroupSelected,
+    onUngroupSelected,
+    canGroup,
+    canUngroup,
     onMoveClip,
     onSlideClip,
     onTrimClipLeft,
@@ -118,6 +126,8 @@ export function Timeline(props: Props) {
             disabled={!selectedClipId}
             title="抽出: クリップを削除して後続を詰める (Shift+Delete)"
           ><Trash2 size={14} /></button>
+          <button className="miniBtn" onClick={onGroupSelected} disabled={!canGroup} title="選択クリップをグループ化"><Link2 size={14} /></button>
+          <button className="miniBtn" onClick={onUngroupSelected} disabled={!canUngroup} title="選択グループを解除"><Unlink2 size={14} /></button>
           <button className="miniBtn" onClick={() => onZoom(Math.max(20, zoom - 10))}><ZoomOut size={14} /></button>
           <input type="range" min={20} max={120} value={zoom} onChange={(e) => onZoom(Number(e.target.value))} />
           <button className="miniBtn" onClick={() => onZoom(Math.min(120, zoom + 10))}><ZoomIn size={14} /></button>
