@@ -11,6 +11,7 @@ import {
   type AudioEffectState,
 } from './audioEffects';
 import { MediabunnyAudioProvider } from './mediabunnyAudioProvider';
+import { applyTrackGainPan, normalizeTrackGain, normalizeTrackPan } from './trackMix';
 
 export interface AudioMixSegment {
   clipId: string;
@@ -23,6 +24,8 @@ export interface AudioMixSegment {
   speed: number;
   reverse: boolean;
   gain: number;
+  trackGain: number;
+  trackPan: number;
   fadeIn: number;
   fadeOut: number;
   effects: EffectInstance[];
@@ -69,6 +72,8 @@ export function buildAudioMixSegments(project: Project, startSeconds: number, en
         speed: Math.max(0.0001, clip.speed ?? 1),
         reverse: Boolean(clip.reverse),
         gain: Math.max(0, clip.volume),
+        trackGain: normalizeTrackGain(track.gain),
+        trackPan: normalizeTrackPan(track.pan),
         fadeIn: Math.max(0, clip.fadeIn ?? 0),
         fadeOut: Math.max(0, clip.fadeOut ?? 0),
         effects: clip.effects ?? [],
@@ -226,6 +231,7 @@ function mixSegment(
     let left = sampleChannel(source, 0, sourceFrame) * clipGain;
     let right = sampleChannel(source, Math.min(1, source.numberOfChannels - 1), sourceFrame) * clipGain;
     [left, right] = processAudioEffects(left, right, resolvedEffects, output.sampleRate, effectState);
+    [left, right] = applyTrackGainPan(left, right, segment.trackGain, segment.trackPan);
 
     if (outputChannels.length === 1) {
       outputChannels[0][frame] += (left + right) * 0.5;
