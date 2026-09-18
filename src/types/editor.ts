@@ -99,6 +99,10 @@ export interface TextPayload {
   strokeColor?: string;
   strokeWidth?: number;
   backgroundColor?: string;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
   align?: 'left' | 'center' | 'right';
 }
 
