@@ -89,6 +89,21 @@ describe('buildVisualFramePlan', () => {
     expect(buildVisualFramePlan(input, 9)[0].transform.opacity).toBeCloseTo(0.4, 8);
   });
 
+  it('applies slide transition motion in the shared export frame plan', () => {
+    const source = clip('video', 'video', {
+      transform: { x: 10, y: 20, scale: 1, rotation: 0, opacity: 1 },
+      transitionIn: { kind: 'slide-left', duration: 2 },
+      transitionOut: { kind: 'slide-up', duration: 2 },
+    });
+    const input = project([track('video', 'video', [source])]);
+
+    expect(buildVisualFramePlan(input, 0)[0].transform).toMatchObject({ x: 1930, y: 20 });
+    expect(buildVisualFramePlan(input, 1)[0].transform).toMatchObject({ x: 970, y: 20 });
+    expect(buildVisualFramePlan(input, 5)[0].transform).toMatchObject({ x: 10, y: 20 });
+    expect(buildVisualFramePlan(input, 9)[0].transform).toMatchObject({ x: 10, y: -520 });
+    expect(buildVisualFramePlan(input, 10)[0].transform).toMatchObject({ x: 10, y: -1060 });
+  });
+
   it('resolves Zundamon asset selection and bobbing before renderer dispatch', () => {
     const z = clip('z', 'overlay', {
       kind: 'zundamon',
