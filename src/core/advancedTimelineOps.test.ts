@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AssetMeta, Clip, Project, Track } from '../types/editor';
-import { adjacentPair, rippleTrimClip, rollEditBoundary } from './advancedTimelineOps';
+import { adjacentPair, adjacentTriplet, rippleTrimClip, rollEditBoundary, slideEditClip } from './advancedTimelineOps';
 
 function clip(id: string, start: number, duration: number, extra: Partial<Clip> = {}): Clip {
   return {
@@ -127,6 +127,36 @@ describe('advanced timeline operations', () => {
     expect(rollEditBoundary(input, 'a', 'right', 4.5)).toBe(input);
   });
 
+  it('slides a middle clip while preserving its duration and the outer span', () => {
+    const input = project(
+      [
+        clip('left', 0, 4),
+        clip('middle', 4, 3, { inPoint: 5 }),
+        clip('right', 7, 4, { inPoint: 2 }),
+      ],
+      [asset('left'), asset('middle'), asset('right')],
+    );
+    const output = slideEditClip(input, 'middle', 5);
+    const [left, middle, right] = output.tracks[0].clips;
+    expect(left.duration).toBe(5);
+    expect(middle.start).toBe(5);
+    expect(middle.duration).toBe(3);
+    expect(middle.inPoint).toBe(5);
+    expect(right.start).toBe(8);
+    expect(right.duration).toBe(3);
+    expect(right.inPoint).toBe(3);
+    expect(right.start + right.duration).toBe(11);
+  });
+
+  it('requires gapless neighbours on both sides for slide editing', () => {
+    const input = project(
+      [clip('left', 0, 3), clip('middle', 4, 2), clip('right', 6, 2)],
+      [asset('left'), asset('middle'), asset('right')],
+    );
+    expect(adjacentTriplet(input, 'middle')).toBeNull();
+    expect(slideEditClip(input, 'middle', 5)).toBe(input);
+  });
+
   it('does not ripple or roll locked tracks', () => {
     const input = project(
       [clip('a', 0, 5), clip('b', 5, 5)],
@@ -135,5 +165,6 @@ describe('advanced timeline operations', () => {
     );
     expect(rippleTrimClip(input, 'a', 'right', 3)).toBe(input);
     expect(rollEditBoundary(input, 'a', 'right', 6)).toBe(input);
+    expect(slideEditClip(input, 'a', 1)).toBe(input);
   });
 });
