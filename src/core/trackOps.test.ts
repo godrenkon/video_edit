@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Project, Track, TrackKind } from '../types/editor';
-import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrackSolo, setTrackVisible } from './trackOps';
+import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrackGain, setTrackPan, setTrackSolo, setTrackVisible } from './trackOps';
 
 function track(id: string, kind: TrackKind, clips: Track['clips'] = []): Track {
   return { id, name: id, kind, muted: false, locked: false, visible: true, clips };
@@ -34,7 +34,7 @@ describe('track operations', () => {
     const next = addTrack(input, 'video');
     expect(next.tracks.map((item) => item.kind)).toEqual(['overlay', 'video', 'video', 'audio']);
     expect(next.tracks[2].name).toBe('ビデオ 2');
-    expect(next.tracks[2].clips).toEqual([]);
+    expect(next.tracks[2]).toMatchObject({ gain: 1, pan: 0, clips: [] });
   });
 
   it('renames and reorders tracks without mutating the source project', () => {
@@ -64,6 +64,16 @@ describe('track operations', () => {
     const result = removeTrack(input, 'v2');
     expect(result.removed).toBe(true);
     expect(result.project.tracks.map((item) => item.id)).toEqual(['v1']);
+  });
+
+  it('supports bounded track gain and pan controls', () => {
+    const input = project([track('v', 'video'), track('a', 'audio')]);
+    const louder = setTrackGain(input, 'a', 1.5);
+    const panned = setTrackPan(louder, 'a', -0.4);
+    expect(panned.tracks.find((item) => item.id === 'a')).toMatchObject({ gain: 1.5, pan: -0.4 });
+    expect(setTrackGain(panned, 'a', 99).tracks.find((item) => item.id === 'a')?.gain).toBe(4);
+    expect(setTrackPan(panned, 'a', -9).tracks.find((item) => item.id === 'a')?.pan).toBe(-1);
+    expect(input.tracks.find((item) => item.id === 'a')?.gain).toBeUndefined();
   });
 
   it('supports solo and visibility states without changing unrelated tracks', () => {
