@@ -132,6 +132,24 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
                 <Field label="縁色"><input type="color" value={safeColor(selectedClip.text.strokeColor, '#000000')} onChange={(e) => patchText({ strokeColor: e.target.value })} /></Field>
               </div>
               <NumberField label="縁取り" value={selectedClip.text.strokeWidth ?? 0} step={1} onChange={(v) => patchText({ strokeWidth: Math.max(0, v) })} />
+              <h3>文字背景</h3>
+              <label className="checkboxField">
+                <span>背景を表示</span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(selectedClip.text.backgroundColor)}
+                  onChange={(e) => patchText({ backgroundColor: e.target.checked ? safeColor(selectedClip.text.backgroundColor, '#0c1216') : undefined })}
+                />
+              </label>
+              {selectedClip.text.backgroundColor && (
+                <Field label="背景色">
+                  <input
+                    type="color"
+                    value={safeColor(selectedClip.text.backgroundColor, '#0c1216')}
+                    onChange={(e) => patchText({ backgroundColor: e.target.value })}
+                  />
+                </Field>
+              )}
               <h3>文字シャドウ</h3>
               <div className="twoFields">
                 <Field label="影の色"><input type="color" value={safeColor(selectedClip.text.shadowColor, '#000000')} onChange={(e) => patchText({ shadowColor: e.target.value })} /></Field>
@@ -390,7 +408,11 @@ function RangeField({ label, value, min, max, step, onChange }: { label: string;
 }
 
 function safeColor(value: string | undefined, fallback: string) {
-  return value && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+  if (value && /^#[0-9a-f]{6}$/i.test(value)) return value;
+  const match = value?.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,[^)]*)?\)$/i);
+  if (!match) return fallback;
+  const channels = match.slice(1, 4).map((channel) => Math.max(0, Math.min(255, Number(channel))));
+  return `#${channels.map((channel) => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;
 }
 
 function asString(value: unknown) {
