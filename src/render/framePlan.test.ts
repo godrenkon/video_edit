@@ -76,6 +76,19 @@ describe('buildVisualFramePlan', () => {
     });
   });
 
+  it('applies dissolve opacity with the same frame-plan transform used by export', () => {
+    const source = clip('video', 'video', {
+      transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 0.8 },
+      transitionIn: { kind: 'dissolve', duration: 2 },
+      transitionOut: { kind: 'dissolve', duration: 2 },
+    });
+    const input = project([track('video', 'video', [source])]);
+
+    expect(buildVisualFramePlan(input, 1)[0].transform.opacity).toBeCloseTo(0.4, 8);
+    expect(buildVisualFramePlan(input, 5)[0].transform.opacity).toBeCloseTo(0.8, 8);
+    expect(buildVisualFramePlan(input, 9)[0].transform.opacity).toBeCloseTo(0.4, 8);
+  });
+
   it('resolves Zundamon asset selection and bobbing before renderer dispatch', () => {
     const z = clip('z', 'overlay', {
       kind: 'zundamon',
