@@ -11,7 +11,7 @@ import { previewCropLayout } from '../render/cropGeometry';
 import { canvasFilterForEffects, resolveTemperatureTintEffects, resolveVignetteEffects, vignetteCssBackground } from '../render/effectEvaluation';
 import { PreviewAudioGraph } from '../render/previewAudioGraph';
 import { previewSyncTolerance } from '../render/previewClock';
-import { transitionOpacity } from '../render/transitionEnvelope';
+import { transitionMotionOffset, transitionOpacity } from '../render/transitionEnvelope';
 import { activeSubtitleHighlight, normalizeSubtitleHighlightColor } from '../render/subtitleHighlight';
 import {
   deterministicNoiseByte,
@@ -34,16 +34,17 @@ interface Props {
   onTime: (time: number) => void;
 }
 
-function clipPreviewTransform(clip: Clip, project: Project, extraY = 0) {
-  const x = clip.transform.x / Math.max(1, project.width) * 100;
-  const y = (clip.transform.y + extraY) / Math.max(1, project.height) * 100;
+function clipPreviewTransform(clip: Clip, project: Project, clipLocalTime: number, extraY = 0) {
+  const transitionOffset = transitionMotionOffset(clip, clipLocalTime, project.width, project.height);
+  const x = (clip.transform.x + transitionOffset.x) / Math.max(1, project.width) * 100;
+  const y = (clip.transform.y + transitionOffset.y + extraY) / Math.max(1, project.height) * 100;
   return `translate(${x}%, ${y}%) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`;
 }
 
 function layerStyle(clip: Clip, project: Project, time: number, extraY = 0): CSSProperties {
   const clipLocal = Math.max(0, Math.min(clip.duration, time - clip.start));
   return {
-    transform: clipPreviewTransform(clip, project, extraY),
+    transform: clipPreviewTransform(clip, project, clipLocal, extraY),
     transformOrigin: `${(clip.transform.anchorX ?? 0.5) * 100}% ${(clip.transform.anchorY ?? 0.5) * 100}%`,
     opacity: Math.max(0, Math.min(1, clip.transform.opacity * transitionOpacity(clip, clipLocal))),
     mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
@@ -70,8 +71,9 @@ function assetLayerStyles(
   const clipLocal = Math.max(0, Math.min(clip.duration, time - clip.start));
   const anchorX = Math.max(0, Math.min(1, clip.transform.anchorX ?? 0.5));
   const anchorY = Math.max(0, Math.min(1, clip.transform.anchorY ?? 0.5));
-  const xPercent = clip.transform.x / Math.max(1, project.width) * 100;
-  const yPercent = (clip.transform.y + extraY) / Math.max(1, project.height) * 100;
+  const transitionOffset = transitionMotionOffset(clip, clipLocal, project.width, project.height);
+  const xPercent = (clip.transform.x + transitionOffset.x) / Math.max(1, project.width) * 100;
+  const yPercent = (clip.transform.y + transitionOffset.y + extraY) / Math.max(1, project.height) * 100;
 
   return {
     frame: {
