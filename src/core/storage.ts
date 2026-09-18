@@ -4,6 +4,7 @@ import { migrateProject } from './migration';
 const PROJECT_FILE = 'project.json';
 const ASSET_DIR = 'assets';
 const SNAPSHOT_DIR = 'snapshots';
+const WAVEFORM_DIR = 'waveforms';
 const SNAPSHOT_COUNT = 8;
 const SNAPSHOT_INTERVAL_MS = 30_000;
 let lastSnapshotAt = 0;
@@ -49,6 +50,35 @@ export async function deleteAssetFile(storageName: string) {
   const r = await root();
   const dir = await r.getDirectoryHandle(ASSET_DIR, { create: true });
   await dir.removeEntry(storageName).catch(() => undefined);
+}
+
+export async function saveWaveformCache(cacheKey: string, json: string) {
+  const r = await root();
+  const dir = await r.getDirectoryHandle(WAVEFORM_DIR, { create: true });
+  const handle = await dir.getFileHandle(waveformCacheFileName(cacheKey), { create: true });
+  await writeText(handle, json);
+}
+
+export async function readWaveformCache(cacheKey: string): Promise<string | null> {
+  try {
+    const r = await root();
+    const dir = await r.getDirectoryHandle(WAVEFORM_DIR);
+    const handle = await dir.getFileHandle(waveformCacheFileName(cacheKey));
+    const file = await handle.getFile();
+    return file.text();
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteWaveformCache(cacheKey: string) {
+  try {
+    const r = await root();
+    const dir = await r.getDirectoryHandle(WAVEFORM_DIR);
+    await dir.removeEntry(waveformCacheFileName(cacheKey)).catch(() => undefined);
+  } catch {
+    // Missing cache directory is equivalent to an empty cache.
+  }
 }
 
 export async function saveProject(project: Project) {
@@ -174,4 +204,14 @@ async function writeText(handle: FileSystemFileHandle, text: string) {
   const writable = await handle.createWritable();
   await writable.write(text);
   await writable.close();
+}
+
+
+function waveformCacheFileName(cacheKey: string) {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < cacheKey.length; index += 1) {
+    hash ^= cacheKey.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `waveform-${(hash >>> 0).toString(16).padStart(8, '0')}-${cacheKey.length}.json`;
 }
