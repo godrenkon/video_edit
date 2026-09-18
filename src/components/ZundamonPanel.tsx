@@ -1,6 +1,7 @@
-import { Bot, FileJson2, Sparkles, X } from 'lucide-react';
+import { Bot, FileJson2, Save, Sparkles, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { parseVoicevoxAudioQueryMouthCues } from '../core/voicevoxTiming';
+import { createZundamonCharacterPreset, loadZundamonCharacterPresets, normalizeZundamonPresetName, resolveZundamonCharacterPreset, saveZundamonCharacterPresets } from '../core/zundamonPresets';
 import type { AssetMeta, MouthCue } from '../types/editor';
 
 export interface ZundamonRequest {
@@ -41,6 +42,9 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
   const [timingCues, setTimingCues] = useState<MouthCue[] | undefined>();
   const [timingLabel, setTimingLabel] = useState('');
   const [timingStatus, setTimingStatus] = useState('');
+  const [presets, setPresets] = useState(() => loadZundamonCharacterPresets());
+  const [presetId, setPresetId] = useState('');
+  const [presetName, setPresetName] = useState('');
   const valid = closed && open && audio;
 
   const importVoicevoxTiming = async (file: File | null) => {
@@ -64,9 +68,81 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
     setTimingStatus('');
   };
 
+  const currentCharacterSelection = () => ({
+    closed,
+    half,
+    open,
+    blink,
+    vowelA,
+    vowelI,
+    vowelU,
+    vowelE,
+    vowelO,
+    blinkEvery,
+    bobAmount,
+    bobSpeed,
+  });
+
+  const commitPresets = (next: typeof presets) => {
+    setPresets(next);
+    saveZundamonCharacterPresets(next);
+    if (presetId && !next.some((preset) => preset.id === presetId)) {
+      setPresetId(next[0]?.id ?? '');
+    }
+  };
+
+  const saveCharacterPreset = () => {
+    const name = normalizeZundamonPresetName(presetName) || `Character ${presets.length + 1}`;
+    const preset = createZundamonCharacterPreset(name, currentCharacterSelection(), assets);
+    const next = [preset, ...presets].slice(0, 32);
+    commitPresets(next);
+    setPresetId(preset.id);
+    setPresetName('');
+  };
+
+  const applyCharacterPreset = () => {
+    const preset = presets.find((item) => item.id === presetId) ?? presets[0];
+    if (!preset) return;
+    const resolved = resolveZundamonCharacterPreset(preset, assets);
+    setClosed(resolved.closed);
+    setHalf(resolved.half);
+    setOpen(resolved.open);
+    setBlink(resolved.blink);
+    setVowelA(resolved.vowelA);
+    setVowelI(resolved.vowelI);
+    setVowelU(resolved.vowelU);
+    setVowelE(resolved.vowelE);
+    setVowelO(resolved.vowelO);
+    setBlinkEvery(resolved.blinkEvery);
+    setBobAmount(resolved.bobAmount);
+    setBobSpeed(resolved.bobSpeed);
+  };
+
+  const deleteCharacterPreset = () => {
+    const selected = presets.find((item) => item.id === presetId) ?? presets[0];
+    if (!selected) return;
+    commitPresets(presets.filter((preset) => preset.id !== selected.id));
+  };
+
+  const selectedPreset = presets.find((preset) => preset.id === presetId) ?? presets[0] ?? null;
+
   return (
     <section className="zundamonCard">
       <div className="zTitle"><div className="zIcon"><Bot size={18} /></div><div><strong>ずんだもん自動化</strong><span>音声解析 → 口パク + 瞬き + ふわふわ</span></div></div>
+      <div className="zPresetPanel">
+        <div className="zPresetSave">
+          <input value={presetName} onChange={(e) => setPresetName(e.target.value)} maxLength={80} placeholder="キャラpreset名" aria-label="キャラクタープリセット名" />
+          <button type="button" onClick={saveCharacterPreset}><Save size={12} />保存</button>
+        </div>
+        <div className="zPresetApply">
+          <select value={selectedPreset?.id ?? ''} onChange={(e) => setPresetId(e.target.value)} disabled={!presets.length} aria-label="キャラクタープリセット">
+            {!presets.length && <option value="">presetなし</option>}
+            {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
+          </select>
+          <button type="button" onClick={applyCharacterPreset} disabled={!selectedPreset}>適用</button>
+          <button type="button" className="danger" onClick={deleteCharacterPreset} disabled={!selectedPreset} title="preset削除"><Trash2 size={12} /></button>
+        </div>
+      </div>
       <div className="zGrid">
         <AssetSelect label="口閉じ *" value={closed} assets={images} onChange={setClosed} />
         <AssetSelect label="口半開き" value={half} assets={images} onChange={setHalf} />
