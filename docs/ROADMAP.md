@@ -165,7 +165,7 @@ Current implementation branch: `main`.
 - [ ] noise suppression
 - [x] realtime shared-bus Peak / RMS dBFS meter
 - [ ] LUFS loudness meter
-- [ ] automatic ducking
+- [x] deterministic Voice/Music/SFX automatic ducking with Preview/offline parity
 - [x] effect parameter keyframe evaluation in offline audio processing
 - [x] effect parameter keyframe updates in realtime Web Audio preview
 - [ ] dedicated automation lanes UI
