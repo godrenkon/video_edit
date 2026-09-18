@@ -2,6 +2,7 @@ import type { BlendMode, Project } from '../types/editor';
 import { resolveCropRectangle } from './cropGeometry';
 import { canvasFilterForEffects } from './effectEvaluation';
 import { buildVisualFramePlan, type VisualFrameLayerPlan } from './framePlan';
+import { activeSubtitleHighlight, normalizeSubtitleHighlightColor, type SubtitleHighlightRange } from './subtitleHighlight';
 import { RenderAssetStore } from './renderAssetStore';
 import {
   deterministicNoiseByte,
@@ -154,7 +155,80 @@ function drawTextLayer(context: RenderContext2D, project: Project, layer: Visual
     context.fillStyle = style.color;
     context.fillText(lines[index], textX, y, maxWidth);
   }
+
+  if (layer.kind === 'subtitle' && subtitleText === style.text) {
+    const highlight = activeSubtitleHighlight(layer.subtitle, layer.clipLocalTime);
+    if (highlight) {
+      drawSubtitleHighlightWord(
+        context,
+        subtitleText ?? '',
+        lines,
+        widths,
+        textX,
+        anchorOffsetY,
+        lineHeight,
+        style,
+        highlight,
+        normalizeSubtitleHighlightColor(layer.subtitle?.highlightColor),
+      );
+    }
+  }
   context.restore();
+}
+
+function drawSubtitleHighlightWord(
+  context: RenderContext2D,
+  sourceText: string,
+  lines: string[],
+  widths: number[],
+  textX: number,
+  anchorOffsetY: number,
+  lineHeight: number,
+  style: ReturnType<typeof resolveTextStyle>,
+  highlight: SubtitleHighlightRange,
+  highlightColor: string,
+) {
+  let searchCursor = 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line) continue;
+    const lineStart = sourceText.indexOf(line, searchCursor);
+    if (lineStart < 0) continue;
+    const lineEnd = lineStart + line.length;
+    searchCursor = lineEnd;
+    if (highlight.charStart < lineStart || highlight.charEnd > lineEnd) continue;
+
+    const localStart = highlight.charStart - lineStart;
+    const activeText = sourceText.slice(highlight.charStart, highlight.charEnd);
+    const prefix = line.slice(0, localStart);
+    const lineWidth = widths[index] ?? context.measureText(line).width;
+    let lineLeft = textX;
+    if (style.align === 'center') lineLeft = textX - lineWidth / 2;
+    else if (style.align === 'right') lineLeft = textX - lineWidth;
+
+    const x = lineLeft + context.measureText(prefix).width;
+    const y = anchorOffsetY + (index - (lines.length - 1) / 2) * lineHeight;
+    const previousAlign = context.textAlign;
+    context.textAlign = 'left';
+
+    if (style.strokeColor && style.strokeWidth > 0) {
+      context.shadowColor = 'rgba(0,0,0,0)';
+      context.shadowBlur = 0;
+      context.shadowOffsetX = 0;
+      context.shadowOffsetY = 0;
+      context.strokeStyle = style.strokeColor;
+      context.strokeText(activeText, x, y);
+    }
+
+    context.shadowColor = style.shadowColor ?? 'rgba(0,0,0,0)';
+    context.shadowBlur = style.shadowBlur;
+    context.shadowOffsetX = style.shadowOffsetX;
+    context.shadowOffsetY = style.shadowOffsetY;
+    context.fillStyle = highlightColor;
+    context.fillText(activeText, x, y);
+    context.textAlign = previousAlign;
+    return;
+  }
 }
 
 function drawGeneratorLayer(
