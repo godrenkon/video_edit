@@ -15,7 +15,7 @@ export type BlendMode =
   | 'add';
 
 export type EffectParameterValue = number | string | boolean | number[];
-export type TransitionKind = 'dissolve';
+export type TransitionKind = 'dissolve' | 'slide-left' | 'slide-right' | 'slide-up' | 'slide-down';
 
 export interface ClipTransition {
   kind: TransitionKind;
