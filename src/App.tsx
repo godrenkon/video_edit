@@ -325,6 +325,17 @@ export default function App() {
     setSaveState('素材追加済み');
   };
 
+  const updateAssetMeta = useCallback((assetId: string, patch: Partial<Project['assets'][number]>) => {
+    if (rendering) return;
+    updateProject((p) => ({
+      ...p,
+      assets: p.assets.map((asset) => asset.id === assetId ? { ...asset, ...patch } : asset),
+    }), {
+      label: '素材メタデータを更新',
+      key: `asset:${assetId}:metadata`,
+    });
+  }, [rendering, updateProject]);
+
   const addAssetToTimeline = (assetId: string, mode: 'insert' | 'overwrite') => {
     if (rendering) return;
     updateProject((p) => {
@@ -704,6 +715,7 @@ export default function App() {
           onImport={importFiles}
           onAdd={addAssetToTimeline}
           onDelete={deleteAsset}
+          onAssetMeta={updateAssetMeta}
           onCreateText={createText}
           onCreateSubtitle={createSubtitle}
           onCreateGenerator={createGenerator}
