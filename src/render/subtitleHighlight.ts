@@ -10,7 +10,7 @@ export interface SubtitleHighlightRange {
 }
 
 export function activeSubtitleHighlight(
-  subtitle: SubtitlePayload | undefined,
+  subtitle: SubtitlePayload | null | undefined,
   clipLocalTime: number,
 ): SubtitleHighlightRange | null {
   if (!subtitle?.wordHighlight || !subtitle.words?.length) return null;
