@@ -118,7 +118,8 @@ describe('effect evaluation', () => {
         softness: parameter(0.2),
       }),
     ], 0);
-    expect(bright[0]).toMatchObject({ color: 'white', alpha: 0.5, start: 0.3, end: 0.5 });
+    expect(bright[0]).toMatchObject({ color: 'white', alpha: 0.5, end: 0.5 });
+    expect(bright[0].start).toBeCloseTo(0.3, 8);
     expect(resolveVignetteEffects([
       effect('vignette', { amount: parameter(0), size: parameter(0.75), softness: parameter(0.5) }),
     ], 0)).toEqual([]);
