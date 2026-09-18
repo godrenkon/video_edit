@@ -37,3 +37,8 @@
 .trackKindBadge.subtitle { border-color: #7a6841; }
 .trackToggleBtn { width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 6px; background: #12191f; color: var(--muted); cursor: pointer; font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .trackToggleBtn.active { color: var(--cyan); border-color: #32677a; background: #11222a; }
+
+.mediaEditMode { margin: 7px 8px 0; padding: 6px 7px; border: 1px solid var(--line); border-radius: 7px; background: #0c1216; display: flex; align-items: center; justify-content: space-between; gap: 7px; color: var(--muted); font-size: 8px; }
+.mediaEditMode > div { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.mediaEditMode button { min-width: 48px; height: 25px; border: 1px solid var(--line); border-radius: 5px; background: #10171c; color: #9facb3; cursor: pointer; font-size: 8px; }
+.mediaEditMode button.active { border-color: var(--cyan); color: var(--cyan); background: #102027; }
