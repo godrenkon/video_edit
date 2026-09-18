@@ -118,3 +118,6 @@ body { overflow: hidden; }
 .playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: #ff5f68; z-index: 5; pointer-events: none; }.playhead i { position: absolute; top: 21px; left: -4px; width: 9px; height: 9px; transform: rotate(45deg); background: #ff5f68; }
 .clip { position: absolute; top: 6px; height: 42px; min-width: 12px; border: 1px solid #37657a; border-radius: 5px; background: linear-gradient(180deg, #244b5c, #173543); overflow: hidden; cursor: grab; user-select: none; touch-action: none; }.clip.zundamon { border-color: #4f7d43; background: linear-gradient(180deg, #2d5428, #1a3518); }.clip.selected { outline: 2px solid #eaf7ff; outline-offset: -2px; }.clip span { display: block; padding: 5px 12px 0 6px; color: #e6f5fb; font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }.trimHandle { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(255,255,255,.08); }
 @media (max-height: 760px) { .appShell { grid-template-rows: 52px auto minmax(0,1fr) 230px; } .stage { max-height: 310px; } .zundamonCard { padding: 9px; } }
+
+.zAutoSubtitle { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; color: #cfe8c8; font-size: 8px; cursor: pointer; }
+.zAutoSubtitle input { accent-color: var(--green); }
