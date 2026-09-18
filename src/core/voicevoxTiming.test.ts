@@ -59,6 +59,11 @@ describe('VOICEVOX timing import', () => {
     expect(result.speedScale).toBe(2);
     expect(result.moraCount).toBe(1);
     expect(result.cues.some((cue) => cue.vowel === 'a' && cue.state === 2)).toBe(true);
+    expect(result.text).toBe('カ、');
+    expect(result.words).toHaveLength(1);
+    expect(result.words[0].text).toBe('カ');
+    expect(result.words[0].start).toBeCloseTo((voicevoxFrames(0.1 / 2)) / 93.75, 10);
+    expect(result.words[0].end).toBeGreaterThan(result.words[0].start);
   });
 
   it('adds the current VOICEVOX interrogative upspeak mora by default', () => {
@@ -110,6 +115,8 @@ describe('VOICEVOX timing import', () => {
       post_phoneme_length: 0,
     }));
     expect(result.cues.some((cue) => cue.vowel === 'a')).toBe(true);
+    expect(result.text).toBe('ア');
+    expect(result.words[0]).toMatchObject({ text: 'ア' });
   });
 
   it('rejects malformed AudioQuery input clearly', () => {
