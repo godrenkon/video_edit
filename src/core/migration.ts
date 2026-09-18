@@ -1,4 +1,4 @@
-import type { AudioBusId, AudioBusSettings, Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
+import type { AudioBusId, AudioBusSettings, AudioDuckingSettings, Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
 
 const CURRENT_PROJECT_VERSION = 2 as const;
 
@@ -56,6 +56,7 @@ export function migrateProject(input: unknown): Project {
     outPoint: optionalFiniteNumber(input.outPoint),
     exportSettings: migrateExportSettings(input.exportSettings),
     audioBuses: migrateAudioBuses(input.audioBuses),
+    audioDucking: migrateAudioDucking(input.audioDucking),
   };
 
   return project;
@@ -146,6 +147,21 @@ function migrateAudioBuses(value: unknown): AudioBusSettings[] | undefined {
     });
   }
   return result.length ? result : undefined;
+}
+
+function migrateAudioDucking(value: unknown): AudioDuckingSettings | undefined {
+  if (!isRecord(value)) return undefined;
+  const sourceBus = migrateAudioBusId(value.sourceBus);
+  const targetBus = migrateAudioBusId(value.targetBus);
+  if (!sourceBus || sourceBus === 'master' || !targetBus || targetBus === 'master' || sourceBus === targetBus) return undefined;
+  return {
+    enabled: Boolean(value.enabled),
+    sourceBus,
+    targetBus,
+    reductionDb: finiteNumber(value.reductionDb, -12, -36, 0),
+    attack: finiteNumber(value.attack, 0.08, 0, 2),
+    release: finiteNumber(value.release, 0.35, 0, 5),
+  };
 }
 
 function migrateExportSettings(value: unknown): ProjectExportSettings | undefined {
