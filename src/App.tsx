@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles } from 'lucide-react';
 import { rippleTrimClip, rollEditBoundary, slideEditClip } from './core/advancedTimelineOps';
 import { addAssetBin, assignAssetBin, removeAssetBin, renameAssetBin } from './core/assetBins';
+import type { ProjectSearchResult } from './core/projectSearch';
 import { detectCapabilities } from './core/capabilities';
 import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
@@ -48,6 +49,7 @@ import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
 import { RecoveryDialog } from './components/RecoveryDialog';
+import { SearchEverythingPalette } from './components/SearchEverythingPalette';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
 import { ZundamonPanel, type ZundamonRequest } from './components/ZundamonPanel';
@@ -77,6 +79,8 @@ export default function App() {
   const [rendering, setRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState<number | null>(null);
   const [proxyProgress, setProxyProgress] = useState<Record<string, number>>({});
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [mediaFocus, setMediaFocus] = useState<{ assetId?: string; binId?: string; token: number }>({ token: 0 });
   const capabilities = useMemo(() => detectCapabilities(), []);
   const playbackOrigin = useRef<{ wallMs: number; time: number } | null>(null);
   const timeRef = useRef(0);
@@ -710,14 +714,61 @@ export default function App() {
     );
   }, [rendering, selectedClipIds, updateProject]);
 
+  const navigateSearchResult = useCallback((result: ProjectSearchResult) => {
+    setPlaying(false);
+
+    if (result.kind === 'clip' && result.clipId) {
+      selectClip(result.clipId);
+      if (typeof result.time === 'number') setTime(Math.max(0, Math.min(project.duration, result.time)));
+      setSaveState(`検索: ${result.title}`);
+      return;
+    }
+
+    if (result.kind === 'marker' && typeof result.time === 'number') {
+      clearClipSelection();
+      setTime(Math.max(0, Math.min(project.duration, result.time)));
+      setSaveState(`マーカーへ移動: ${result.title}`);
+      return;
+    }
+
+    if (result.kind === 'track' && result.trackId) {
+      const track = project.tracks.find((item) => item.id === result.trackId);
+      const firstClip = track?.clips.slice().sort((a, b) => a.start - b.start)[0];
+      if (firstClip) {
+        selectClip(firstClip.id);
+        setTime(Math.max(0, Math.min(project.duration, firstClip.start)));
+      } else {
+        clearClipSelection();
+      }
+      setSaveState(`トラック: ${result.title}`);
+      return;
+    }
+
+    if (result.kind === 'asset' && result.assetId) {
+      setMediaFocus((current) => ({ assetId: result.assetId, token: current.token + 1 }));
+      setSaveState(`素材を表示: ${result.title}`);
+      return;
+    }
+
+    if (result.kind === 'bin' && result.binId) {
+      setMediaFocus((current) => ({ binId: result.binId, token: current.token + 1 }));
+      setSaveState(`素材ビンを表示: ${result.title}`);
+    }
+  }, [clearClipSelection, project.duration, project.tracks, selectClip]);
+
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.matches('input, textarea, select')) return;
-      if (showRecovery || rendering) return;
-
       const mod = e.ctrlKey || e.metaKey;
       const lower = e.key.toLowerCase();
+      if (mod && e.shiftKey && lower === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+        return;
+      }
+
+      const target = e.target as HTMLElement;
+      if (target.matches('input, textarea, select')) return;
+      if (showRecovery || rendering || searchOpen) return;
       if (mod && lower === 'a') {
         e.preventDefault();
         const ids = project.tracks.flatMap((track) => track.clips.map((clip) => clip.id));
@@ -794,7 +845,7 @@ export default function App() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, groupSelection, ungroupSelection, nudgeSelected, undo, redo]);
+  }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, searchOpen, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, groupSelection, ungroupSelection, nudgeSelected, undo, redo]);
 
   const manualSave = async () => {
     try {
@@ -923,6 +974,12 @@ export default function App() {
 
   return (
     <div className="appShell">
+      <SearchEverythingPalette
+        project={project}
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onNavigate={navigateSearchResult}
+      />
       {showRecovery && (
         <RecoveryDialog
           snapshots={recoverySnapshots}
@@ -941,6 +998,7 @@ export default function App() {
         onProjectName={(name) => updateProject((p) => ({ ...p, name }), { label: 'プロジェクト名変更', key: 'project-name' })}
         onSave={manualSave}
         onBackup={backupProject}
+        onSearch={() => setSearchOpen(true)}
         onRender={renderVideo}
         onCancelRender={cancelRender}
         rendering={rendering}
@@ -957,6 +1015,9 @@ export default function App() {
         <MediaLibrary
           assets={project.assets}
           assetBins={project.assetBins ?? []}
+          focusAssetId={mediaFocus.assetId}
+          focusBinId={mediaFocus.binId}
+          focusToken={mediaFocus.token}
           timelineTime={time}
           onImport={importFiles}
           onPunchInVoiceover={importPunchInVoiceover}
