@@ -109,6 +109,13 @@ export const BUILTIN_EFFECTS: EffectDescriptor[] = [
   audio('limiter', 'リミッター', 'Dynamics', [
     n('ceiling', 'Ceiling(dB)', -1, -24, 0, 0.1),
   ]),
+  audio('gate-expander', 'ゲート / エキスパンダー', 'Dynamics', [
+    n('threshold', 'Threshold(dB)', -45, -100, 0, 0.1),
+    n('ratio', 'Ratio', 4, 1, 20, 0.1),
+    n('range', 'Range(dB)', 60, 0, 100, 0.5),
+    n('attack', 'Attack(s)', 0.005, 0, 1, 0.001),
+    n('release', 'Release(s)', 0.08, 0, 2, 0.001),
+  ]),
 ];
 
 const byKind = new Map(BUILTIN_EFFECTS.map((descriptor) => [descriptor.kind, descriptor]));
