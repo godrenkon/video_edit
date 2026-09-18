@@ -170,6 +170,9 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
       color: text.color,
       textAlign: text.align,
       WebkitTextStroke: text.strokeColor && text.strokeWidth > 0 ? `${text.strokeWidth / Math.max(1, project.width) * 100}cqw ${text.strokeColor}` : undefined,
+      textShadow: text.shadowColor && (text.shadowBlur > 0 || text.shadowOffsetX !== 0 || text.shadowOffsetY !== 0)
+        ? `${text.shadowOffsetX / Math.max(1, project.width) * 100}cqw ${text.shadowOffsetY / Math.max(1, project.width) * 100}cqw ${text.shadowBlur / Math.max(1, project.width) * 100}cqw ${text.shadowColor}`
+        : undefined,
     };
     return (
       <div className="previewSynthetic previewTextLayer" style={style}>
