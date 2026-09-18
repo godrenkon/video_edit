@@ -87,7 +87,6 @@ export async function generateVideoProxy(
     {
       width: dimensions.width,
       height: dimensions.height,
-      frameRate,
       quality,
     },
   );
@@ -111,7 +110,6 @@ export async function generateVideoProxy(
       input,
       output,
       tracks: 'primary',
-      copy: false,
       showWarnings: false,
       video: {
         width: dimensions.width,
