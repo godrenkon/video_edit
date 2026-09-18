@@ -28,7 +28,7 @@ export function addPunchInVoiceover(
   if (!target) {
     const previousIds = new Set(next.tracks.map((track) => track.id));
     next = addTrack(next, 'audio', { name: 'ボイスオーバー' });
-    target = next.tracks.find((track) => !previousIds.has(track.id)) ?? null ?? undefined;
+    target = next.tracks.find((track) => !previousIds.has(track.id));
     if (target) {
       const targetId = target.id;
       next = {
