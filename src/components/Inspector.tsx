@@ -8,6 +8,7 @@ import { EffectsPanel } from './EffectsPanel';
 import { ProjectExportSettingsPanel } from './ProjectExportSettingsPanel';
 import { ProjectTemplatesPanel } from './ProjectTemplatesPanel';
 import { SubtitleExchangePanel } from './SubtitleExchangePanel';
+import { TrackMixerPanel } from './TrackMixerPanel';
 import '../creation-tools.css';
 
 interface Props {
@@ -319,6 +320,7 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
           <SubtitleExchangePanel project={project} onProject={onProject} />
 
           <h3 className="sectionTitleRow"><span>トラック</span><span className="trackCount">{project.tracks.length}</span></h3>
+          <TrackMixerPanel project={project} onProject={onProject} />
           <div className="trackAddGrid">
             {(['video', 'audio', 'overlay', 'subtitle'] as TrackKind[]).map((kind) => (
               <button type="button" key={kind} onClick={() => createTrack(kind)}><Plus size={11} />{trackKindLabel(kind)}</button>
