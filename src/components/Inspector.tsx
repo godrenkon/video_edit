@@ -4,7 +4,7 @@ import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrack
 import { constrainNormalizedCrop, cropToNormalized } from '../render/cropGeometry';
 import { clipSourceTime } from '../render/timelineEvaluation';
 import { generateEvenSubtitleWords, normalizeSubtitleHighlightColor } from '../render/subtitleHighlight';
-import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker, TrackKind } from '../types/editor';
+import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker, TrackKind, TransitionKind } from '../types/editor';
 import { EffectsPanel } from './EffectsPanel';
 import { ProjectExportSettingsPanel } from './ProjectExportSettingsPanel';
 import { ProjectTemplatesPanel } from './ProjectTemplatesPanel';
@@ -23,6 +23,14 @@ interface Props {
 }
 
 const blendModes: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'add'];
+const transitionKinds: Array<{ value: 'none' | TransitionKind; label: string }> = [
+  { value: 'none', label: 'なし' },
+  { value: 'dissolve', label: 'ディゾルブ' },
+  { value: 'slide-left', label: 'スライド ←' },
+  { value: 'slide-right', label: 'スライド →' },
+  { value: 'slide-up', label: 'スライド ↑' },
+  { value: 'slide-down', label: 'スライド ↓' },
+];
 
 export function Inspector({ project, selectedClip, timelineTime, onProject, onClip, onTransform, onDeleteClip }: Props) {
   const selectedAsset = selectedClip?.assetId ? project.assets.find((asset) => asset.id === selectedClip.assetId) : undefined;
@@ -316,20 +324,58 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
                 <>
                   <h3>トランジション</h3>
                   <div className="twoFields">
+                    <Field label="In 種類">
+                      <select
+                        value={selectedClip.transitionIn?.kind ?? 'none'}
+                        onChange={(e) => {
+                          const kind = e.target.value as 'none' | TransitionKind;
+                          onClip({
+                            transitionIn: kind === 'none'
+                              ? undefined
+                              : { kind, duration: selectedClip.transitionIn?.duration ?? Math.min(0.5, selectedClip.duration) },
+                          });
+                        }}
+                      >
+                        {transitionKinds.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                    </Field>
                     <NumberField
-                      label="ディゾルブ In"
+                      label="In 時間"
                       value={selectedClip.transitionIn?.duration ?? 0}
                       step={0.05}
-                      onChange={(v) => onClip({ transitionIn: v > 0 ? { kind: 'dissolve', duration: Math.min(selectedClip.duration, Math.max(0, v)) } : undefined })}
+                      onChange={(v) => onClip({
+                        transitionIn: v > 0
+                          ? { kind: selectedClip.transitionIn?.kind ?? 'dissolve', duration: Math.min(selectedClip.duration, Math.max(0, v)) }
+                          : undefined,
+                      })}
                     />
+                    <Field label="Out 種類">
+                      <select
+                        value={selectedClip.transitionOut?.kind ?? 'none'}
+                        onChange={(e) => {
+                          const kind = e.target.value as 'none' | TransitionKind;
+                          onClip({
+                            transitionOut: kind === 'none'
+                              ? undefined
+                              : { kind, duration: selectedClip.transitionOut?.duration ?? Math.min(0.5, selectedClip.duration) },
+                          });
+                        }}
+                      >
+                        {transitionKinds.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                      </select>
+                    </Field>
                     <NumberField
-                      label="ディゾルブ Out"
+                      label="Out 時間"
                       value={selectedClip.transitionOut?.duration ?? 0}
                       step={0.05}
-                      onChange={(v) => onClip({ transitionOut: v > 0 ? { kind: 'dissolve', duration: Math.min(selectedClip.duration, Math.max(0, v)) } : undefined })}
+                      onChange={(v) => onClip({
+                        transitionOut: v > 0
+                          ? { kind: selectedClip.transitionOut?.kind ?? 'dissolve', duration: Math.min(selectedClip.duration, Math.max(0, v)) }
+                          : undefined,
+                      })}
                     />
                   </div>
-                  <div className="infoCard">重なったクリップ同士ではクロスディゾルブとして動作し、単独部分では背景へのフェードになります。</div>
+                  <div className="infoCard">ディゾルブは重なり部分でクロスフェード、スライドは選択方向へ入退場します。Previewと最終書き出しは同じ進行計算を使います。</div>
                 </>
               )}
               <Field label="合成">
