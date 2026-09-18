@@ -7,6 +7,7 @@ export interface ZundamonRequest {
   closedAssetId: string;
   halfAssetId?: string;
   openAssetId: string;
+  vowelAssetIds?: Partial<Record<'a' | 'i' | 'u' | 'e' | 'o', string>>;
   blinkAssetId?: string;
   audioAssetId: string;
   blinkEvery: number;
@@ -28,6 +29,11 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
   const [half, setHalf] = useState('');
   const [open, setOpen] = useState('');
   const [blink, setBlink] = useState('');
+  const [vowelA, setVowelA] = useState('');
+  const [vowelI, setVowelI] = useState('');
+  const [vowelU, setVowelU] = useState('');
+  const [vowelE, setVowelE] = useState('');
+  const [vowelO, setVowelO] = useState('');
   const [audio, setAudio] = useState('');
   const [blinkEvery, setBlinkEvery] = useState(4);
   const [bobAmount, setBobAmount] = useState(8);
@@ -66,6 +72,11 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
         <AssetSelect label="口半開き" value={half} assets={images} onChange={setHalf} />
         <AssetSelect label="口開き *" value={open} assets={images} onChange={setOpen} />
         <AssetSelect label="瞬き" value={blink} assets={images} onChange={setBlink} />
+        <AssetSelect label="あ口" value={vowelA} assets={images} onChange={setVowelA} />
+        <AssetSelect label="い口" value={vowelI} assets={images} onChange={setVowelI} />
+        <AssetSelect label="う口" value={vowelU} assets={images} onChange={setVowelU} />
+        <AssetSelect label="え口" value={vowelE} assets={images} onChange={setVowelE} />
+        <AssetSelect label="お口" value={vowelO} assets={images} onChange={setVowelO} />
         <AssetSelect label="VOICEVOX音声 *" value={audio} assets={audios} onChange={setAudio} wide />
       </div>
       <div className="zTimingImport">
@@ -94,6 +105,13 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
         halfAssetId: half || undefined,
         openAssetId: open,
         blinkAssetId: blink || undefined,
+        vowelAssetIds: {
+          ...(vowelA ? { a: vowelA } : {}),
+          ...(vowelI ? { i: vowelI } : {}),
+          ...(vowelU ? { u: vowelU } : {}),
+          ...(vowelE ? { e: vowelE } : {}),
+          ...(vowelO ? { o: vowelO } : {}),
+        },
         audioAssetId: audio,
         blinkEvery,
         bobAmount,
