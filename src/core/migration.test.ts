@@ -26,6 +26,12 @@ describe('migrateProject', () => {
           notes: 'usable shot',
         },
       ],
+      audioBuses: [
+        { id: 'master', gain: 2, muted: false },
+        { id: 'voice', gain: 0.5, muted: true },
+        { id: 'voice', gain: 3, muted: false },
+        { id: 'invalid', gain: 1, muted: false },
+      ],
       tracks: [
         {
           id: 'track-1',
@@ -33,6 +39,7 @@ describe('migrateProject', () => {
           kind: 'video',
           gain: 99,
           pan: -99,
+          busId: 'voice',
           clips: [
             {
               id: 'clip-1',
@@ -59,6 +66,10 @@ describe('migrateProject', () => {
       favorite: true,
       notes: 'usable shot',
     });
+    expect(project.audioBuses).toEqual([
+      { id: 'master', gain: 2, muted: false },
+      { id: 'voice', gain: 0.5, muted: true },
+    ]);
     expect(project.tracks[0]).toMatchObject({
       muted: false,
       locked: false,
@@ -66,6 +77,7 @@ describe('migrateProject', () => {
       solo: false,
       gain: 4,
       pan: -1,
+      busId: 'voice',
     });
     expect(project.tracks[0].clips[0]).toMatchObject({
       id: 'clip-1',
@@ -133,6 +145,17 @@ describe('migrateProject', () => {
       transitionIn: { kind: 'dissolve', duration: 4 },
     });
     expect(project.tracks[0].clips[0].transitionOut).toBeUndefined();
+  });
+
+  it('drops invalid bus assignments and malformed bus lists safely', () => {
+    const project = migrateProject({
+      version: 2,
+      assets: [],
+      audioBuses: [{ id: 'unknown', gain: 9 }, null],
+      tracks: [{ kind: 'audio', busId: 'unknown', clips: [] }],
+    });
+    expect(project.audioBuses).toBeUndefined();
+    expect(project.tracks[0].busId).toBeUndefined();
   });
 
   it('drops unknown export settings instead of trusting invalid persisted values', () => {
