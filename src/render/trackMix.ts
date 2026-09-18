@@ -107,8 +107,8 @@ export interface AudioDuckingEnvelope {
 }
 
 export function normalizeAudioDucking(settings: AudioDuckingSettings | undefined): AudioDuckingSettings {
-  const sourceBus = settings?.sourceBus && settings.sourceBus !== 'master' ? settings.sourceBus : 'voice';
-  const targetBus = settings?.targetBus && settings.targetBus !== 'master' ? settings.targetBus : 'music';
+  const sourceBus = settings?.sourceBus ?? 'voice';
+  const targetBus = settings?.targetBus ?? 'music';
   return {
     enabled: Boolean(settings?.enabled),
     sourceBus,
