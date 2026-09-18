@@ -1,6 +1,7 @@
 import { Diamond, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { createEffectInstance, getEffectDescriptor, listEffects } from '../core/effects';
+import { createEffectPreset, instantiatePresetEffects, loadEffectPresets, normalizePresetName, saveEffectPresets } from '../core/effectPresets';
 import { uid } from '../core/project';
 import { isAudioEffectSupported } from '../render/audioEffects';
 import {
@@ -23,8 +24,12 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
     ...(clip.assetId ? listEffects('audio').filter((effect) => isAudioEffectSupported(effect.kind)) : []),
   ], [clip.assetId]);
   const [kind, setKind] = useState(available[0]?.kind ?? '');
+  const [presets, setPresets] = useState(() => loadEffectPresets());
+  const [presetId, setPresetId] = useState('');
+  const [presetName, setPresetName] = useState('');
   const selectedKind = available.some((effect) => effect.kind === kind) ? kind : available[0]?.kind ?? '';
   const effects = clip.effects ?? [];
+  const selectedPreset = presets.find((preset) => preset.id === presetId) ?? presets[0] ?? null;
   const frameDuration = 1 / Math.max(1, fps);
   const localTime = quantize(Math.max(0, Math.min(clip.duration, timelineTime - clip.start)), fps);
 
@@ -39,6 +44,35 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
   const addEffect = () => {
     if (!selectedKind) return;
     onClip({ effects: [...effects, createEffectInstance(selectedKind)] });
+  };
+
+  const commitPresets = (next: typeof presets) => {
+    setPresets(next);
+    saveEffectPresets(next);
+    if (presetId && !next.some((preset) => preset.id === presetId)) {
+      setPresetId(next[0]?.id ?? '');
+    }
+  };
+
+  const saveCurrentPreset = () => {
+    if (effects.length === 0) return;
+    const name = normalizePresetName(presetName) || `Preset ${presets.length + 1}`;
+    const preset = createEffectPreset(name, effects);
+    const next = [preset, ...presets].slice(0, 100);
+    commitPresets(next);
+    setPresetId(preset.id);
+    setPresetName('');
+  };
+
+  const applyPreset = (append: boolean) => {
+    if (!selectedPreset) return;
+    const instantiated = instantiatePresetEffects(selectedPreset);
+    onClip({ effects: append ? [...effects, ...instantiated] : instantiated });
+  };
+
+  const deletePreset = () => {
+    if (!selectedPreset) return;
+    commitPresets(presets.filter((preset) => preset.id !== selectedPreset.id));
   };
 
   const updateParameter = (
@@ -132,6 +166,35 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
       )}
 
       <div className="effectsTime">再生ヘッド: {localTime.toFixed(3)}s / clip</div>
+
+      <div className="effectPresetCard">
+        <div className="effectPresetSave">
+          <input
+            value={presetName}
+            onChange={(event) => setPresetName(event.target.value)}
+            placeholder="preset名"
+            maxLength={80}
+            aria-label="preset名"
+          />
+          <button type="button" onClick={saveCurrentPreset} disabled={effects.length === 0}>保存</button>
+        </div>
+        <div className="effectPresetApply">
+          <select
+            value={selectedPreset?.id ?? ''}
+            onChange={(event) => setPresetId(event.target.value)}
+            disabled={presets.length === 0}
+            aria-label="エフェクトpreset"
+          >
+            {presets.length === 0 && <option value="">presetなし</option>}
+            {presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}
+          </select>
+          <button type="button" onClick={() => applyPreset(false)} disabled={!selectedPreset}>置換</button>
+          <button type="button" onClick={() => applyPreset(true)} disabled={!selectedPreset}>追加</button>
+          <button type="button" className="danger" onClick={deletePreset} disabled={!selectedPreset}>削除</button>
+        </div>
+        <div className="effectsTime">preset適用時はeffect / keyframe IDを再生成</div>
+      </div>
+
       <div className="effectsAddRow">
         <select value={selectedKind} onChange={(event) => setKind(event.target.value)} aria-label="追加するエフェクト">
           {available.map((effect) => (
