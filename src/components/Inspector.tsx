@@ -3,6 +3,7 @@ import { uid } from '../core/project';
 import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrackSolo, setTrackVisible } from '../core/trackOps';
 import { constrainNormalizedCrop, cropToNormalized } from '../render/cropGeometry';
 import { clipSourceTime } from '../render/timelineEvaluation';
+import { generateEvenSubtitleWords, normalizeSubtitleHighlightColor } from '../render/subtitleHighlight';
 import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker, TrackKind } from '../types/editor';
 import { EffectsPanel } from './EffectsPanel';
 import { ProjectExportSettingsPanel } from './ProjectExportSettingsPanel';
@@ -170,9 +171,49 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
           {selectedClip.kind === 'subtitle' && selectedClip.subtitle && (
             <>
               <h3>字幕</h3>
-              <Field label="内容"><textarea rows={4} value={selectedClip.subtitle.text} onChange={(e) => onClip({ subtitle: { ...selectedClip.subtitle!, text: e.target.value } })} /></Field>
+              <Field label="内容"><textarea rows={4} value={selectedClip.subtitle.text} onChange={(e) => onClip({ subtitle: { ...selectedClip.subtitle!, text: e.target.value, words: undefined } })} /></Field>
               <Field label="話者"><input value={selectedClip.subtitle.speaker ?? ''} placeholder="任意" onChange={(e) => onClip({ subtitle: { ...selectedClip.subtitle!, speaker: e.target.value || undefined } })} /></Field>
-              <div className="infoCard">字幕は現在、白文字＋黒縁＋半透明背景の読みやすい既定styleでPreview/最終書き出しへ描画されます。</div>
+              <h3>ワードハイライト</h3>
+              <label className="checkboxField">
+                <span>再生中の単語/文字を強調</span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(selectedClip.subtitle.wordHighlight)}
+                  disabled={!selectedClip.subtitle.words?.length}
+                  onChange={(e) => onClip({ subtitle: { ...selectedClip.subtitle!, wordHighlight: e.target.checked } })}
+                />
+              </label>
+              <Field label="強調色">
+                <input
+                  type="color"
+                  value={normalizeSubtitleHighlightColor(selectedClip.subtitle.highlightColor)}
+                  onChange={(e) => onClip({ subtitle: { ...selectedClip.subtitle!, highlightColor: e.target.value } })}
+                />
+              </Field>
+              <div className="projectActionGrid">
+                <button
+                  type="button"
+                  onClick={() => onClip({
+                    subtitle: {
+                      ...selectedClip.subtitle!,
+                      wordHighlight: true,
+                      highlightColor: normalizeSubtitleHighlightColor(selectedClip.subtitle?.highlightColor),
+                      words: generateEvenSubtitleWords(selectedClip.subtitle?.text ?? '', selectedClip.duration),
+                    },
+                  })}
+                >均等タイミング生成</button>
+                <button
+                  type="button"
+                  disabled={!selectedClip.subtitle.words?.length}
+                  onClick={() => onClip({ subtitle: { ...selectedClip.subtitle!, wordHighlight: false, words: undefined } })}
+                >タイミング削除</button>
+              </div>
+              <div className="infoCard">
+                {selectedClip.subtitle.words?.length
+                  ? `${selectedClip.subtitle.words.length}区間。Preview/最終書き出しで同じclip-local timingを使用します。`
+                  : 'タイミング未生成。空白区切りは単語単位、日本語など空白なしの字幕は文字単位で均等生成します。'}
+              </div>
+              <div className="infoCard">字幕は白文字＋黒縁＋半透明背景の読みやすい既定styleでPreview/最終書き出しへ描画されます。</div>
             </>
           )}
 
