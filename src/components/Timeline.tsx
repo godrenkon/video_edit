@@ -126,8 +126,8 @@ export function Timeline(props: Props) {
             disabled={!selectedClipId}
             title="抽出: クリップを削除して後続を詰める (Shift+Delete)"
           ><Trash2 size={14} /></button>
-          <button className="miniBtn" onClick={onGroupSelected} disabled={!canGroup} title="選択クリップをグループ化"><Link2 size={14} /></button>
-          <button className="miniBtn" onClick={onUngroupSelected} disabled={!canUngroup} title="選択グループを解除"><Unlink2 size={14} /></button>
+          <button className="miniBtn" onClick={onGroupSelected} disabled={!canGroup} title="選択クリップをグループ化 (Ctrl/Cmd+G)"><Link2 size={14} /></button>
+          <button className="miniBtn" onClick={onUngroupSelected} disabled={!canUngroup} title="選択グループを解除 (Ctrl/Cmd+Shift+G)"><Unlink2 size={14} /></button>
           <button className="miniBtn" onClick={() => onZoom(Math.max(20, zoom - 10))}><ZoomOut size={14} /></button>
           <input type="range" min={20} max={120} value={zoom} onChange={(e) => onZoom(Number(e.target.value))} />
           <button className="miniBtn" onClick={() => onZoom(Math.min(120, zoom + 10))}><ZoomIn size={14} /></button>
@@ -310,7 +310,7 @@ function TimelineClip({
 
   return (
     <div
-      className={`clip ${clip.kind} ${selected ? 'selected' : ''}`}
+      className={`clip ${clip.kind} ${clip.groupId ? 'grouped' : ''} ${selected ? 'selected' : ''}`}
       style={{ left: clip.start * px, width: Math.max(12, clip.duration * px) }}
       onPointerDown={drag}
       onClick={(e) => {
@@ -323,7 +323,7 @@ function TimelineClip({
       <div className="trimHandle left" onPointerDown={trimLeft} title="トリム / Shift: リップル / Alt: ロール" />
       <TimelineThumbnailStrip asset={asset} clip={clip} pixelsPerSecond={px} />
       <TimelineWaveform asset={asset} clip={clip} />
-      <span>{clip.name}</span>
+      <span>{clip.groupId ? '⛓ ' : ''}{clip.name}</span>
       <div className="trimHandle right" onPointerDown={trimRight} title="トリム / Shift: リップル / Alt: ロール" />
     </div>
   );
