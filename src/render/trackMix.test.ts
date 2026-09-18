@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyTrackGainPan, dbToLinear, linearToDb, normalizeAudioBuses, normalizeTrackGain, normalizeTrackPan, resolveTrackBusMix, setAudioBusGain, setAudioBusMuted, setTrackBus } from './trackMix';
+import { applyTrackGainPan, buildAudioDuckingEnvelope, dbToLinear, duckingGainAt, linearToDb, normalizeAudioBuses, normalizeAudioDucking, normalizeTrackGain, normalizeTrackPan, resolveTrackBusMix, setAudioBusGain, setAudioBusMuted, setTrackBus } from './trackMix';
 import type { Project, Track } from '../types/editor';
 
 describe('track mix helpers', () => {
@@ -65,6 +65,59 @@ describe('track mix helpers', () => {
 
     const legacy = makeTrack({});
     expect(resolveTrackBusMix(makeProject(legacy), legacy)).toMatchObject({ busId: 'master', gain: 1, muted: false });
+  });
+
+  it('builds a deterministic ducking envelope from source-bus clip windows', () => {
+    const voice: Track = {
+      ...makeTrack({ busId: 'voice' }),
+      clips: [{
+        id: 'voice-clip',
+        kind: 'asset',
+        name: 'voice',
+        assetId: 'voice-asset',
+        start: 2,
+        duration: 4,
+        inPoint: 0,
+        volume: 1,
+        muted: false,
+        transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
+      }],
+    };
+    const project = makeProject(voice);
+    project.audioDucking = {
+      enabled: true,
+      sourceBus: 'voice',
+      targetBus: 'music',
+      reductionDb: -12,
+      attack: 0.5,
+      release: 1,
+    };
+    const envelope = buildAudioDuckingEnvelope(project);
+    expect(envelope?.windows).toEqual([{ start: 2, end: 6 }]);
+    expect(duckingGainAt(envelope, 1, 'music')).toBe(1);
+    expect(duckingGainAt(envelope, 1.75, 'music')).toBeGreaterThan(10 ** (-12 / 20));
+    expect(duckingGainAt(envelope, 2, 'music')).toBeCloseTo(10 ** (-12 / 20), 8);
+    expect(duckingGainAt(envelope, 6.5, 'music')).toBeGreaterThan(10 ** (-12 / 20));
+    expect(duckingGainAt(envelope, 7.1, 'music')).toBe(1);
+    expect(duckingGainAt(envelope, 3, 'sfx')).toBe(1);
+  });
+
+  it('normalizes invalid ducking settings to safe buses and ranges', () => {
+    expect(normalizeAudioDucking({
+      enabled: true,
+      sourceBus: 'voice',
+      targetBus: 'voice',
+      reductionDb: -999,
+      attack: 99,
+      release: -1,
+    })).toEqual({
+      enabled: true,
+      sourceBus: 'voice',
+      targetBus: 'music',
+      reductionDb: -36,
+      attack: 2,
+      release: 0,
+    });
   });
 
   it('updates bus gain/mute and track assignment immutably', () => {
