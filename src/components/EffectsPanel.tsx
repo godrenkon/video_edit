@@ -1,7 +1,8 @@
-import { Diamond, Plus, Trash2 } from 'lucide-react';
+import { Diamond, Plus, Star, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { createEffectInstance, getEffectDescriptor, listEffects } from '../core/effects';
 import { createEffectPreset, instantiatePresetEffects, loadEffectPresets, normalizePresetName, saveEffectPresets } from '../core/effectPresets';
+import { loadFavoriteEffects, saveFavoriteEffects, toggleFavoriteEffect } from '../core/effectFavorites';
 import { uid } from '../core/project';
 import { isAudioEffectSupported, isRealtimeAudioEffectSupported } from '../render/audioEffects';
 import {
@@ -19,10 +20,15 @@ interface Props {
 }
 
 export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
-  const available = useMemo(() => [
-    ...listEffects('video').filter((effect) => isCanvasFilterEffectSupported(effect.kind)),
-    ...(clip.assetId ? listEffects('audio').filter((effect) => isAudioEffectSupported(effect.kind)) : []),
-  ], [clip.assetId]);
+  const [favoriteKinds, setFavoriteKinds] = useState(() => loadFavoriteEffects());
+  const available = useMemo(() => {
+    const items = [
+      ...listEffects('video').filter((effect) => isCanvasFilterEffectSupported(effect.kind)),
+      ...(clip.assetId ? listEffects('audio').filter((effect) => isAudioEffectSupported(effect.kind)) : []),
+    ];
+    const favoriteSet = new Set(favoriteKinds);
+    return items.sort((a, b) => Number(favoriteSet.has(b.kind)) - Number(favoriteSet.has(a.kind)));
+  }, [clip.assetId, favoriteKinds]);
   const [kind, setKind] = useState(available[0]?.kind ?? '');
   const [presets, setPresets] = useState(() => loadEffectPresets());
   const [presetId, setPresetId] = useState('');
@@ -44,6 +50,13 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
   const addEffect = () => {
     if (!selectedKind) return;
     onClip({ effects: [...effects, createEffectInstance(selectedKind)] });
+  };
+
+  const toggleSelectedFavorite = () => {
+    if (!selectedKind) return;
+    const next = toggleFavoriteEffect(favoriteKinds, selectedKind);
+    setFavoriteKinds(next);
+    saveFavoriteEffects(next);
   };
 
   const commitPresets = (next: typeof presets) => {
@@ -198,9 +211,21 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
       <div className="effectsAddRow">
         <select value={selectedKind} onChange={(event) => setKind(event.target.value)} aria-label="追加するエフェクト">
           {available.map((effect) => (
-            <option key={effect.kind} value={effect.kind}>{effect.domain === 'audio' ? `音声 / ${effect.label}` : effect.label}</option>
+            <option key={effect.kind} value={effect.kind}>
+              {favoriteKinds.includes(effect.kind) ? '★ ' : ''}{effect.domain === 'audio' ? `音声 / ${effect.label}` : effect.label}
+            </option>
           ))}
         </select>
+        <button
+          type="button"
+          className={`miniBtn effectFavoriteBtn ${favoriteKinds.includes(selectedKind) ? 'active' : ''}`}
+          onClick={toggleSelectedFavorite}
+          disabled={!selectedKind}
+          title={favoriteKinds.includes(selectedKind) ? 'お気に入りから外す' : 'お気に入りに追加'}
+          aria-label={favoriteKinds.includes(selectedKind) ? 'お気に入りから外す' : 'お気に入りに追加'}
+        >
+          <Star size={13} fill={favoriteKinds.includes(selectedKind) ? 'currentColor' : 'none'} />
+        </button>
         <button type="button" className="miniBtn" onClick={addEffect} disabled={!selectedKind} title="エフェクトを追加"><Plus size={14} /></button>
       </div>
 
