@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeTransition, transitionMotionOffset, transitionOpacity } from './transitionEnvelope';
+import { normalizeTransition, transitionMotionOffset, transitionOpacity, transitionRevealRect } from './transitionEnvelope';
 
 describe('visual transition envelope', () => {
   it('fades a dissolve in and out on clip-local time', () => {
@@ -54,9 +54,29 @@ describe('visual transition envelope', () => {
     expect(transitionMotionOffset(down, 0, 1920, 1080)).toEqual({ x: 0, y: -1080 });
   });
 
+  it('reveals wipe-right from left to right and hides toward the right edge', () => {
+    const clip = {
+      duration: 6,
+      transitionIn: { kind: 'wipe-right' as const, duration: 2 },
+      transitionOut: { kind: 'wipe-right' as const, duration: 2 },
+    };
+    expect(transitionRevealRect(clip, 0)).toEqual({ x: 0, y: 0, width: 0, height: 1 });
+    expect(transitionRevealRect(clip, 1)).toEqual({ x: 0, y: 0, width: 0.5, height: 1 });
+    expect(transitionRevealRect(clip, 3)).toEqual({ x: 0, y: 0, width: 1, height: 1 });
+    expect(transitionRevealRect(clip, 5)).toEqual({ x: 0.5, y: 0, width: 0.5, height: 1 });
+  });
+
+  it('supports vertical wipe directions', () => {
+    const up = { duration: 4, transitionIn: { kind: 'wipe-up' as const, duration: 2 } };
+    const down = { duration: 4, transitionIn: { kind: 'wipe-down' as const, duration: 2 } };
+    expect(transitionRevealRect(up, 1)).toEqual({ x: 0, y: 0.5, width: 1, height: 0.5 });
+    expect(transitionRevealRect(down, 1)).toEqual({ x: 0, y: 0, width: 1, height: 0.5 });
+  });
+
   it('normalizes supported transition kinds and rejects invalid durations', () => {
     expect(normalizeTransition({ kind: 'dissolve', duration: 99 }, 4)).toEqual({ kind: 'dissolve', duration: 4 });
     expect(normalizeTransition({ kind: 'slide-right', duration: 1.5 }, 4)).toEqual({ kind: 'slide-right', duration: 1.5 });
+    expect(normalizeTransition({ kind: 'wipe-left', duration: 1 }, 4)).toEqual({ kind: 'wipe-left', duration: 1 });
     expect(normalizeTransition({ kind: 'slide-up', duration: -1 }, 4)).toBeUndefined();
   });
 });
