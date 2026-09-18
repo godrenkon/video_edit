@@ -7,7 +7,8 @@ type PreviewEffectNode =
   | { effectId: string; kind: 'pan'; node: StereoPannerNode }
   | { effectId: string; kind: 'high-pass' | 'low-pass'; node: BiquadFilterNode }
   | { effectId: string; kind: 'compressor'; node: DynamicsCompressorNode }
-  | { effectId: string; kind: 'limiter'; node: DynamicsCompressorNode };
+  | { effectId: string; kind: 'limiter'; node: DynamicsCompressorNode }
+  | { effectId: string; kind: 'gate-expander' | 'de-esser'; node: AudioWorkletNode };
 
 type PreviewGraphState = {
   context: AudioContext;
@@ -17,9 +18,12 @@ type PreviewGraphState = {
   connected: boolean;
   trackGain: GainNode;
   trackPan: StereoPannerNode | null;
+  lastEffects: ResolvedAudioEffect[];
 };
 
 let sharedContext: AudioContext | null = null;
+let dynamicsWorkletPromise: Promise<boolean> | null = null;
+let dynamicsWorkletReady = false;
 let sharedOutput: { gain: GainNode; analyser: AnalyserNode; samples: Float32Array<ArrayBuffer>; lufsAnalyser: AnalyserNode; lufsSamples: Float32Array<ArrayBuffer> } | null = null;
 const stateByElement = new WeakMap<HTMLMediaElement, PreviewGraphState>();
 
@@ -40,21 +44,26 @@ export class PreviewAudioGraph {
     const cached = stateByElement.get(element);
     if (cached) {
       this.state = cached;
-      return;
+    } else {
+      const context = getSharedContext();
+      const state: PreviewGraphState = {
+        context,
+        source: context.createMediaElementSource(element),
+        nodes: [],
+        topology: '',
+        connected: false,
+        trackGain: context.createGain(),
+        trackPan: typeof context.createStereoPanner === 'function' ? context.createStereoPanner() : null,
+        lastEffects: [],
+      };
+      stateByElement.set(element, state);
+      this.state = state;
     }
 
-    const context = getSharedContext();
-    const state: PreviewGraphState = {
-      context,
-      source: context.createMediaElementSource(element),
-      nodes: [],
-      topology: '',
-      connected: false,
-      trackGain: context.createGain(),
-      trackPan: typeof context.createStereoPanner === 'function' ? context.createStereoPanner() : null,
-    };
-    stateByElement.set(element, state);
-    this.state = state;
+    void ensureDynamicsWorklet(this.state.context).then((ready) => {
+      if (!ready || this.detached || !this.state.lastEffects.some(requiresDynamicsWorklet)) return;
+      this.rebuild(this.state.lastEffects, this.state.topology);
+    });
   }
 
   get stateName() {
@@ -62,13 +71,22 @@ export class PreviewAudioGraph {
   }
 
   async resume() {
-    if (this.detached || this.state.context.state === 'running') return;
-    await this.state.context.resume();
+    if (this.detached) return;
+    const ready = await ensureDynamicsWorklet(this.state.context);
+    if (
+      ready
+      && this.state.lastEffects.some(requiresDynamicsWorklet)
+      && !this.state.nodes.some((item) => item.kind === 'gate-expander' || item.kind === 'de-esser')
+    ) {
+      this.rebuild(this.state.lastEffects, this.state.topology);
+    }
+    if (this.state.context.state !== 'running') await this.state.context.resume();
   }
 
   setEffects(effects: EffectInstance[] | undefined, clipLocalTime: number) {
     if (this.detached) return;
     const resolved = resolveAudioEffects(effects ?? [], Math.max(0, clipLocalTime));
+    this.state.lastEffects = resolved;
     const topology = resolved.map((effect) => `${effect.id}:${effect.kind}`).join('|');
     if (topology !== this.state.topology || !this.state.connected) this.rebuild(resolved, topology);
     else this.updateNodes(resolved);
@@ -136,6 +154,29 @@ export class PreviewAudioGraph {
         setAudioParam(item.node.ratio, 20, now);
         setAudioParam(item.node.attack, 0, now);
         setAudioParam(item.node.release, 0.05, now);
+      } else if (item.kind === 'gate-expander' && effect.kind === 'gate-expander') {
+        item.node.port.postMessage({
+          type: 'params',
+          params: {
+            thresholdDb: effect.thresholdDb,
+            ratio: effect.ratio,
+            rangeDb: effect.rangeDb,
+            attack: effect.attack,
+            release: effect.release,
+          },
+        });
+      } else if (item.kind === 'de-esser' && effect.kind === 'de-esser') {
+        item.node.port.postMessage({
+          type: 'params',
+          params: {
+            frequency: effect.frequency,
+            thresholdDb: effect.thresholdDb,
+            ratio: effect.ratio,
+            maxReductionDb: effect.maxReductionDb,
+            attack: effect.attack,
+            release: effect.release,
+          },
+        });
       }
     }
   }
@@ -217,6 +258,19 @@ function createNode(context: AudioContext, effect: ResolvedAudioEffect): Preview
   if (effect.kind === 'limiter') {
     return { effectId: effect.id, kind: effect.kind, node: context.createDynamicsCompressor() };
   }
+  if ((effect.kind === 'gate-expander' || effect.kind === 'de-esser') && dynamicsWorkletReady) {
+    try {
+      const node = new AudioWorkletNode(context, 'suiram-dynamics', {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        processorOptions: { kind: effect.kind },
+      });
+      return { effectId: effect.id, kind: effect.kind, node };
+    } catch (error) {
+      console.warn('AudioWorklet dynamics node is unavailable', error);
+    }
+  }
   return null;
 }
 
@@ -234,4 +288,32 @@ function setAudioParam(parameter: AudioParam, value: number, now: number) {
   if (!Number.isFinite(value)) return;
   parameter.cancelScheduledValues(now);
   parameter.setValueAtTime(value, now);
+}
+
+
+function requiresDynamicsWorklet(effect: ResolvedAudioEffect) {
+  return effect.kind === 'gate-expander' || effect.kind === 'de-esser';
+}
+
+async function ensureDynamicsWorklet(context: AudioContext) {
+  if (dynamicsWorkletReady) return true;
+  if (!context.audioWorklet || typeof context.audioWorklet.addModule !== 'function') return false;
+  if (!dynamicsWorkletPromise) {
+    const base = typeof document !== 'undefined'
+      ? document.baseURI
+      : typeof location !== 'undefined'
+        ? location.href
+        : '/';
+    const moduleUrl = new URL('audio-effects-worklet.js', base).href;
+    dynamicsWorkletPromise = context.audioWorklet.addModule(moduleUrl)
+      .then(() => {
+        dynamicsWorkletReady = true;
+        return true;
+      })
+      .catch((error) => {
+        console.warn('AudioWorklet dynamics module failed to load', error);
+        return false;
+      });
+  }
+  return dynamicsWorkletPromise;
 }
