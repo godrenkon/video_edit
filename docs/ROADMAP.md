@@ -235,9 +235,9 @@ Current implementation branch: `main`.
 - [ ] direct PSD/ZIP import
 - [ ] PSD layer parser
 - [ ] eye / mouth / eyebrow / arm / expression group recognition
-- [ ] character preset storage
-- [ ] VOICEVOX timing import
-- [ ] vowel-aware あいうえお mouth shapes
+- [x] persistent Zundamon character preset storage with asset-name relink
+- [x] VOICEVOX AudioQuery timing import in Zundamon workflow
+- [x] vowel-aware あいうえお mouth image selection with open-mouth fallback
 - [ ] fallback phoneme/audio analysis
 - [ ] emotion / expression automation
 - [ ] subtitle auto-placement from narration
