@@ -6,9 +6,12 @@ export function parseFavoriteEffects(raw: string | null): string[] {
   try {
     const value: unknown = JSON.parse(raw);
     if (!Array.isArray(value)) return [];
-    return [...new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0))]
-      .map((item) => item.trim().slice(0, 120))
-      .slice(0, MAX_FAVORITES);
+    return [...new Set(
+      value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim().slice(0, 120))
+        .filter(Boolean),
+    )].slice(0, MAX_FAVORITES);
   } catch {
     return [];
   }
