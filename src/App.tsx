@@ -4,6 +4,7 @@ import { rippleTrimClip, rollEditBoundary, slideEditClip } from './core/advanced
 import { detectCapabilities } from './core/capabilities';
 import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
+import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClips } from './core/groupOps';
 import { insertClipAt, overwriteClipAt } from './core/editModes';
 import { analyzeMouthCues, buildAssetMeta } from './core/media';
 import {
@@ -91,7 +92,8 @@ export default function App() {
 
   const selectClip = useCallback((clipId: string, additive = false) => {
     if (!additive) {
-      setSelectedClipIds([clipId]);
+      const ids = groupClipIds(project, clipId);
+      setSelectedClipIds(ids);
       setSelectedClipId(clipId);
       return;
     }
@@ -104,7 +106,7 @@ export default function App() {
       setSelectedClipId(clipId);
       return [...current, clipId];
     });
-  }, []);
+  }, [project]);
 
   const clearClipSelection = useCallback(() => {
     setSelectedClipIds([]);
@@ -442,6 +444,18 @@ export default function App() {
     setSaveState('クリップを複製しました');
   }, [project, rendering, selectedClipId]);
 
+  const groupSelection = useCallback(() => {
+    if (selectedClipIds.length < 2 || rendering) return;
+    updateProject((p) => groupSelectedClips(p, selectedClipIds), { label: 'クリップをグループ化' });
+    setSaveState('選択クリップをグループ化しました');
+  }, [rendering, selectedClipIds, updateProject]);
+
+  const ungroupSelection = useCallback(() => {
+    if (selectedClipIds.length === 0 || rendering) return;
+    updateProject((p) => ungroupSelectedClips(p, selectedClipIds), { label: 'グループを解除' });
+    setSaveState('グループを解除しました');
+  }, [rendering, selectedClipIds, updateProject]);
+
   const nudgeSelected = useCallback((frames: number) => {
     if (selectedClipIds.length === 0 || rendering) return;
     const ids = [...selectedClipIds];
@@ -729,6 +743,10 @@ export default function App() {
         onCopySelected={copySelectedClip}
         onPasteCopied={pasteCopiedClip}
         onRippleDeleteSelected={rippleDeleteSelectedClip}
+        onGroupSelected={groupSelection}
+        onUngroupSelected={ungroupSelection}
+        canGroup={selectedClipIds.length >= 2}
+        canUngroup={selectedHasGroup(project, selectedClipIds)}
         onMoveClip={(id, start) => updateProject(
           (p) => moveClip(p, id, start, time, snapThreshold),
           { label: 'クリップ移動', key: `clip:${id}:move` },
