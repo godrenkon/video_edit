@@ -1,10 +1,12 @@
-import { Captions, FileAudio, FileImage, Film, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
+import { Captions, FileAudio, FileImage, Film, FolderOpen, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { AssetMeta } from '../types/editor';
 
 interface Props {
   assets: AssetMeta[];
   onImport: (files: File[]) => void;
+  onImportFolder: () => void;
+  folderImportSupported: boolean;
   onAdd: (assetId: string, mode: 'insert' | 'overwrite') => void;
   onDelete: (assetId: string) => void;
   onAssetMeta: (assetId: string, patch: Partial<AssetMeta>) => void;
@@ -32,6 +34,8 @@ const formatBytes = (bytes: number) => {
 export function MediaLibrary({
   assets,
   onImport,
+  onImportFolder,
+  folderImportSupported,
   onAdd,
   onDelete,
   onAssetMeta,
@@ -79,6 +83,13 @@ export function MediaLibrary({
     <aside className="panel mediaPanel">
       <div className="panelHeader">
         <div><strong>メディア</strong><span>{assets.length} assets</span></div>
+        <button
+          className="iconBtn"
+          type="button"
+          onClick={onImportFolder}
+          disabled={!folderImportSupported}
+          title={folderImportSupported ? 'フォルダから動画・画像・音声を一括読み込み' : 'このブラウザはフォルダ読み込みに未対応'}
+        ><FolderOpen size={17} /></button>
         <button className="iconBtn" onClick={() => input.current?.click()} title="素材を読み込む"><Plus size={18} /></button>
         <input
           ref={input}
