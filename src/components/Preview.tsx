@@ -10,6 +10,7 @@ import {
 import { previewCropLayout } from '../render/cropGeometry';
 import { canvasFilterForEffects } from '../render/effectEvaluation';
 import { PreviewAudioGraph } from '../render/previewAudioGraph';
+import { previewSyncTolerance } from '../render/previewClock';
 import {
   deterministicNoiseByte,
   generatorColor,
@@ -101,14 +102,16 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
   const videoRef = useRef<HTMLVideoElement>(null);
   const sourceTime = clipSourceTime(clip, time);
   const playbackRate = Math.max(0.0625, Math.min(16, clip.speed ?? 1));
+  const syncTolerance = previewSyncTolerance(fps);
+  const syncTolerance = previewSyncTolerance(project.fps);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (clip.reverse || !playing || Math.abs(video.currentTime - sourceTime) > 0.15) {
+    if (clip.reverse || !playing || Math.abs(video.currentTime - sourceTime) > syncTolerance) {
       video.currentTime = Math.max(0, sourceTime);
     }
-  }, [clip.reverse, playing, sourceTime]);
+  }, [clip.reverse, playing, sourceTime, syncTolerance]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -207,7 +210,7 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
   return null;
 }
 
-function AudioLayer({ clip, asset, time, playing, trackMuted }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean; trackMuted: boolean }) {
+function AudioLayer({ clip, asset, time, playing, trackMuted, fps }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean; trackMuted: boolean; fps: number }) {
   const ref = useRef<HTMLAudioElement>(null);
   const graphRef = useRef<PreviewAudioGraph | null>(null);
   const sourceTime = clipSourceTime(clip, time);
@@ -241,10 +244,10 @@ function AudioLayer({ clip, asset, time, playing, trackMuted }: { clip: Clip; as
     el.volume = Math.max(0, Math.min(1, clip.volume));
     el.muted = clip.muted || trackMuted || Boolean(clip.reverse);
     el.playbackRate = playbackRate;
-    if (clip.reverse || !playing || Math.abs(el.currentTime - sourceTime) > 0.18) {
+    if (clip.reverse || !playing || Math.abs(el.currentTime - sourceTime) > syncTolerance) {
       el.currentTime = Math.max(0, sourceTime);
     }
-  }, [clip.muted, clip.reverse, clip.volume, playbackRate, playing, sourceTime, trackMuted]);
+  }, [clip.muted, clip.reverse, clip.volume, playbackRate, playing, sourceTime, syncTolerance, trackMuted]);
 
   useEffect(() => {
     const el = ref.current;
@@ -310,7 +313,7 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
             {visuals.length === 0 && <div className="stageEmpty"><FilmIcon /><span>タイムラインに素材を追加</span></div>}
           </div>
         </div>
-        {audios.map(({ clip, track }) => <AudioLayer key={clip.id} clip={clip} trackMuted={track.muted} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} />)}
+        {audios.map(({ clip, track }) => <AudioLayer key={clip.id} clip={clip} trackMuted={track.muted} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} fps={project.fps} />)}
         <div className="transport">
           <button className="iconBtn" onClick={() => onTime(0)}><SkipBack size={17} /></button>
           <button className="playBtn" onClick={onTogglePlay}>{playing ? <Pause size={20} /> : <Play size={20} />}</button>
