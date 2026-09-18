@@ -28,3 +28,17 @@
 .trackBusHeader button.active { color: #ff9a9a; border-color: rgba(255,154,154,.45); }
 .trackMixerBusSelect { display: grid; grid-template-columns: 28px minmax(0,1fr); align-items: center; gap: 5px; font-size: 8px; color: var(--muted); }
 .trackMixerBusSelect select { min-width: 0; height: 25px; border: 1px solid var(--line); border-radius: 5px; background: #0a1014; color: var(--text); font-size: 8px; padding: 0 5px; }
+
+.trackDucking { padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: #0d1317; display: grid; gap: 7px; }
+.trackDucking.active { border-color: rgba(95,216,255,.4); background: rgba(95,216,255,.035); }
+.trackDuckingHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.trackDuckingHeader strong { font-size: 9px; }
+.trackDuckingHeader label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 8px; }
+.trackDuckingHeader input { accent-color: var(--cyan); }
+.trackDuckingRouting { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+.trackDuckingRouting label { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 5px; align-items: center; color: var(--muted); font-size: 8px; }
+.trackDuckingRouting select, .trackDuckingTimes input { min-width: 0; height: 25px; border: 1px solid var(--line); border-radius: 5px; background: #0a1014; color: var(--text); font-size: 8px; padding: 0 5px; }
+.trackDuckingTimes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+.trackDuckingTimes label { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 4px; align-items: center; color: var(--muted); font-size: 8px; }
+.trackDuckingTimes b { font-weight: 500; color: var(--muted); }
+.trackDucking small { color: var(--muted); font-size: 8px; line-height: 1.4; }
