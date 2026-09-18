@@ -106,6 +106,9 @@ export const BUILTIN_EFFECTS: EffectDescriptor[] = [
     n('attack', 'Attack(s)', 0.003, 0, 1, 0.001),
     n('release', 'Release(s)', 0.25, 0, 1, 0.001),
   ]),
+  audio('limiter', 'リミッター', 'Dynamics', [
+    n('ceiling', 'Ceiling(dB)', -1, -24, 0, 0.1),
+  ]),
 ];
 
 const byKind = new Map(BUILTIN_EFFECTS.map((descriptor) => [descriptor.kind, descriptor]));
