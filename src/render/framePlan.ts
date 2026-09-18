@@ -10,6 +10,7 @@ import type {
   Transform,
 } from '../types/editor';
 import { visualTimelineItems, zundamonVisualState } from './timelineEvaluation';
+import { transitionOpacity } from './transitionEnvelope';
 
 export interface VisualFrameLayerPlan {
   clipId: string;
@@ -53,7 +54,7 @@ export function buildVisualFramePlan(project: Project, timeSeconds: number): Vis
         y: clip.transform.y + (zundamon?.bobOffset ?? 0),
         scale: clip.transform.scale,
         rotation: clip.transform.rotation,
-        opacity: clip.transform.opacity,
+        opacity: clip.transform.opacity * transitionOpacity(clip, Math.max(0, Math.min(clip.duration, timeSeconds - clip.start))),
         anchorX: clip.transform.anchorX ?? 0.5,
         anchorY: clip.transform.anchorY ?? 0.5,
       },
