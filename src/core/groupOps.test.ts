@@ -57,6 +57,6 @@ describe('clip grouping', () => {
     const input = project([track('a', [{ ...clip('1'), groupId: 'g' }, { ...clip('2'), groupId: 'g' }])]);
     expect(selectedHasGroup(input, ['1'])).toBe(true);
     const output = ungroupSelectedClips(input, ['1']);
-    expect(output.tracks[0].clips.every((item) => item.groupId === undefined)).toBe(true);
+    expect(output.tracks[0].clips.every((item) => !('groupId' in item))).toBe(true);
   });
 });
