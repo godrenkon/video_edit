@@ -1,5 +1,7 @@
 import type { AssetKind, Clip, GeneratorPayload, Project, TrackKind } from '../types/editor';
 
+export type LowerThirdPreset = 'clean' | 'accent' | 'minimal';
+
 export const uid = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 
 export function createProject(): Project {
@@ -51,6 +53,88 @@ export function defaultTextClip(start: number, duration = 5): Clip {
       strokeColor: '#000000',
       strokeWidth: 0,
       align: 'center',
+    },
+  };
+}
+
+export function defaultLowerThirdClip(
+  start: number,
+  width: number,
+  height: number,
+  preset: LowerThirdPreset = 'clean',
+  duration = 5,
+): Clip {
+  const clip = baseTimelineClip('text', '下部テロップ', start, duration);
+  const safeWidth = Math.max(1, width);
+  const safeHeight = Math.max(1, height);
+  clip.transform = {
+    ...clip.transform,
+    x: -safeWidth * 0.43,
+    y: safeHeight * 0.34,
+    anchorX: 0,
+    anchorY: 0.5,
+  };
+
+  const base = {
+    text: '名前\n肩書き / 説明',
+    fontFamily: 'Noto Sans JP',
+    align: 'left' as const,
+  };
+
+  if (preset === 'accent') {
+    return {
+      ...clip,
+      name: '下部テロップ / Accent',
+      text: {
+        ...base,
+        fontSize: 54,
+        fontWeight: 800,
+        color: '#071014',
+        strokeColor: '#071014',
+        strokeWidth: 0,
+        backgroundColor: '#5fd8ff',
+        shadowColor: '#000000',
+        shadowBlur: 10,
+        shadowOffsetX: 0,
+        shadowOffsetY: 3,
+      },
+    };
+  }
+
+  if (preset === 'minimal') {
+    return {
+      ...clip,
+      name: '下部テロップ / Minimal',
+      text: {
+        ...base,
+        fontSize: 52,
+        fontWeight: 700,
+        color: '#ffffff',
+        strokeColor: '#000000',
+        strokeWidth: 2,
+        shadowColor: '#000000',
+        shadowBlur: 8,
+        shadowOffsetX: 0,
+        shadowOffsetY: 2,
+      },
+    };
+  }
+
+  return {
+    ...clip,
+    name: '下部テロップ / Clean',
+    text: {
+      ...base,
+      fontSize: 54,
+      fontWeight: 700,
+      color: '#ffffff',
+      strokeColor: '#000000',
+      strokeWidth: 0,
+      backgroundColor: 'rgba(12,18,22,0.86)',
+      shadowColor: '#000000',
+      shadowBlur: 8,
+      shadowOffsetX: 0,
+      shadowOffsetY: 2,
     },
   };
 }
