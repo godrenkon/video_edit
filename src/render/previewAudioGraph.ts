@@ -18,7 +18,7 @@ type PreviewGraphState = {
 };
 
 let sharedContext: AudioContext | null = null;
-let sharedOutput: { gain: GainNode; analyser: AnalyserNode; samples: Float32Array } | null = null;
+let sharedOutput: { gain: GainNode; analyser: AnalyserNode; samples: Float32Array<ArrayBuffer> } | null = null;
 const stateByElement = new WeakMap<HTMLMediaElement, PreviewGraphState>();
 
 /**
@@ -140,7 +140,7 @@ function getSharedOutput(context: AudioContext) {
   sharedOutput = {
     gain,
     analyser,
-    samples: new Float32Array(analyser.fftSize),
+    samples: new Float32Array(new ArrayBuffer(analyser.fftSize * Float32Array.BYTES_PER_ELEMENT)),
   };
   return sharedOutput;
 }
