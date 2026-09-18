@@ -19,6 +19,7 @@ import {
 import {
   deleteAssetFile,
   deleteWaveformCache,
+  deleteThumbnailCachesForAsset,
   listRecoverySnapshots,
   loadProject,
   loadRecoverySnapshot,
@@ -359,6 +360,7 @@ export default function App() {
     if (capabilities.opfs) {
       await deleteAssetFile(asset.storageName);
       await deleteWaveformCache(waveformCacheKey(asset));
+      await deleteThumbnailCachesForAsset(assetId);
     }
     clearTimelineThumbnailCache(assetId);
     if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
