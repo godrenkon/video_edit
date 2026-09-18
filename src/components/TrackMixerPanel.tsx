@@ -1,7 +1,7 @@
 import { Volume2, VolumeX } from 'lucide-react';
-import { AUDIO_BUS_DEFINITIONS, dbToLinear, linearToDb, normalizeAudioBuses, setAudioBusGain, setAudioBusMuted, setTrackBus } from '../render/trackMix';
+import { AUDIO_BUS_DEFINITIONS, dbToLinear, linearToDb, normalizeAudioBuses, normalizeAudioDucking, setAudioBusGain, setAudioBusMuted, setTrackBus } from '../render/trackMix';
 import { setTrackGain, setTrackMuted, setTrackPan, setTrackSolo } from '../core/trackOps';
-import type { AudioBusId, Project, Track } from '../types/editor';
+import type { AudioBusId, AudioDuckingSettings, Project, Track } from '../types/editor';
 import '../track-mixer.css';
 
 export function TrackMixerPanel({
@@ -13,6 +13,7 @@ export function TrackMixerPanel({
 }) {
   const tracks = project.tracks.filter((track) => track.kind === 'audio' || track.kind === 'video');
   const buses = normalizeAudioBuses(project.audioBuses);
+  const ducking = normalizeAudioDucking(project.audioDucking);
 
   const apply = (next: Project) => {
     if (next === project) return;
@@ -42,6 +43,10 @@ export function TrackMixerPanel({
           );
         })}
       </div>
+      <DuckingControls
+        settings={ducking}
+        onChange={(audioDucking) => onProject({ audioDucking })}
+      />
       <div className="trackMixerChannels">
         {tracks.map((track) => (
           <TrackStrip
@@ -179,6 +184,53 @@ function BusStrip({
         <span>Gain <b>{formatDb(gainDb)}</b></span>
         <input type="range" min={-60} max={12} step={0.5} value={gainDb} onChange={(event) => onGain(dbToLinear(Number(event.target.value)))} />
       </label>
+    </div>
+  );
+}
+
+
+function DuckingControls({
+  settings,
+  onChange,
+}: {
+  settings: AudioDuckingSettings;
+  onChange: (settings: AudioDuckingSettings) => void;
+}) {
+  const buses = AUDIO_BUS_DEFINITIONS.filter((bus) => bus.id !== 'master');
+  const patch = (partial: Partial<AudioDuckingSettings>) => onChange(normalizeAudioDucking({ ...settings, ...partial }));
+
+  return (
+    <div className={`trackDucking ${settings.enabled ? 'active' : ''}`}>
+      <div className="trackDuckingHeader">
+        <strong>Auto Ducking</strong>
+        <label>
+          <input type="checkbox" checked={settings.enabled} onChange={(event) => patch({ enabled: event.target.checked })} />
+          <span>{settings.enabled ? 'ON' : 'OFF'}</span>
+        </label>
+      </div>
+      <div className="trackDuckingRouting">
+        <label>
+          <span>Source</span>
+          <select value={settings.sourceBus} onChange={(event) => patch({ sourceBus: event.target.value as Exclude<AudioBusId, 'master'> })}>
+            {buses.map((bus) => <option key={bus.id} value={bus.id}>{bus.label}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Target</span>
+          <select value={settings.targetBus} onChange={(event) => patch({ targetBus: event.target.value as Exclude<AudioBusId, 'master'> })}>
+            {buses.map((bus) => <option key={bus.id} value={bus.id}>{bus.label}</option>)}
+          </select>
+        </label>
+      </div>
+      <label className="trackMixerControl">
+        <span>Reduction <b>{settings.reductionDb.toFixed(1)} dB</b></span>
+        <input type="range" min={-36} max={0} step={0.5} value={settings.reductionDb} onChange={(event) => patch({ reductionDb: Number(event.target.value) })} />
+      </label>
+      <div className="trackDuckingTimes">
+        <label><span>Attack</span><input type="number" min={0} max={2} step={0.01} value={settings.attack} onChange={(event) => patch({ attack: Number(event.target.value) })} /><b>s</b></label>
+        <label><span>Release</span><input type="number" min={0} max={5} step={0.01} value={settings.release} onChange={(event) => patch({ release: Number(event.target.value) })} /><b>s</b></label>
+      </div>
+      <small>Source busのクリップ区間から決定するためPreview/exportで同じenvelopeになります。</small>
     </div>
   );
 }
