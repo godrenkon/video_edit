@@ -323,6 +323,8 @@ function TimelineClip({
       <div className="trimHandle left" onPointerDown={trimLeft} title="トリム / Shift: リップル / Alt: ロール" />
       <TimelineThumbnailStrip asset={asset} clip={clip} pixelsPerSecond={px} />
       <TimelineWaveform asset={asset} clip={clip} />
+      {clip.transitionIn && <i className="transitionBand in" style={{ width: Math.min(clip.duration, clip.transitionIn.duration) * px }} />}
+      {clip.transitionOut && <i className="transitionBand out" style={{ width: Math.min(clip.duration, clip.transitionOut.duration) * px }} />}
       <span>{clip.groupId ? '⛓ ' : ''}{clip.name}</span>
       <div className="trimHandle right" onPointerDown={trimRight} title="トリム / Shift: リップル / Alt: ロール" />
     </div>
