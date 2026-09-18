@@ -8,6 +8,7 @@ interface Props {
   onAdd: (assetId: string, mode: 'insert' | 'overwrite') => void;
   onDelete: (assetId: string) => void;
   onAssetMeta: (assetId: string, patch: Partial<AssetMeta>) => void;
+  onRelink: (assetId: string, file: File) => void;
   proxyProgress: Record<string, number>;
   onGenerateProxy: (assetId: string) => void;
   onCancelProxy: (assetId: string) => void;
@@ -34,6 +35,7 @@ export function MediaLibrary({
   onAdd,
   onDelete,
   onAssetMeta,
+  onRelink,
   proxyProgress,
   onGenerateProxy,
   onCancelProxy,
@@ -43,6 +45,7 @@ export function MediaLibrary({
   onCreateGenerator,
 }: Props) {
   const input = useRef<HTMLInputElement>(null);
+  const relinkInput = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [editMode, setEditMode] = useState<'insert' | 'overwrite'>('insert');
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
@@ -131,6 +134,26 @@ export function MediaLibrary({
           </select></label>
           <label><span>タグ</span><input value={(selectedAsset.tags ?? []).join(', ')} placeholder="例: B-roll, ゲーム, voice" onChange={(e) => onAssetMeta(selectedAsset.id, { tags: normalizeTags(e.target.value) })} /></label>
           <label><span>メモ</span><textarea rows={2} value={selectedAsset.notes ?? ''} onChange={(e) => onAssetMeta(selectedAsset.id, { notes: e.target.value || undefined })} /></label>
+          <div className="assetRelink">
+            <div className="assetRelinkStatus">
+              <span>元素材</span>
+              <b className={selectedAsset.objectUrl ? 'online' : 'missing'}>{selectedAsset.objectUrl ? '接続済み' : '見つかりません'}</b>
+            </div>
+            <button type="button" onClick={() => relinkInput.current?.click()}>
+              {selectedAsset.objectUrl ? '元素材を差し替え' : '元素材を再リンク'}
+            </button>
+            <input
+              ref={relinkInput}
+              hidden
+              type="file"
+              accept={selectedAsset.kind === 'video' ? 'video/*' : selectedAsset.kind === 'audio' ? 'audio/*' : 'image/*'}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) onRelink(selectedAsset.id, file);
+                event.target.value = '';
+              }}
+            />
+          </div>
           {selectedAsset.kind === 'video' && (
             <div className="proxyEditor">
               <div className="proxyStatus">
@@ -167,7 +190,7 @@ export function MediaLibrary({
             <div className={`assetIcon ${asset.kind}`}>{iconFor(asset.kind)}</div>
             <div className="assetText">
               <strong title={asset.name}>{asset.favorite ? '★ ' : ''}{asset.name}</strong>
-              <span>{asset.kind} · {formatBytes(asset.size)}{asset.duration ? ` · ${asset.duration.toFixed(1)}s` : ''}{asset.proxyStorageName ? ' · proxy' : ''}</span>
+              <span>{asset.kind} · {formatBytes(asset.size)}{asset.duration ? ` · ${asset.duration.toFixed(1)}s` : ''}{asset.proxyStorageName ? ' · proxy' : ''}{!asset.objectUrl ? ' · offline' : ''}</span>
             </div>
             <button className="miniBtn" title={editMode === 'insert' ? '挿入編集でタイムラインに追加' : '上書き編集でタイムラインに追加'} onClick={() => onAdd(asset.id, editMode)}><Plus size={14} /></button>
             <button className="miniBtn danger" title="素材を削除" onClick={() => onDelete(asset.id)}><Trash2 size={14} /></button>
