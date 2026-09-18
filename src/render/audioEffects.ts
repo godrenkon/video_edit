@@ -7,26 +7,30 @@ export type ResolvedAudioEffect =
   | { id: string; kind: 'high-pass'; frequency: number }
   | { id: string; kind: 'low-pass'; frequency: number }
   | { id: string; kind: 'compressor'; thresholdDb: number; ratio: number; attack: number; release: number }
-  | { id: string; kind: 'limiter'; ceilingDb: number; ceiling: number };
+  | { id: string; kind: 'limiter'; ceilingDb: number; ceiling: number }
+  | { id: string; kind: 'gate-expander'; thresholdDb: number; ratio: number; rangeDb: number; attack: number; release: number };
 
 interface StereoLowPassState { left: number; right: number }
 interface StereoHighPassState { inLeft: number; inRight: number; outLeft: number; outRight: number }
 interface CompressorState { gain: number }
+interface ExpanderState { gain: number }
 
 export interface AudioEffectState {
   lowPass: Map<string, StereoLowPassState>;
   highPass: Map<string, StereoHighPassState>;
   compressor: Map<string, CompressorState>;
+  expander: Map<string, ExpanderState>;
   lastTimelineTime: number | null;
 }
 
-const SUPPORTED_AUDIO_EFFECTS = new Set(['gain', 'pan', 'high-pass', 'low-pass', 'compressor', 'limiter']);
+const SUPPORTED_AUDIO_EFFECTS = new Set(['gain', 'pan', 'high-pass', 'low-pass', 'compressor', 'limiter', 'gate-expander']);
 
 export function createAudioEffectState(): AudioEffectState {
   return {
     lowPass: new Map(),
     highPass: new Map(),
     compressor: new Map(),
+    expander: new Map(),
     lastTimelineTime: null,
   };
 }
@@ -35,6 +39,7 @@ export function resetAudioEffectState(state: AudioEffectState) {
   state.lowPass.clear();
   state.highPass.clear();
   state.compressor.clear();
+  state.expander.clear();
   state.lastTimelineTime = null;
 }
 
@@ -71,6 +76,16 @@ export function resolveAudioEffects(effects: EffectInstance[], clipLocalTime: nu
         kind: 'limiter',
         ceilingDb,
         ceiling: 10 ** (ceilingDb / 20),
+      });
+    } else if (effect.kind === 'gate-expander') {
+      result.push({
+        id: effect.id,
+        kind: 'gate-expander',
+        thresholdDb: effectNumber(effect, 'threshold', clipLocalTime, -45, -100, 0),
+        ratio: effectNumber(effect, 'ratio', clipLocalTime, 4, 1, 20),
+        rangeDb: effectNumber(effect, 'range', clipLocalTime, 60, 0, 100),
+        attack: effectNumber(effect, 'attack', clipLocalTime, 0.005, 0, 1),
+        release: effectNumber(effect, 'release', clipLocalTime, 0.08, 0, 2),
       });
     }
   }
@@ -141,6 +156,19 @@ export function processAudioEffects(
         l *= gain;
         r *= gain;
       }
+    } else if (effect.kind === 'gate-expander') {
+      const peak = Math.max(Math.abs(l), Math.abs(r), 1e-12);
+      const inputDb = 20 * Math.log10(peak);
+      const belowDb = Math.max(0, effect.thresholdDb - inputDb);
+      const reductionDb = Math.min(effect.rangeDb, belowDb * Math.max(0, effect.ratio - 1));
+      const targetGain = 10 ** (-reductionDb / 20);
+      const memory = state.expander.get(effect.id) ?? { gain: targetGain };
+      const time = targetGain > memory.gain ? effect.attack : effect.release;
+      const coefficient = time <= 0 ? 0 : Math.exp(-1 / (Math.max(1e-5, time) * rate));
+      memory.gain = targetGain + coefficient * (memory.gain - targetGain);
+      l *= memory.gain;
+      r *= memory.gain;
+      state.expander.set(effect.id, memory);
     }
   }
 
