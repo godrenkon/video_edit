@@ -120,9 +120,17 @@ function migrateClip(clip: Record<string, unknown>, index: number): Clip {
 }
 
 function migrateTransition(value: unknown, clipDuration: number): ClipTransition | undefined {
-  if (!isRecord(value) || value.kind !== 'dissolve') return undefined;
+  if (!isRecord(value)) return undefined;
+  const kind = value.kind;
+  if (
+    kind !== 'dissolve'
+    && kind !== 'slide-left'
+    && kind !== 'slide-right'
+    && kind !== 'slide-up'
+    && kind !== 'slide-down'
+  ) return undefined;
   const duration = optionalClampedNumber(value.duration, 0, clipDuration);
-  return duration && duration > 0 ? { kind: 'dissolve', duration } : undefined;
+  return duration && duration > 0 ? { kind, duration } : undefined;
 }
 
 function migrateAudioBusId(value: unknown): AudioBusId | undefined {
