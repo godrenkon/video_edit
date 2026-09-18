@@ -71,6 +71,16 @@ export function removeTrack(project: Project, trackId: string): RemoveTrackResul
   };
 }
 
+export function setTrackMuted(project: Project, trackId: string, muted: boolean): Project {
+  let changed = false;
+  const tracks = project.tracks.map((track) => {
+    if (track.id !== trackId || track.muted === muted) return track;
+    changed = true;
+    return { ...track, muted };
+  });
+  return changed ? { ...project, tracks } : project;
+}
+
 export function setTrackSolo(project: Project, trackId: string, solo: boolean): Project {
   let changed = false;
   const tracks = project.tracks.map((track) => {
