@@ -260,7 +260,7 @@ Current implementation branch: `main`.
 ## Phase 9 — Recording / Capture
 
 - [x] bounded browser microphone recording -> normal media import
-- [ ] screen / tab capture
+- [x] OPFS-streamed screen / tab capture with normal media import
 - [ ] camera capture
 - [ ] countdown
 - [ ] monitoring
