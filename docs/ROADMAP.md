@@ -186,7 +186,7 @@ Current implementation branch: `main`.
 - [x] hold / linear / deterministic bezier-style interpolation
 - [x] initial keyframe controls in Inspector
 - [ ] graph editor
-- [ ] temperature/tint rendering
+- [x] temperature/tint rendering with shared Preview/export soft-light color washes + keyframes
 - [ ] sharpen rendering
 - [x] vignette rendering with shared Preview/export keyframe evaluation
 - [ ] chroma-key rendering
@@ -259,7 +259,7 @@ Current implementation branch: `main`.
 
 ## Phase 9 — Recording / Capture
 
-- [ ] microphone recording
+- [x] bounded browser microphone recording -> normal media import
 - [ ] screen / tab capture
 - [ ] camera capture
 - [ ] countdown
