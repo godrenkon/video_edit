@@ -6,7 +6,8 @@ export type ResolvedAudioEffect =
   | { id: string; kind: 'pan'; pan: number }
   | { id: string; kind: 'high-pass'; frequency: number }
   | { id: string; kind: 'low-pass'; frequency: number }
-  | { id: string; kind: 'compressor'; thresholdDb: number; ratio: number; attack: number; release: number };
+  | { id: string; kind: 'compressor'; thresholdDb: number; ratio: number; attack: number; release: number }
+  | { id: string; kind: 'limiter'; ceilingDb: number; ceiling: number };
 
 interface StereoLowPassState { left: number; right: number }
 interface StereoHighPassState { inLeft: number; inRight: number; outLeft: number; outRight: number }
@@ -19,7 +20,7 @@ export interface AudioEffectState {
   lastTimelineTime: number | null;
 }
 
-const SUPPORTED_AUDIO_EFFECTS = new Set(['gain', 'pan', 'high-pass', 'low-pass', 'compressor']);
+const SUPPORTED_AUDIO_EFFECTS = new Set(['gain', 'pan', 'high-pass', 'low-pass', 'compressor', 'limiter']);
 
 export function createAudioEffectState(): AudioEffectState {
   return {
@@ -62,6 +63,14 @@ export function resolveAudioEffects(effects: EffectInstance[], clipLocalTime: nu
         ratio: effectNumber(effect, 'ratio', clipLocalTime, 4, 1, 20),
         attack: effectNumber(effect, 'attack', clipLocalTime, 0.003, 0, 1),
         release: effectNumber(effect, 'release', clipLocalTime, 0.25, 0, 1),
+      });
+    } else if (effect.kind === 'limiter') {
+      const ceilingDb = effectNumber(effect, 'ceiling', clipLocalTime, -1, -24, 0);
+      result.push({
+        id: effect.id,
+        kind: 'limiter',
+        ceilingDb,
+        ceiling: 10 ** (ceilingDb / 20),
       });
     }
   }
@@ -125,6 +134,13 @@ export function processAudioEffects(
       l *= memory.gain;
       r *= memory.gain;
       state.compressor.set(effect.id, memory);
+    } else if (effect.kind === 'limiter') {
+      const peak = Math.max(Math.abs(l), Math.abs(r));
+      if (peak > effect.ceiling && peak > 0) {
+        const gain = effect.ceiling / peak;
+        l *= gain;
+        r *= gain;
+      }
     }
   }
 
