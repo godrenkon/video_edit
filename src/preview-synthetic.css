@@ -6,3 +6,8 @@
 .previewBarsTop { position: absolute; inset: 0 0 28% 0; background: linear-gradient(to right, #fff 0 14.285%, #ff0 14.285% 28.57%, #0ff 28.57% 42.855%, #0f0 42.855% 57.14%, #f0f 57.14% 71.425%, #f00 71.425% 85.71%, #00f 85.71% 100%); }
 .previewBarsBottom { position: absolute; inset: 72% 0 0 0; background: #111; }
 .renderCancel { color: #ffb7bc; border-color: #6a343a; background: #30181c; }
+
+.previewPanel:fullscreen { width: 100vw; height: 100vh; max-width: none; max-height: none; border: 0; border-radius: 0; background: #070b0e; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.previewPanel:fullscreen .stageOuter { min-height: 0; height: 100%; display: flex; align-items: center; justify-content: center; padding: 12px; box-sizing: border-box; }
+.previewPanel:fullscreen .stage { width: min(100%, calc((100vh - 118px) * var(--preview-aspect, 1.7778))); max-height: calc(100vh - 118px); }
+.previewPanel:fullscreen .transport { min-height: 48px; }
