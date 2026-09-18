@@ -215,7 +215,7 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
   return null;
 }
 
-function AudioLayer({ clip, asset, time, playing, trackMuted, fps }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean; trackMuted: boolean; fps: number }) {
+function AudioLayer({ clip, asset, time, playing, trackMuted, trackGain, trackPan, fps }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean; trackMuted: boolean; trackGain: number; trackPan: number; fps: number }) {
   const ref = useRef<HTMLAudioElement>(null);
   const graphRef = useRef<PreviewAudioGraph | null>(null);
   const sourceTime = clipSourceTime(clip, time);
@@ -231,6 +231,7 @@ function AudioLayer({ clip, asset, time, playing, trackMuted, fps }: { clip: Cli
       graph = new PreviewAudioGraph(el);
       graphRef.current = graph;
       graph.setEffects(clip.effects, localTime);
+      graph.setTrackMix(trackGain, trackPan);
     } catch (error) {
       console.warn('Realtime audio effect preview is unavailable', error);
     }
@@ -243,6 +244,10 @@ function AudioLayer({ clip, asset, time, playing, trackMuted, fps }: { clip: Cli
   useEffect(() => {
     graphRef.current?.setEffects(clip.effects, localTime);
   }, [clip.effects, localTime]);
+
+  useEffect(() => {
+    graphRef.current?.setTrackMix(trackGain, trackPan);
+  }, [trackGain, trackPan]);
 
   useEffect(() => {
     const el = ref.current;
@@ -321,7 +326,19 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
             {visuals.length === 0 && <div className="stageEmpty"><FilmIcon /><span>タイムラインに素材を追加</span></div>}
           </div>
         </div>
-        {audios.map(({ clip, track }) => <AudioLayer key={clip.id} clip={clip} trackMuted={track.muted} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} fps={project.fps} />)}
+        {audios.map(({ clip, track }) => (
+          <AudioLayer
+            key={clip.id}
+            clip={clip}
+            trackMuted={track.muted}
+            trackGain={track.gain ?? 1}
+            trackPan={track.pan ?? 0}
+            asset={project.assets.find((asset) => asset.id === clip.assetId)}
+            time={time}
+            playing={playing}
+            fps={project.fps}
+          />
+        ))}
         <div className="transport">
           <button className="iconBtn" onClick={() => onTime(0)}><SkipBack size={17} /></button>
           <button className="playBtn" onClick={onTogglePlay}>{playing ? <Pause size={20} /> : <Play size={20} />}</button>
