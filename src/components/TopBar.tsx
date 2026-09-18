@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, Clapperboard, Download, FolderOpen, RefreshCcw, Save, X } from 'lucide-react';
+import { Activity, Clapperboard, Download, FolderOpen, RefreshCcw, Save, Search, X } from 'lucide-react';
 import {
   probeCapabilities,
   type BrowserCapabilityReport,
@@ -13,6 +13,7 @@ interface Props {
   onProjectName: (name: string) => void;
   onSave: () => void;
   onBackup: () => void;
+  onSearch: () => void;
   onRender: () => void;
   onCancelRender: () => void;
   rendering: boolean;
@@ -26,6 +27,7 @@ export function TopBar({
   onProjectName,
   onSave,
   onBackup,
+  onSearch,
   onRender,
   onCancelRender,
   rendering,
@@ -137,6 +139,9 @@ export function TopBar({
             <Download size={16} />アプリ化
           </button>
         )}
+        <button className="button" onClick={onSearch} disabled={rendering} title="プロジェクト全体検索 (Ctrl/Cmd+Shift+F)">
+          <Search size={16} />検索
+        </button>
         <button className="button" onClick={onSave} disabled={rendering}><Save size={16} />保存</button>
         <button className="button" onClick={onBackup} disabled={rendering} title="プロジェクトJSONを端末へバックアップ">
           <Download size={16} />バックアップ
