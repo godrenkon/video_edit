@@ -4,6 +4,7 @@ import { createEffectInstance, getEffectDescriptor, listEffects } from '../core/
 import { createEffectPreset, instantiatePresetEffects, loadEffectPresets, normalizePresetName, saveEffectPresets } from '../core/effectPresets';
 import { loadFavoriteEffects, saveFavoriteEffects, toggleFavoriteEffect } from '../core/effectFavorites';
 import { uid } from '../core/project';
+import { createVoicePresetEffects, VOICE_PRESETS, type VoicePresetId } from '../core/voicePresets';
 import { isAudioEffectSupported, isRealtimeAudioEffectSupported } from '../render/audioEffects';
 import {
   evaluateEffectParameter,
@@ -33,6 +34,7 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
   const [presets, setPresets] = useState(() => loadEffectPresets());
   const [presetId, setPresetId] = useState('');
   const [presetName, setPresetName] = useState('');
+  const [voicePresetId, setVoicePresetId] = useState<VoicePresetId>('voicevox-balanced');
   const selectedKind = available.some((effect) => effect.kind === kind) ? kind : available[0]?.kind ?? '';
   const effects = clip.effects ?? [];
   const selectedPreset = presets.find((preset) => preset.id === presetId) ?? presets[0] ?? null;
@@ -86,6 +88,11 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
   const deletePreset = () => {
     if (!selectedPreset) return;
     commitPresets(presets.filter((preset) => preset.id !== selectedPreset.id));
+  };
+
+  const applyVoicePreset = () => {
+    const visualEffects = effects.filter((effect) => getEffectDescriptor(effect.kind)?.domain !== 'audio');
+    onClip({ effects: [...visualEffects, ...createVoicePresetEffects(voicePresetId)] });
   };
 
   const updateParameter = (
@@ -179,6 +186,22 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
       )}
 
       <div className="effectsTime">再生ヘッド: {localTime.toFixed(3)}s / clip</div>
+
+      {clip.assetId && (
+        <div className="voicePresetCard">
+          <div className="voicePresetTitle">
+            <strong>VOICEVOX音声preset</strong>
+            <span>{VOICE_PRESETS.find((preset) => preset.id === voicePresetId)?.description}</span>
+          </div>
+          <div className="voicePresetRow">
+            <select value={voicePresetId} onChange={(event) => setVoicePresetId(event.target.value as VoicePresetId)} aria-label="VOICEVOX音声preset">
+              {VOICE_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+            </select>
+            <button type="button" onClick={applyVoicePreset}>音声effectへ適用</button>
+          </div>
+          <div className="effectsTime">映像effectは保持し、音声effectチェーンのみ置換</div>
+        </div>
+      )}
 
       <div className="effectPresetCard">
         <div className="effectPresetSave">
