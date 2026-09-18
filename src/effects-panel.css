@@ -1,6 +1,6 @@
 .effectsEditor { display: grid; gap: 8px; }
 .effectsTime { color: var(--muted); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
-.effectsAddRow { display: grid; grid-template-columns: minmax(0, 1fr) 28px; gap: 6px; }
+.effectsAddRow { display: grid; grid-template-columns: minmax(0, 1fr) 28px 28px; gap: 6px; }
 .effectsAddRow select, .effectParameter select { min-width: 0; height: 29px; border: 1px solid var(--line); border-radius: 6px; padding: 0 7px; color: var(--text); background: #0a0f12; }
 .effectsEmpty { padding: 9px; border: 1px dashed var(--line); border-radius: 7px; color: var(--muted); font-size: 9px; text-align: center; }
 .effectCard { padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #0c1216; display: grid; gap: 7px; }
@@ -29,3 +29,5 @@
 .effectPresetCard button { min-width: 42px; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: #12191f; color: var(--text); font-size: 8px; cursor: pointer; }
 .effectPresetCard button:disabled { opacity: .45; cursor: default; }
 .effectPresetCard button.danger { color: #ff9a9a; }
+
+.effectFavoriteBtn.active { color: #ffc86b; border-color: rgba(255,200,107,.45); background: rgba(255,200,107,.08); }
