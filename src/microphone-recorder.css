@@ -1,0 +1,8 @@
+.micRecorderRow { margin: 0 8px 6px; padding: 6px 7px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 7px; align-items: center; border: 1px solid var(--line); border-radius: 7px; background: #0c1216; }
+.micRecorderLabel { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; color: var(--text); white-space: nowrap; }
+.micRecorderStatus { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: 500 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.micRecorderStatus.error { color: #ff9a9a; }
+.micRecorderRow button { height: 26px; min-width: 52px; border: 1px solid var(--line); border-radius: 6px; background: #12191f; color: var(--text); display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 8px; cursor: pointer; }
+.micRecorderRow button.stop, .micRecorderRow.recording { border-color: rgba(255,105,105,.48); }
+.micRecorderRow button.stop { color: #ff9a9a; background: rgba(255,80,80,.08); }
+.micRecorderRow button:disabled { opacity: .45; cursor: default; }
