@@ -3,10 +3,11 @@ import { useMemo, useRef, useState } from 'react';
 import type { AssetMeta } from '../types/editor';
 import type { LowerThirdPreset } from '../core/project';
 import { MicrophoneRecorder } from './MicrophoneRecorder';
+import { ScreenRecorder } from './ScreenRecorder';
 
 interface Props {
   assets: AssetMeta[];
-  onImport: (files: File[]) => void;
+  onImport: (files: File[]) => void | Promise<void>;
   onImportFolder: () => void;
   folderImportSupported: boolean;
   onAdd: (assetId: string, mode: 'insert' | 'overwrite') => void;
@@ -115,6 +116,7 @@ export function MediaLibrary({
         <button type="button" onClick={onCreateGenerator} title="背景ジェネレーターを追加"><Palette size={14} /><span>背景</span></button>
       </div>
       <MicrophoneRecorder onImport={onImport} />
+      <ScreenRecorder onImport={onImport} />
       <div className="lowerThirdCreate">
         <span>下部テロップ</span>
         <select value={lowerThirdPreset} onChange={(event) => setLowerThirdPreset(event.target.value as LowerThirdPreset)}>
