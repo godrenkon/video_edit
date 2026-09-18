@@ -16,3 +16,9 @@
 .audioExportButton.cancel { color: #ffb2b2; border-color: #5b3030; }
 .audioExportProgress { width: 100%; height: 7px; accent-color: var(--cyan); }
 .audioExportStatus { padding: 6px 7px; border-radius: 6px; background: #10181d; color: var(--muted); font-size: 8px; line-height: 1.4; }
+
+.stillExport { padding-top: 7px; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+.stillExportTitle { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 8px; }
+.stillExportTitle span { color: #d8e2e7; font-size: 9px; }
+.stillExportTitle b { margin-left: auto; color: var(--cyan); font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.audioExportButton:disabled { opacity: 0.55; cursor: default; filter: none; }
