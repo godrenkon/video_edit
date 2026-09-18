@@ -180,6 +180,8 @@ export interface Track {
   locked: boolean;
   solo?: boolean;
   visible?: boolean;
+  gain?: number;
+  pan?: number;
   clips: Clip[];
 }
 
