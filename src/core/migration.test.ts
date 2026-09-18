@@ -142,7 +142,7 @@ describe('migrateProject', () => {
           fadeOut: 99,
           freezeFrameAt: -2,
           transitionIn: { kind: 'dissolve', duration: 99 },
-          transitionOut: { kind: 'wipe', duration: 1 },
+          transitionOut: { kind: 'slide-right', duration: 1 },
           transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
         }],
       }],
@@ -160,7 +160,7 @@ describe('migrateProject', () => {
       freezeFrameAt: 0,
       transitionIn: { kind: 'dissolve', duration: 4 },
     });
-    expect(project.tracks[0].clips[0].transitionOut).toBeUndefined();
+    expect(project.tracks[0].clips[0].transitionOut).toEqual({ kind: 'slide-right', duration: 1 });
   });
 
   it('drops invalid bus assignments and malformed bus lists safely', () => {
