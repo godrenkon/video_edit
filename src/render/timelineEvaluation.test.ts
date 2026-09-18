@@ -137,4 +137,14 @@ describe('timeline evaluation', () => {
     expect(audioTimelineItems(project, 9)[0].clip.volume).toBeCloseTo(0.4, 8);
     expect(source.volume).toBe(0.8);
   });
+  it('holds a frozen clip on one source frame and removes embedded video audio', () => {
+    const frozen = clip('frozen', 2, 4, { assetId: 'video', inPoint: 1, freezeFrameAt: 3.25 });
+    const input = project([
+      track('video-track', 'video', [frozen]),
+    ], [{ id: 'video', name: 'Video', kind: 'video', mime: 'video/mp4', size: 1, duration: 10, storageName: 'video.mp4' }]);
+
+    expect(clipSourceTime(frozen, 2)).toBe(3.25);
+    expect(clipSourceTime(frozen, 5.9)).toBe(3.25);
+    expect(audioTimelineItems(input, 3)).toHaveLength(0);
+  });
 });
