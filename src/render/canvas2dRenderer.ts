@@ -140,9 +140,17 @@ function drawTextLayer(context: RenderContext2D, project: Project, layer: Visual
   for (let index = 0; index < lines.length; index += 1) {
     const y = anchorOffsetY + (index - (lines.length - 1) / 2) * lineHeight;
     if (style.strokeColor && style.strokeWidth > 0) {
+      context.shadowColor = 'rgba(0,0,0,0)';
+      context.shadowBlur = 0;
+      context.shadowOffsetX = 0;
+      context.shadowOffsetY = 0;
       context.strokeStyle = style.strokeColor;
       context.strokeText(lines[index], textX, y, maxWidth);
     }
+    context.shadowColor = style.shadowColor ?? 'rgba(0,0,0,0)';
+    context.shadowBlur = style.shadowBlur;
+    context.shadowOffsetX = style.shadowOffsetX;
+    context.shadowOffsetY = style.shadowOffsetY;
     context.fillStyle = style.color;
     context.fillText(lines[index], textX, y, maxWidth);
   }
