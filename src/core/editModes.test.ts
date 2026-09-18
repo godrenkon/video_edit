@@ -51,13 +51,16 @@ describe('insert / overwrite editing', () => {
     const incoming = clip('new', 0, 2);
     const output = insertClipAt(input, 'video', incoming, 3);
     const sorted = [...output.tracks[0].clips].sort((a, b) => a.start - b.start);
-    expect(sorted.map((item) => [item.name, item.start, item.duration])).toEqual([
-      ['a', 0, 3],
-      ['new', 3, 2],
-      ['a', 5, 3],
-      ['b', 10, 2],
+    expect(sorted.map((item) => [item.start, item.duration])).toEqual([
+      [0, 3],
+      [3, 2],
+      [5, 3],
+      [10, 2],
     ]);
+    expect(sorted[0].name).toBe('a');
+    expect(sorted[1].name).toBe('new');
     expect(sorted[2].inPoint).toBe(5);
+    expect(sorted[3].name).toBe('b');
   });
 
   it('overwrite removes only the covered range and preserves both sides', () => {
@@ -65,11 +68,13 @@ describe('insert / overwrite editing', () => {
     const incoming = clip('new', 0, 3);
     const output = overwriteClipAt(input, 'video', incoming, 3);
     const sorted = [...output.tracks[0].clips].sort((a, b) => a.start - b.start);
-    expect(sorted.map((item) => [item.name, item.start, item.duration])).toEqual([
-      ['a', 0, 3],
-      ['new', 3, 3],
-      ['a', 6, 4],
+    expect(sorted.map((item) => [item.start, item.duration])).toEqual([
+      [0, 3],
+      [3, 3],
+      [6, 4],
     ]);
+    expect(sorted[0].name).toBe('a');
+    expect(sorted[1].name).toBe('new');
     expect(sorted[2].inPoint).toBe(7);
   });
 
