@@ -80,7 +80,8 @@ export function PausedPreviewCanvas({
         setVisible(true);
       })
       .catch((error) => {
-        if (!active || controller.signal.aborted || error?.name === 'AbortError') return;
+        const aborted = error instanceof Error && error.name === 'AbortError';
+        if (!active || controller.signal.aborted || aborted) return;
         console.warn('Paused preview cached render failed; using DOM preview', error);
         setVisible(false);
       });
