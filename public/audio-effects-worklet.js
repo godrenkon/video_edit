@@ -6,8 +6,10 @@ class SuiramDynamicsProcessor extends AudioWorkletProcessor {
       ? { frequency: 6000, thresholdDb: -28, ratio: 6, maxReductionDb: 12, attack: 0.002, release: 0.08 }
       : { thresholdDb: -45, ratio: 4, rangeDb: 60, attack: 0.005, release: 0.08 };
     this.gain = 1;
+    this.gainInitialized = false;
     this.deEsserIn = [];
     this.deEsserOut = [];
+    this.deEsserInitialized = [];
     this.port.onmessage = (event) => {
       if (!event?.data || event.data.type !== 'params') return;
       this.params = { ...this.params, ...event.data.params };
@@ -42,7 +44,12 @@ class SuiramDynamicsProcessor extends AudioWorkletProcessor {
       const belowDb = Math.max(0, thresholdDb - inputDb);
       const reductionDb = Math.min(rangeDb, belowDb * Math.max(0, ratio - 1));
       const targetGain = 10 ** (-reductionDb / 20);
-      this.gain = smoothGain(this.gain, targetGain, targetGain > this.gain ? attack : release);
+      if (!this.gainInitialized) {
+        this.gain = targetGain;
+        this.gainInitialized = true;
+      } else {
+        this.gain = smoothGain(this.gain, targetGain, targetGain > this.gain ? attack : release);
+      }
 
       for (let channel = 0; channel < output.length; channel += 1) {
         output[channel][frame] = (input[channel]?.[frame] ?? input[0]?.[frame] ?? 0) * this.gain;
@@ -64,6 +71,7 @@ class SuiramDynamicsProcessor extends AudioWorkletProcessor {
     while (this.deEsserIn.length < output.length) {
       this.deEsserIn.push(0);
       this.deEsserOut.push(0);
+      this.deEsserInitialized.push(false);
     }
 
     for (let frame = 0; frame < frames; frame += 1) {
@@ -72,9 +80,16 @@ class SuiramDynamicsProcessor extends AudioWorkletProcessor {
 
       for (let channel = 0; channel < output.length; channel += 1) {
         const sample = input[channel]?.[frame] ?? input[0]?.[frame] ?? 0;
-        const high = alpha * (this.deEsserOut[channel] + sample - this.deEsserIn[channel]);
-        this.deEsserIn[channel] = sample;
-        this.deEsserOut[channel] = high;
+        let high = 0;
+        if (!this.deEsserInitialized[channel]) {
+          this.deEsserIn[channel] = sample;
+          this.deEsserOut[channel] = 0;
+          this.deEsserInitialized[channel] = true;
+        } else {
+          high = alpha * (this.deEsserOut[channel] + sample - this.deEsserIn[channel]);
+          this.deEsserIn[channel] = sample;
+          this.deEsserOut[channel] = high;
+        }
         highs[channel] = high;
         detectorPeak = Math.max(detectorPeak, Math.abs(high));
       }
