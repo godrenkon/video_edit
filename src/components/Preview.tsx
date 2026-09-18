@@ -20,6 +20,7 @@ import {
   resolveTextStyle,
 } from '../render/syntheticLayers';
 import type { AssetMeta, Clip, Project } from '../types/editor';
+import { PlaybackDiagnostics } from './PlaybackDiagnostics';
 import '../preview-synthetic.css';
 
 interface Props {
@@ -299,6 +300,7 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
         <div className="previewToolbar">
           <span>{project.width}×{project.height}</span>
           <span>{project.fps} fps</span>
+          <PlaybackDiagnostics time={time} playing={playing} fps={project.fps} />
           <button className="miniBtn" type="button" onClick={toggleFullscreen} title={fullscreen ? 'フルスクリーンを終了' : 'フルスクリーン'} aria-label={fullscreen ? 'フルスクリーンを終了' : 'フルスクリーン'}>
             {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
