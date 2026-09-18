@@ -78,7 +78,7 @@ export function Timeline(props: Props) {
   return (
     <section className="timelinePanel">
       <div className="timelineHeader">
-        <div><strong>タイムライン</strong><span>{project.tracks.length} tracks</span></div>
+        <div><strong>タイムライン</strong><span>{project.tracks.length} tracks · {selectedClipIds.length} selected</span></div>
         <div className="zoomCtl">
           <button
             className="miniBtn"
