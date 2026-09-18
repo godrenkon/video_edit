@@ -222,7 +222,11 @@ export function slipClipSource(project: Project, clipId: string, requestedInPoin
   const span = source.duration * speed;
   const maxInPoint = assetDuration === null ? Number.MAX_SAFE_INTEGER : Math.max(0, assetDuration - span);
   const inPoint = quantizeSource(Math.max(0, Math.min(maxInPoint, requestedInPoint)), project.fps, speed);
-  return replaceClip(project, clipId, { ...source, inPoint });
+  const delta = inPoint - source.inPoint;
+  const freezeFrameAt = typeof source.freezeFrameAt === 'number' && Number.isFinite(source.freezeFrameAt)
+    ? Math.max(0, assetDuration === null ? source.freezeFrameAt + delta : Math.min(assetDuration, source.freezeFrameAt + delta))
+    : source.freezeFrameAt;
+  return replaceClip(project, clipId, { ...source, inPoint, freezeFrameAt });
 }
 
 export function moveClip(project: Project, clipId: string, requestedStart: number, playhead?: number, thresholdSeconds = 0.12) {
