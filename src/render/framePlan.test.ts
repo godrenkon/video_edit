@@ -104,6 +104,18 @@ describe('buildVisualFramePlan', () => {
     expect(buildVisualFramePlan(input, 9.5)[0].transform).toMatchObject({ x: 10, y: -790 });
   });
 
+  it('carries wipe reveal geometry into the shared frame plan', () => {
+    const source = clip('video', 'video', {
+      transitionIn: { kind: 'wipe-left', duration: 2 },
+      transitionOut: { kind: 'wipe-down', duration: 2 },
+    });
+    const input = project([track('video', 'video', [source])]);
+
+    expect(buildVisualFramePlan(input, 1)[0].reveal).toEqual({ x: 0.5, y: 0, width: 0.5, height: 1 });
+    expect(buildVisualFramePlan(input, 5)[0].reveal).toEqual({ x: 0, y: 0, width: 1, height: 1 });
+    expect(buildVisualFramePlan(input, 9)[0].reveal).toEqual({ x: 0, y: 0.5, width: 1, height: 0.5 });
+  });
+
   it('resolves Zundamon asset selection and bobbing before renderer dispatch', () => {
     const z = clip('z', 'overlay', {
       kind: 'zundamon',
