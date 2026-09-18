@@ -38,11 +38,11 @@ const project = (): Project => ({
 
 describe('punch-in voiceover placement', () => {
   it('creates a dedicated voice bus track and places the recording at the requested time', () => {
-    const result = addPunchInVoiceover(project(), asset(), 3.5);
+    const result = addPunchInVoiceover(project(), asset(), 3.5, { clipId: 'punch-clip' });
     const track = result.project.tracks.find((item) => item.id === result.trackId);
     expect(track).toMatchObject({ kind: 'audio', name: 'ボイスオーバー', busId: 'voice' });
     expect(track?.clips[0]).toMatchObject({
-      id: result.clipId,
+      id: 'punch-clip',
       assetId: 'voice',
       start: 3.5,
       duration: 4,
