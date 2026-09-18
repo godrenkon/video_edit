@@ -1,5 +1,6 @@
 import type { EffectInstance } from '../types/editor';
 import { resolveAudioEffects, type ResolvedAudioEffect } from './audioEffects';
+import { measureAudioSamples, type AudioMeterReading } from './audioMeter';
 
 type PreviewEffectNode =
   | { effectId: string; kind: 'gain'; node: GainNode }
@@ -17,6 +18,7 @@ type PreviewGraphState = {
 };
 
 let sharedContext: AudioContext | null = null;
+let sharedOutput: { gain: GainNode; analyser: AnalyserNode; samples: Float32Array } | null = null;
 const stateByElement = new WeakMap<HTMLMediaElement, PreviewGraphState>();
 
 /**
@@ -87,7 +89,7 @@ export class PreviewAudioGraph {
       previous = item.node;
       this.state.nodes.push(item);
     }
-    previous.connect(this.state.context.destination);
+    previous.connect(getSharedOutput(this.state.context).gain);
     this.state.connected = true;
     this.updateNodes(effects);
   }
@@ -125,6 +127,28 @@ function getSharedContext() {
   if (typeof AudioContext === 'undefined') throw new Error('Web Audio API is not available');
   sharedContext = new AudioContext({ latencyHint: 'interactive' });
   return sharedContext;
+}
+
+function getSharedOutput(context: AudioContext) {
+  if (sharedOutput) return sharedOutput;
+  const gain = context.createGain();
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 1024;
+  analyser.smoothingTimeConstant = 0.25;
+  gain.connect(analyser);
+  analyser.connect(context.destination);
+  sharedOutput = {
+    gain,
+    analyser,
+    samples: new Float32Array(analyser.fftSize),
+  };
+  return sharedOutput;
+}
+
+export function readPreviewAudioMeter(): AudioMeterReading {
+  if (!sharedOutput) return measureAudioSamples([]);
+  sharedOutput.analyser.getFloatTimeDomainData(sharedOutput.samples);
+  return measureAudioSamples(sharedOutput.samples);
 }
 
 function createNode(context: AudioContext, effect: ResolvedAudioEffect): PreviewEffectNode | null {
