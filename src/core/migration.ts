@@ -1,4 +1,4 @@
-import type { Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
+import type { AudioBusId, AudioBusSettings, Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
 
 const CURRENT_PROJECT_VERSION = 2 as const;
 
@@ -55,6 +55,7 @@ export function migrateProject(input: unknown): Project {
     inPoint: optionalFiniteNumber(input.inPoint),
     outPoint: optionalFiniteNumber(input.outPoint),
     exportSettings: migrateExportSettings(input.exportSettings),
+    audioBuses: migrateAudioBuses(input.audioBuses),
   };
 
   return project;
@@ -76,6 +77,7 @@ function migrateTrack(track: Record<string, unknown>, index: number): Track {
     visible: track.visible === undefined ? true : Boolean(track.visible),
     gain: finiteNumber(track.gain, 1, 0, 4),
     pan: finiteNumber(track.pan, 0, -1, 1),
+    busId: migrateAudioBusId(track.busId),
     clips: Array.isArray(track.clips)
       ? track.clips.filter(isRecord).map((clip, clipIndex) => migrateClip(clip, clipIndex))
       : [],
@@ -120,6 +122,30 @@ function migrateTransition(value: unknown, clipDuration: number): ClipTransition
   if (!isRecord(value) || value.kind !== 'dissolve') return undefined;
   const duration = optionalClampedNumber(value.duration, 0, clipDuration);
   return duration && duration > 0 ? { kind: 'dissolve', duration } : undefined;
+}
+
+function migrateAudioBusId(value: unknown): AudioBusId | undefined {
+  return value === 'master' || value === 'voice' || value === 'music' || value === 'sfx'
+    ? value
+    : undefined;
+}
+
+function migrateAudioBuses(value: unknown): AudioBusSettings[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const seen = new Set<AudioBusId>();
+  const result: AudioBusSettings[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const id = migrateAudioBusId(item.id);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    result.push({
+      id,
+      gain: finiteNumber(item.gain, 1, 0, 4),
+      muted: Boolean(item.muted),
+    });
+  }
+  return result.length ? result : undefined;
 }
 
 function migrateExportSettings(value: unknown): ProjectExportSettings | undefined {
