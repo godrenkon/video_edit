@@ -12,6 +12,7 @@ export function addPunchInVoiceover(
   project: Project,
   asset: AssetMeta,
   startTime: number,
+  options: { clipId?: string } = {},
 ): PunchInVoiceoverResult {
   if (asset.kind !== 'audio') return { project, clipId: null, trackId: null };
 
@@ -48,7 +49,7 @@ export function addPunchInVoiceover(
     Number.isFinite(startTime) ? startTime : 0,
   ));
   const duration = Math.max(0.1, asset.duration);
-  const clip = defaultClip(asset.name, asset.id, safeStart, duration);
+  const clip = { ...defaultClip(asset.name, asset.id, safeStart, duration), ...(options.clipId ? { id: options.clipId } : {}) };
   const targetId = target.id;
 
   next = {
