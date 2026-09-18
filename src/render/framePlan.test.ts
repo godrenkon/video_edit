@@ -101,7 +101,7 @@ describe('buildVisualFramePlan', () => {
     expect(buildVisualFramePlan(input, 1)[0].transform).toMatchObject({ x: 970, y: 20 });
     expect(buildVisualFramePlan(input, 5)[0].transform).toMatchObject({ x: 10, y: 20 });
     expect(buildVisualFramePlan(input, 9)[0].transform).toMatchObject({ x: 10, y: -520 });
-    expect(buildVisualFramePlan(input, 10)[0].transform).toMatchObject({ x: 10, y: -1060 });
+    expect(buildVisualFramePlan(input, 9.5)[0].transform).toMatchObject({ x: 10, y: -790 });
   });
 
   it('resolves Zundamon asset selection and bobbing before renderer dispatch', () => {
