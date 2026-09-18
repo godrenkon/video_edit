@@ -9,7 +9,7 @@ import {
 } from '../core/microphoneRecording';
 import '../microphone-recorder.css';
 
-export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => void }) {
+export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => void | Promise<void> }) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
