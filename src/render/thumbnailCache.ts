@@ -133,7 +133,7 @@ async function drawSampleToBlob(sample: Awaited<ReturnType<MediabunnyVideoProvid
     THUMB_HEIGHT,
   );
 
-  if (canvas instanceof OffscreenCanvas) return canvas.convertToBlob({ type: 'image/webp', quality: 0.72 });
+  if (typeof OffscreenCanvas !== 'undefined' && canvas instanceof OffscreenCanvas) return canvas.convertToBlob({ type: 'image/webp', quality: 0.72 });
   return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.72));
 }
 
