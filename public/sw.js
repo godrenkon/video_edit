@@ -30,7 +30,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (!['script', 'style', 'font', 'image', 'manifest'].includes(request.destination)) return;
+  if (!['script', 'audioworklet', 'style', 'font', 'image', 'manifest'].includes(request.destination)) return;
   event.respondWith(cacheFirstAsset(request));
 });
 
