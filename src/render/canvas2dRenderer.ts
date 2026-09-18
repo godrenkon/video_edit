@@ -1,6 +1,6 @@
 import type { BlendMode, Project } from '../types/editor';
 import { resolveCropRectangle } from './cropGeometry';
-import { canvasFilterForEffects } from './effectEvaluation';
+import { canvasFilterForEffects, resolveVignetteEffects, type ResolvedVignette } from './effectEvaluation';
 import { buildVisualFramePlan, type VisualFrameLayerPlan } from './framePlan';
 import { activeSubtitleHighlight, normalizeSubtitleHighlightColor, type SubtitleHighlightRange } from './subtitleHighlight';
 import { RenderAssetStore } from './renderAssetStore';
@@ -72,6 +72,7 @@ export class Canvas2DProjectRenderer {
         } else {
           context.drawImage(frame.bitmap, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight);
         }
+        drawVignetteEffects(context, layer.effects, layer.clipLocalTime, dx, dy, drawWidth, drawHeight);
         context.restore();
       } finally {
         this.assets.releaseFrame(frame);
@@ -173,6 +174,15 @@ function drawTextLayer(context: RenderContext2D, project: Project, layer: Visual
       );
     }
   }
+  drawVignetteEffects(
+    context,
+    layer.effects,
+    layer.clipLocalTime,
+    -project.width * layer.transform.anchorX,
+    -project.height * layer.transform.anchorY,
+    project.width,
+    project.height,
+  );
   context.restore();
 }
 
@@ -288,6 +298,47 @@ function drawGeneratorLayer(
     context.fillRect(dx, dy, width, height);
   }
 
+  drawVignetteEffects(context, layer.effects, layer.clipLocalTime, dx, dy, width, height);
+  context.restore();
+}
+
+function drawVignetteEffects(
+  context: RenderContext2D,
+  effects: VisualFrameLayerPlan['effects'],
+  clipLocalTime: number,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  if (width <= 0 || height <= 0) return;
+  const vignettes = resolveVignetteEffects(effects, clipLocalTime);
+  for (const vignette of vignettes) drawVignette(context, vignette, x, y, width, height);
+}
+
+function drawVignette(
+  context: RenderContext2D,
+  vignette: ResolvedVignette,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  context.save();
+  context.beginPath();
+  context.rect(x, y, width, height);
+  context.clip();
+
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+  context.translate(centerX, centerY);
+  context.scale(Math.max(1e-6, width), Math.max(1e-6, height));
+  const gradient = context.createRadialGradient(0, 0, 0, 0, 0, 0.5);
+  const edge = vignette.color === 'black' ? '0,0,0' : '255,255,255';
+  gradient.addColorStop(vignette.start, `rgba(${edge},0)`);
+  gradient.addColorStop(vignette.end, `rgba(${edge},${vignette.alpha})`);
+  context.fillStyle = gradient;
+  context.fillRect(-0.5, -0.5, 1, 1);
   context.restore();
 }
 
