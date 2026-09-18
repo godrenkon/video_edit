@@ -67,6 +67,7 @@ export class Canvas2DProjectRenderer {
 
         context.save();
         applyLayerTransform(context, project, layer);
+        applyLayerReveal(context, layer, dx, dy, drawWidth, drawHeight);
         if (frame.kind === 'video') {
           frame.sample.draw(context, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight);
         } else {
@@ -101,6 +102,26 @@ function applyLayerTransform(context: RenderContext2D, project: Project, layer: 
   context.scale(layer.transform.scale, layer.transform.scale);
 }
 
+function applyLayerReveal(
+  context: RenderContext2D,
+  layer: VisualFrameLayerPlan,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  const reveal = layer.reveal;
+  if (reveal.x <= 0 && reveal.y <= 0 && reveal.width >= 1 && reveal.height >= 1) return;
+  context.beginPath();
+  context.rect(
+    x + width * reveal.x,
+    y + height * reveal.y,
+    width * reveal.width,
+    height * reveal.height,
+  );
+  context.clip();
+}
+
 function drawTextLayer(context: RenderContext2D, project: Project, layer: VisualFrameLayerPlan) {
   const subtitleText = layer.kind === 'subtitle' ? layer.subtitle?.text : undefined;
   const style = resolveTextStyle(layer.text, subtitleText);
@@ -108,6 +129,14 @@ function drawTextLayer(context: RenderContext2D, project: Project, layer: Visual
 
   context.save();
   applyLayerTransform(context, project, layer);
+  applyLayerReveal(
+    context,
+    layer,
+    -project.width * layer.transform.anchorX,
+    -project.height * layer.transform.anchorY,
+    project.width,
+    project.height,
+  );
   context.font = `${style.fontWeight} ${style.fontSize}px ${quoteFontFamily(style.fontFamily)}`;
   context.textAlign = style.align;
   context.textBaseline = 'middle';
@@ -256,6 +285,7 @@ function drawGeneratorLayer(
 
   context.save();
   applyLayerTransform(context, project, layer);
+  applyLayerReveal(context, layer, dx, dy, width, height);
 
   if (payload.kind === 'gradient') {
     const angle = generatorNumber(payload, 'angle', 0, -360, 360) * Math.PI / 180;
