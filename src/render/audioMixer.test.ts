@@ -130,6 +130,46 @@ describe('audio mix planning', () => {
     expect(buildAudioMixSegments(project, 0, 4).map((segment) => segment.clipId)).toEqual(['c1', 'video-clip']);
   });
 
+  it('suppresses embedded video audio when the visual is frozen', () => {
+    const project = baseProject();
+    project.assets.push({
+      id: 'v1',
+      name: 'camera.webm',
+      kind: 'video',
+      mime: 'video/webm',
+      size: 1,
+      duration: 8,
+      width: 1920,
+      height: 1080,
+      storageName: 'camera.webm',
+    });
+    project.tracks.push({
+      id: 'video',
+      name: 'Video',
+      kind: 'video',
+      muted: false,
+      locked: false,
+      visible: true,
+      clips: [{
+        id: 'video-clip',
+        kind: 'asset',
+        name: 'camera',
+        assetId: 'v1',
+        start: 0,
+        duration: 4,
+        inPoint: 0,
+        volume: 1,
+        muted: false,
+        speed: 1,
+        reverse: false,
+        freezeFrameAt: 1.5,
+        transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
+      }],
+    });
+
+    expect(buildAudioMixSegments(project, 0, 4).map((segment) => segment.clipId)).toEqual(['c1']);
+  });
+
   it('carries clip effects into the mixer plan', () => {
     const project = baseProject();
     project.tracks[0].clips[0].effects = [{
