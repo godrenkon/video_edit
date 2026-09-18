@@ -1,5 +1,6 @@
 export type AssetKind = 'video' | 'audio' | 'image';
 export type TrackKind = 'video' | 'overlay' | 'audio' | 'subtitle';
+export type AudioBusId = 'master' | 'voice' | 'music' | 'sfx';
 export type ClipKind = 'asset' | 'zundamon' | 'text' | 'shape' | 'subtitle' | 'generator';
 
 export type Interpolation = 'hold' | 'linear' | 'bezier';
@@ -175,6 +176,12 @@ export interface Clip {
   generator?: GeneratorPayload;
 }
 
+export interface AudioBusSettings {
+  id: AudioBusId;
+  gain: number;
+  muted: boolean;
+}
+
 export interface Track {
   id: string;
   name: string;
@@ -185,6 +192,7 @@ export interface Track {
   visible?: boolean;
   gain?: number;
   pan?: number;
+  busId?: AudioBusId;
   clips: Clip[];
 }
 
@@ -205,4 +213,5 @@ export interface Project {
   inPoint?: number;
   outPoint?: number;
   exportSettings?: ProjectExportSettings;
+  audioBuses?: AudioBusSettings[];
 }
