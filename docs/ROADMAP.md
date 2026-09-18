@@ -161,10 +161,12 @@ Current implementation branch: `main`.
 - [x] initial stereo-linked offline peak limiter + realtime preview approximation
 - [x] offline gate / downward expander DSP + keyframe support
 - [ ] realtime gate / expander via AudioWorklet
-- [ ] de-esser
+- [x] deterministic split-band offline de-esser + keyframe support
+- [ ] realtime de-esser via AudioWorklet
 - [ ] noise suppression
 - [x] realtime shared-bus Peak / RMS dBFS meter
-- [ ] LUFS loudness meter
+- [x] realtime K-weighted Momentary LUFS meter
+- [ ] Short-term / Integrated LUFS with gating
 - [x] deterministic Voice/Music/SFX automatic ducking with Preview/offline parity
 - [x] effect parameter keyframe evaluation in offline audio processing
 - [x] effect parameter keyframe updates in realtime Web Audio preview
