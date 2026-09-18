@@ -34,6 +34,7 @@ import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipL
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { exportProjectVideo } from './render/projectExporter';
 import { waveformCacheKey } from './render/waveform';
+import { clearTimelineThumbnailCache } from './render/thumbnailCache';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
@@ -359,6 +360,7 @@ export default function App() {
       await deleteAssetFile(asset.storageName);
       await deleteWaveformCache(waveformCacheKey(asset));
     }
+    clearTimelineThumbnailCache(assetId);
     if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
     history.current.clear();
     updateProject((p) => ({
