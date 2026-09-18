@@ -102,15 +102,18 @@ describe('timeline evaluation', () => {
         audioAssetId: 'audio',
         cues: [
           { time: 0, state: 0 },
-          { time: 0.2, state: 2 },
+          { time: 0.2, state: 2, vowel: 'a' },
+          { time: 0.6, state: 2, vowel: 'i' },
         ],
+        vowelAssetIds: { a: 'mouth-a' },
         blinkEvery: 1,
         bobAmount: 10,
         bobSpeed: 1,
       },
     });
 
-    expect(zundamonVisualState(clip, 0.3)).toMatchObject({ assetId: 'open', mouthState: 2, blinking: false });
+    expect(zundamonVisualState(clip, 0.3)).toMatchObject({ assetId: 'mouth-a', mouthState: 2, blinking: false });
+    expect(zundamonVisualState(clip, 0.7)).toMatchObject({ assetId: 'open', mouthState: 2, blinking: false });
     expect(zundamonVisualState(clip, 1.4)).toMatchObject({ assetId: 'blink', blinking: true });
     expect(zundamonVisualState(clip, 0.25).bobOffset).toBeCloseTo(10, 8);
   });
