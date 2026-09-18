@@ -1,6 +1,6 @@
-import { Captions, FileAudio, FileImage, Film, FolderOpen, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
+import { Captions, FileAudio, FileImage, Film, FolderOpen, FolderPlus, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
-import type { AssetMeta } from '../types/editor';
+import type { AssetBin, AssetMeta } from '../types/editor';
 import type { LowerThirdPreset } from '../core/project';
 import { MicrophoneRecorder } from './MicrophoneRecorder';
 import { ScreenRecorder } from './ScreenRecorder';
@@ -8,6 +8,7 @@ import { CameraRecorder } from './CameraRecorder';
 
 interface Props {
   assets: AssetMeta[];
+  assetBins: AssetBin[];
   timelineTime: number;
   onImport: (files: File[]) => void | Promise<void>;
   onPunchInVoiceover: (file: File, startTime: number) => void | Promise<void>;
@@ -17,6 +18,10 @@ interface Props {
   onAdd: (assetId: string, mode: 'insert' | 'overwrite') => void;
   onDelete: (assetId: string) => void;
   onAssetMeta: (assetId: string, patch: Partial<AssetMeta>) => void;
+  onCreateBin: (name: string) => void;
+  onRenameBin: (binId: string, name: string) => void;
+  onDeleteBin: (binId: string) => void;
+  onAssignBin: (assetId: string, binId?: string) => void;
   onRelink: (assetId: string, file: File) => void;
   proxyProgress: Record<string, number>;
   onGenerateProxy: (assetId: string) => void;
@@ -41,6 +46,7 @@ const formatBytes = (bytes: number) => {
 
 export function MediaLibrary({
   assets,
+  assetBins,
   timelineTime,
   onImport,
   onPunchInVoiceover,
@@ -50,6 +56,10 @@ export function MediaLibrary({
   onAdd,
   onDelete,
   onAssetMeta,
+  onCreateBin,
+  onRenameBin,
+  onDeleteBin,
+  onAssignBin,
   onRelink,
   proxyProgress,
   onGenerateProxy,
@@ -68,22 +78,28 @@ export function MediaLibrary({
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [kindFilter, setKindFilter] = useState<'all' | AssetMeta['kind']>('all');
   const [sortMode, setSortMode] = useState<'import' | 'name' | 'rating'>('import');
+  const [binFilter, setBinFilter] = useState('all');
+  const [newBinName, setNewBinName] = useState('');
   const [lowerThirdPreset, setLowerThirdPreset] = useState<LowerThirdPreset>('clean');
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return assets.filter((asset) => {
       if (favoritesOnly && !asset.favorite) return false;
       if (kindFilter !== 'all' && asset.kind !== kindFilter) return false;
+      if (binFilter === 'unfiled' && asset.binId) return false;
+      if (binFilter !== 'all' && binFilter !== 'unfiled' && asset.binId !== binFilter) return false;
       if (!needle) return true;
+      const binName = assetBins.find((bin) => bin.id === asset.binId)?.name ?? '';
       const haystack = [
         asset.name,
         asset.kind,
+        binName,
         ...(asset.tags ?? []),
         asset.notes ?? '',
       ].join(' ').toLowerCase();
       return haystack.includes(needle);
     });
-  }, [assets, favoritesOnly, kindFilter, query]);
+  }, [assetBins, assets, binFilter, favoritesOnly, kindFilter, query]);
   const visibleAssets = useMemo(() => {
     if (sortMode === 'import') return filtered;
     const copy = [...filtered];
@@ -91,6 +107,7 @@ export function MediaLibrary({
     return copy.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name, 'ja'));
   }, [filtered, sortMode]);
   const selectedAsset = assets.find((asset) => asset.id === selectedAssetId) ?? null;
+  const activeBin = assetBins.find((bin) => bin.id === binFilter) ?? null;
 
   return (
     <aside className="panel mediaPanel">
@@ -149,10 +166,51 @@ export function MediaLibrary({
         <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)} aria-label="素材種別フィルター">
           <option value="all">すべて</option><option value="video">動画</option><option value="audio">音声</option><option value="image">画像</option>
         </select>
+        <select value={binFilter} onChange={(e) => setBinFilter(e.target.value)} aria-label="素材ビンフィルター">
+          <option value="all">全ビン</option>
+          <option value="unfiled">未分類</option>
+          {assetBins.map((bin) => <option key={bin.id} value={bin.id}>{bin.name}</option>)}
+        </select>
         <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)} aria-label="素材並び順">
           <option value="import">読み込み順</option><option value="name">名前順</option><option value="rating">評価順</option>
         </select>
         <span>{visibleAssets.length}/{assets.length}</span>
+      </div>
+      <div className="assetBinTools">
+        <div className="assetBinCreate">
+          <input
+            value={newBinName}
+            onChange={(e) => setNewBinName(e.target.value)}
+            maxLength={80}
+            placeholder="新しいビン"
+            aria-label="新しい素材ビン名"
+          />
+          <button
+            type="button"
+            disabled={!newBinName.trim()}
+            onClick={() => {
+              const name = newBinName.trim();
+              if (!name) return;
+              onCreateBin(name);
+              setNewBinName('');
+            }}
+            title="素材ビンを作成"
+          ><FolderPlus size={12} />作成</button>
+        </div>
+        {activeBin && (
+          <div className="assetBinEdit">
+            <input
+              value={activeBin.name}
+              onChange={(e) => onRenameBin(activeBin.id, e.target.value)}
+              maxLength={80}
+              aria-label="選択中の素材ビン名"
+            />
+            <button type="button" className="danger" onClick={() => {
+              onDeleteBin(activeBin.id);
+              setBinFilter('all');
+            }} title="このビンを削除"><Trash2 size={12} /></button>
+          </div>
+        )}
       </div>
       {selectedAsset && (
         <div className="assetMetaEditor">
@@ -167,6 +225,10 @@ export function MediaLibrary({
           </div>
           <label><span>評価</span><select value={selectedAsset.rating ?? 0} onChange={(e) => onAssetMeta(selectedAsset.id, { rating: Number(e.target.value) })}>
             <option value={0}>なし</option><option value={1}>★</option><option value={2}>★★</option><option value={3}>★★★</option><option value={4}>★★★★</option><option value={5}>★★★★★</option>
+          </select></label>
+          <label><span>ビン</span><select value={selectedAsset.binId ?? ''} onChange={(e) => onAssignBin(selectedAsset.id, e.target.value || undefined)}>
+            <option value="">未分類</option>
+            {assetBins.map((bin) => <option key={bin.id} value={bin.id}>{bin.name}</option>)}
           </select></label>
           <label><span>タグ</span><input value={(selectedAsset.tags ?? []).join(', ')} placeholder="例: B-roll, ゲーム, voice" onChange={(e) => onAssetMeta(selectedAsset.id, { tags: normalizeTags(e.target.value) })} /></label>
           <label><span>メモ</span><textarea rows={2} value={selectedAsset.notes ?? ''} onChange={(e) => onAssetMeta(selectedAsset.id, { notes: e.target.value || undefined })} /></label>
@@ -226,7 +288,7 @@ export function MediaLibrary({
             <div className={`assetIcon ${asset.kind}`}>{iconFor(asset.kind)}</div>
             <div className="assetText">
               <strong title={asset.name}>{asset.favorite ? '★ ' : ''}{asset.name}</strong>
-              <span>{asset.kind} · {formatBytes(asset.size)}{asset.duration ? ` · ${asset.duration.toFixed(1)}s` : ''}{asset.proxyStorageName ? ' · proxy' : ''}{!asset.objectUrl ? ' · offline' : ''}</span>
+              <span>{asset.kind} · {formatBytes(asset.size)}{asset.duration ? ` · ${asset.duration.toFixed(1)}s` : ''}{asset.binId ? ` · ${assetBins.find((bin) => bin.id === asset.binId)?.name ?? 'bin'}` : ''}{asset.proxyStorageName ? ' · proxy' : ''}{!asset.objectUrl ? ' · offline' : ''}</span>
             </div>
             <button className="miniBtn" title={editMode === 'insert' ? '挿入編集でタイムラインに追加' : '上書き編集でタイムラインに追加'} onClick={() => onAdd(asset.id, editMode)}><Plus size={14} /></button>
             <button className="miniBtn danger" title="素材を削除" onClick={() => onDelete(asset.id)}><Trash2 size={14} /></button>
