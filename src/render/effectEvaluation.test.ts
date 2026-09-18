@@ -5,6 +5,7 @@ import {
   evaluateEffectParameter,
   isCanvasFilterEffectSupported,
   isVisualEffectSupported,
+  resolveTemperatureTintEffects,
   resolveVignetteEffects,
   vignetteCssBackground,
 } from './effectEvaluation';
@@ -83,7 +84,51 @@ describe('effect evaluation', () => {
     expect(isCanvasFilterEffectSupported('blur')).toBe(true);
     expect(isCanvasFilterEffectSupported('vignette')).toBe(false);
     expect(isVisualEffectSupported('vignette')).toBe(true);
+    expect(isVisualEffectSupported('temperature-tint')).toBe(true);
     expect(isVisualEffectSupported('chroma-key')).toBe(false);
+  });
+
+  it('resolves temperature and tint into deterministic shared color washes', () => {
+    const washes = resolveTemperatureTintEffects([
+      effect('temperature-tint', {
+        temperature: parameter(0, [
+          { id: 't0', time: 0, value: 0, interpolation: 'linear' },
+          { id: 't1', time: 2, value: 1, interpolation: 'linear' },
+        ]),
+        tint: parameter(-0.5),
+      }),
+    ], 1);
+
+    expect(washes).toHaveLength(2);
+    expect(washes[0]).toMatchObject({
+      source: 'temperature',
+      color: '#ff9a52',
+      alpha: 0.17,
+      blendMode: 'soft-light',
+    });
+    expect(washes[1]).toMatchObject({
+      source: 'tint',
+      color: '#54d982',
+      alpha: 0.14,
+      blendMode: 'soft-light',
+    });
+  });
+
+  it('clamps temperature tint values and skips a neutral effect', () => {
+    const strong = resolveTemperatureTintEffects([
+      effect('temperature-tint', {
+        temperature: parameter(-9),
+        tint: parameter(9),
+      }),
+    ], 0);
+    expect(strong[0]).toMatchObject({ source: 'temperature', color: '#527dff', alpha: 0.34 });
+    expect(strong[1]).toMatchObject({ source: 'tint', color: '#ff57c8', alpha: 0.28 });
+    expect(resolveTemperatureTintEffects([
+      effect('temperature-tint', {
+        temperature: parameter(0),
+        tint: parameter(0),
+      }),
+    ], 0)).toEqual([]);
   });
 
   it('resolves vignette parameters and keyframes for Preview/export overlays', () => {
