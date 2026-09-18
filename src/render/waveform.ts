@@ -26,6 +26,12 @@ export function waveformFingerprint(asset: AssetMeta) {
   return asset.hash || `${asset.storageName}:${asset.size}:${asset.duration}`;
 }
 
+export function waveformCacheKey(asset: AssetMeta, samplesPerSecond = 48, maxBins = 12_000) {
+  const rate = Math.max(4, Math.min(240, Math.round(samplesPerSecond)));
+  const bins = Math.max(64, Math.round(maxBins));
+  return `v1:${asset.id}:${waveformFingerprint(asset)}:${rate}:${bins}`;
+}
+
 export function waveformBinCount(duration: number, samplesPerSecond = 48, maxBins = 12_000) {
   if (!Number.isFinite(duration) || duration <= 0) return 0;
   const rate = Math.max(4, Math.min(240, Math.round(samplesPerSecond)));
@@ -37,7 +43,7 @@ export async function getAssetWaveform(asset: AssetMeta, options: WaveformOption
   const samplesPerSecond = Math.max(4, Math.min(240, Math.round(options.samplesPerSecond ?? 48)));
   const maxBins = Math.max(64, Math.round(options.maxBins ?? 12_000));
   const fingerprint = waveformFingerprint(asset);
-  const cacheKey = `v1:${asset.id}:${fingerprint}:${samplesPerSecond}:${maxBins}`;
+  const cacheKey = waveformCacheKey(asset, samplesPerSecond, maxBins);
   const memory = memoryCache.get(cacheKey);
   if (memory) return memory;
 
