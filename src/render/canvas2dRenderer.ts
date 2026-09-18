@@ -174,7 +174,7 @@ function drawTextLayer(context: RenderContext2D, project: Project, layer: Visual
       );
     }
   }
-  drawVignetteEffects(
+  drawVisualOverlayEffects(
     context,
     layer.effects,
     layer.clipLocalTime,
