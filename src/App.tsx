@@ -18,6 +18,7 @@ import {
 } from './core/project';
 import {
   deleteAssetFile,
+  deleteWaveformCache,
   listRecoverySnapshots,
   loadProject,
   loadRecoverySnapshot,
@@ -32,6 +33,7 @@ import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { exportProjectVideo } from './render/projectExporter';
+import { waveformCacheKey } from './render/waveform';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
@@ -353,7 +355,10 @@ export default function App() {
     if (rendering) return;
     const asset = project.assets.find((a) => a.id === assetId);
     if (!asset) return;
-    if (capabilities.opfs) await deleteAssetFile(asset.storageName);
+    if (capabilities.opfs) {
+      await deleteAssetFile(asset.storageName);
+      await deleteWaveformCache(waveformCacheKey(asset));
+    }
     if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
     history.current.clear();
     updateProject((p) => ({
