@@ -73,8 +73,8 @@ Current implementation branch: `main`.
 - [x] marker UI
 - [x] marker data model
 - [x] in / out range inspector UI and timeline visualization
-- [ ] waveform display
-- [ ] thumbnails on video clips
+- [x] waveform display with source-time mapping
+- [x] decoded thumbnails on video clips
 
 ## Phase 2 — High Performance Media Engine
 
@@ -85,8 +85,8 @@ Current implementation branch: `main`.
 - [ ] decode workers
 - [ ] proxy generation
 - [ ] proxy/original relink
-- [ ] thumbnail cache
-- [ ] waveform cache
+- [x] bounded in-memory timeline thumbnail cache
+- [x] OPFS + memory waveform cache
 - [ ] preview render cache
 - [x] OffscreenCanvas-capable Canvas 2D compositor path
 - [ ] WebGPU compositor
