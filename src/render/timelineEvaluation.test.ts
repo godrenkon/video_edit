@@ -130,6 +130,22 @@ describe('timeline evaluation', () => {
     expect(audioTimelineItems(project, 1).map((item) => item.clip.id)).toEqual(['audio']);
   });
 
+  it('applies bus gain/mute to preview audio track state', () => {
+    const source = makeClip('audio', 0, 5, { volume: 1 });
+    const project = makeProject([makeTrack('audio', 'audio', [source], { gain: 0.5, pan: 0.2, busId: 'voice' })]);
+    project.audioBuses = [
+      { id: 'master', gain: 0.8, muted: false },
+      { id: 'voice', gain: 0.5, muted: false },
+    ];
+
+    const [item] = audioTimelineItems(project, 1);
+    expect(item.track.gain).toBeCloseTo(0.2, 8);
+    expect(item.track.pan).toBeCloseTo(0.2, 8);
+
+    project.audioBuses[1].muted = true;
+    expect(audioTimelineItems(project, 1)).toEqual([]);
+  });
+
   it('applies clip fade envelope to preview audio volume without mutating the project clip', () => {
     const source = makeClip('audio', 2, 8, { volume: 0.8, fadeIn: 2, fadeOut: 2 });
     const project = makeProject([makeTrack('audio', 'audio', [source])]);
