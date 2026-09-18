@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Project, Track, TrackKind } from '../types/editor';
-import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrackGain, setTrackPan, setTrackSolo, setTrackVisible } from './trackOps';
+import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrackGain, setTrackMuted, setTrackPan, setTrackSolo, setTrackVisible } from './trackOps';
 
 function track(id: string, kind: TrackKind, clips: Track['clips'] = []): Track {
   return { id, name: id, kind, muted: false, locked: false, visible: true, clips };
@@ -76,11 +76,12 @@ describe('track operations', () => {
     expect(input.tracks.find((item) => item.id === 'a')?.gain).toBeUndefined();
   });
 
-  it('supports solo and visibility states without changing unrelated tracks', () => {
+  it('supports mute, solo and visibility states without changing unrelated tracks', () => {
     const input = project([track('v', 'video'), track('a', 'audio')]);
-    const soloed = setTrackSolo(input, 'a', true);
+    const muted = setTrackMuted(input, 'a', true);
+    const soloed = setTrackSolo(muted, 'a', true);
     const hidden = setTrackVisible(soloed, 'v', false);
-    expect(hidden.tracks.find((item) => item.id === 'a')?.solo).toBe(true);
+    expect(hidden.tracks.find((item) => item.id === 'a')).toMatchObject({ muted: true, solo: true });
     expect(hidden.tracks.find((item) => item.id === 'v')?.visible).toBe(false);
     expect(input.tracks[0].visible).toBe(true);
     expect(input.tracks[1].solo).toBeUndefined();
