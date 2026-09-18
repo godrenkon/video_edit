@@ -129,3 +129,92 @@ export function adjacentPair(project: Project, clipId: string, edge: TimelineEdg
   if (Math.abs(boundary - right.start) > frame / 2 + Number.EPSILON) return null;
   return { leftId: left.id, rightId: right.id, boundary };
 }
+
+
+/**
+ * Slides a clip between directly adjacent neighbours. The selected clip keeps
+ * its duration and source range; the previous clip's out-point and next clip's
+ * in-point absorb the movement so the outer three-clip span stays fixed.
+ */
+export function slideEditClip(
+  project: Project,
+  clipId: string,
+  requestedStart: number,
+): Project {
+  const location = findClip(project, clipId);
+  if (!location || location.track.locked) return project;
+
+  const triplet = adjacentTriplet(project, clipId);
+  if (!triplet) return project;
+
+  const selectedDuration = location.clip.duration;
+  const frame = 1 / Math.max(1, project.fps);
+  const outerStart = triplet.left.start;
+  const outerEnd = triplet.right.start + triplet.right.duration;
+  const minimumStart = outerStart + frame;
+  const maximumStart = outerEnd - selectedDuration - frame;
+  if (maximumStart < minimumStart) return project;
+
+  let desiredStart = quantizeToFrame(
+    Math.max(minimumStart, Math.min(maximumStart, requestedStart)),
+    project.fps,
+  );
+
+  let next = trimClipRight(project, triplet.left.id, desiredStart, undefined, 0);
+  const leftAfter = findClip(next, triplet.left.id);
+  if (!leftAfter) return project;
+  desiredStart = leftAfter.clip.start + leftAfter.clip.duration;
+
+  let desiredEnd = desiredStart + selectedDuration;
+  next = trimClipLeft(next, triplet.right.id, desiredEnd, undefined, 0);
+  const rightAfter = findClip(next, triplet.right.id);
+  if (!rightAfter) return project;
+
+  if (Math.abs(rightAfter.clip.start - desiredEnd) > frame / 1000) {
+    desiredEnd = rightAfter.clip.start;
+    desiredStart = desiredEnd - selectedDuration;
+    next = trimClipRight(next, triplet.left.id, desiredStart, undefined, 0);
+  }
+
+  const finalLeft = findClip(next, triplet.left.id);
+  const finalRight = findClip(next, triplet.right.id);
+  if (!finalLeft || !finalRight) return project;
+  const finalStart = finalLeft.clip.start + finalLeft.clip.duration;
+  const finalEnd = finalStart + selectedDuration;
+  if (Math.abs(finalRight.clip.start - finalEnd) > frame / 1000) return project;
+
+  next = {
+    ...next,
+    tracks: next.tracks.map((track, index) => index === location.trackIndex
+      ? {
+          ...track,
+          clips: track.clips.map((clip) => clip.id === clipId
+            ? { ...clip, start: quantizeToFrame(finalStart, project.fps) }
+            : clip),
+        }
+      : track),
+  };
+
+  const selectedAfter = findClip(next, clipId);
+  const rightFinal = findClip(next, triplet.right.id);
+  if (!selectedAfter || !rightFinal) return project;
+  if (Math.abs(selectedAfter.clip.start + selectedAfter.clip.duration - rightFinal.clip.start) > frame / 1000) {
+    return project;
+  }
+  return next;
+}
+
+export function adjacentTriplet(project: Project, clipId: string) {
+  const location = findClip(project, clipId);
+  if (!location) return null;
+  const frame = 1 / Math.max(1, project.fps);
+  const clips = [...location.track.clips].sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
+  const index = clips.findIndex((clip) => clip.id === clipId);
+  const left = clips[index - 1];
+  const center = clips[index];
+  const right = clips[index + 1];
+  if (!left || !center || !right) return null;
+  if (Math.abs(left.start + left.duration - center.start) > frame / 2 + Number.EPSILON) return null;
+  if (Math.abs(center.start + center.duration - right.start) > frame / 2 + Number.EPSILON) return null;
+  return { left, center, right };
+}
