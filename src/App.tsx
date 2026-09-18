@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles } from 'lucide-react';
 import { rippleTrimClip, rollEditBoundary, slideEditClip } from './core/advancedTimelineOps';
+import { addAssetBin, assignAssetBin, removeAssetBin, renameAssetBin } from './core/assetBins';
 import { detectCapabilities } from './core/capabilities';
 import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
@@ -383,6 +384,32 @@ export default function App() {
     }), {
       label: '素材メタデータを更新',
       key: `asset:${assetId}:metadata`,
+    });
+  }, [rendering, updateProject]);
+
+  const createAssetBin = useCallback((name: string) => {
+    if (rendering) return;
+    updateProject((p) => addAssetBin(p, name), { label: '素材ビンを作成' });
+  }, [rendering, updateProject]);
+
+  const renameMediaBin = useCallback((binId: string, name: string) => {
+    if (rendering) return;
+    updateProject((p) => renameAssetBin(p, binId, name), {
+      label: '素材ビン名を変更',
+      key: `asset-bin:${binId}:name`,
+    });
+  }, [rendering, updateProject]);
+
+  const deleteMediaBin = useCallback((binId: string) => {
+    if (rendering) return;
+    updateProject((p) => removeAssetBin(p, binId), { label: '素材ビンを削除' });
+  }, [rendering, updateProject]);
+
+  const setAssetBin = useCallback((assetId: string, binId?: string) => {
+    if (rendering) return;
+    updateProject((p) => assignAssetBin(p, assetId, binId), {
+      label: '素材ビンを変更',
+      key: `asset:${assetId}:bin`,
     });
   }, [rendering, updateProject]);
 
@@ -929,6 +956,7 @@ export default function App() {
       <main className="editorGrid" aria-busy={rendering}>
         <MediaLibrary
           assets={project.assets}
+          assetBins={project.assetBins ?? []}
           timelineTime={time}
           onImport={importFiles}
           onPunchInVoiceover={importPunchInVoiceover}
@@ -938,6 +966,10 @@ export default function App() {
           onAdd={addAssetToTimeline}
           onDelete={deleteAsset}
           onAssetMeta={updateAssetMeta}
+          onCreateBin={createAssetBin}
+          onRenameBin={renameMediaBin}
+          onDeleteBin={deleteMediaBin}
+          onAssignBin={setAssetBin}
           onRelink={relinkAsset}
           proxyProgress={proxyProgress}
           onGenerateProxy={generateAssetProxy}
