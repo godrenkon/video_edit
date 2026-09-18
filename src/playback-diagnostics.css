@@ -1,0 +1,2 @@
+.playbackDiagnostics { margin-left: auto; font: 500 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); white-space: nowrap; }
+.playbackDiagnostics.warn { color: #ffc86b; }
