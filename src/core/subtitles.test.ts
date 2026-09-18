@@ -1,15 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatAss,
+  formatAssTimestamp,
   formatSrt,
   formatSrtTimestamp,
   formatVttTimestamp,
   formatWebVtt,
+  parseAss,
   parseSrt,
   parseWebVtt,
   stripSrtMarkup,
   stripSubtitleMarkup,
+  subtitleClipsFromAss,
   subtitleClipsFromSrt,
   subtitleClipsFromWebVtt,
+  subtitleClipsToAss,
   subtitleClipsToSrt,
   subtitleClipsToWebVtt,
 } from './subtitles';
@@ -146,5 +151,64 @@ describe('WebVTT subtitle exchange', () => {
 
   it('strips WebVTT voice/class markup and decodes basic entities', () => {
     expect(stripSubtitleMarkup('<v Speaker><c.red>A &amp; B</c></v>')).toBe('A & B');
+  });
+});
+
+
+describe('ASS subtitle exchange subset', () => {
+  it('parses standard Events format and preserves commas in the Text field', () => {
+    const input = [
+      '[Script Info]',
+      'ScriptType: v4.00+',
+      '',
+      '[Events]',
+      'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+      'Dialogue: 0,0:00:01.25,0:00:03.50,Default,,0,0,0,,{\\an8}Hello, world\\N二行目',
+      'Dialogue: 0,0:00:05.00,0:00:06.10,Default,,0,0,0,,Second',
+    ].join('\n');
+
+    expect(parseAss(input)).toEqual([
+      { start: 1.25, end: 3.5, text: '{\\an8}Hello, world\\N二行目' },
+      { start: 5, end: 6.1, text: 'Second' },
+    ]);
+  });
+
+  it('ignores malformed ASS dialogue rows and non-Events sections', () => {
+    const input = [
+      '[V4+ Styles]',
+      'Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Not an event',
+      '[Events]',
+      'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+      'Dialogue: 0,bad,0:00:02.00,Default,,0,0,0,,Bad',
+      'Dialogue: 0,0:00:03.00,0:00:03.00,Default,,0,0,0,,Zero',
+      'Dialogue: 0,0:00:04.00,0:00:05.00,Default,,0,0,0,,Good',
+    ].join('\n');
+    expect(parseAss(input)).toEqual([{ start: 4, end: 5, text: 'Good' }]);
+  });
+
+  it('imports ASS override tags as plain subtitle text and converts ASS line breaks', () => {
+    const clips = subtitleClipsFromAss([
+      '[Events]',
+      'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+      'Dialogue: 0,0:00:02.00,0:00:04.50,Default,,0,0,0,,{\\an8}<b>Hello</b>\\Nworld',
+    ].join('\n'), { y: 220 });
+
+    expect(clips[0]).toMatchObject({
+      kind: 'subtitle',
+      start: 2,
+      duration: 2.5,
+      transform: { y: 220 },
+      subtitle: { text: 'Hello\nworld' },
+    });
+  });
+
+  it('formats a canonical ASS file and exports clip timing', () => {
+    const output = formatAss([{ start: 1.234, end: 2.506, text: 'A\nB' }]);
+    expect(output).toContain('[Events]');
+    expect(output).toContain('Dialogue: 0,0:00:01.23,0:00:02.51,Default,,0,0,0,,A\\NB');
+    expect(formatAssTimestamp(3661.239)).toBe('1:01:01.24');
+
+    const clips = subtitleClipsFromSrt('1\n00:00:07,000 --> 00:00:08,000\nHello');
+    expect(subtitleClipsToAss(clips)).toContain('0:00:07.00,0:00:08.00');
   });
 });
