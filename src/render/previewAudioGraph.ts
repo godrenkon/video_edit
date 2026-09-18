@@ -1,6 +1,6 @@
 import type { EffectInstance } from '../types/editor';
 import { resolveAudioEffects, type ResolvedAudioEffect } from './audioEffects';
-import { measureAudioSamples, type AudioMeterReading } from './audioMeter';
+import { loudnessAnalyserFftSize, measureAudioSamples, measureKWeightedLoudness, type AudioMeterReading } from './audioMeter';
 
 type PreviewEffectNode =
   | { effectId: string; kind: 'gain'; node: GainNode }
@@ -20,7 +20,7 @@ type PreviewGraphState = {
 };
 
 let sharedContext: AudioContext | null = null;
-let sharedOutput: { gain: GainNode; analyser: AnalyserNode; samples: Float32Array<ArrayBuffer> } | null = null;
+let sharedOutput: { gain: GainNode; analyser: AnalyserNode; samples: Float32Array<ArrayBuffer>; lufsAnalyser: AnalyserNode; lufsSamples: Float32Array<ArrayBuffer> } | null = null;
 const stateByElement = new WeakMap<HTMLMediaElement, PreviewGraphState>();
 
 /**
@@ -156,18 +156,46 @@ function getSharedOutput(context: AudioContext) {
   analyser.smoothingTimeConstant = 0.25;
   gain.connect(analyser);
   analyser.connect(context.destination);
+
+  // Meter-only K-weighting approximation for LUFS-M. The branch ends in a
+  // zero-gain sink so it is processed without adding a second audible path.
+  const highShelf = context.createBiquadFilter();
+  highShelf.type = 'highshelf';
+  highShelf.frequency.value = 1681.974450955533;
+  highShelf.gain.value = 4;
+  const highPass = context.createBiquadFilter();
+  highPass.type = 'highpass';
+  highPass.frequency.value = 38.13547087602444;
+  highPass.Q.value = 0.5003270373238773;
+  const lufsAnalyser = context.createAnalyser();
+  lufsAnalyser.fftSize = loudnessAnalyserFftSize(context.sampleRate);
+  lufsAnalyser.smoothingTimeConstant = 0;
+  const meterSink = context.createGain();
+  meterSink.gain.value = 0;
+  gain.connect(highShelf);
+  highShelf.connect(highPass);
+  highPass.connect(lufsAnalyser);
+  lufsAnalyser.connect(meterSink);
+  meterSink.connect(context.destination);
+
   sharedOutput = {
     gain,
     analyser,
     samples: new Float32Array(new ArrayBuffer(analyser.fftSize * Float32Array.BYTES_PER_ELEMENT)),
+    lufsAnalyser,
+    lufsSamples: new Float32Array(new ArrayBuffer(lufsAnalyser.fftSize * Float32Array.BYTES_PER_ELEMENT)),
   };
   return sharedOutput;
 }
 
 export function readPreviewAudioMeter(): AudioMeterReading {
-  if (!sharedOutput) return measureAudioSamples([]);
+  if (!sharedOutput) return { ...measureAudioSamples([]), lufsMomentary: -120 };
   sharedOutput.analyser.getFloatTimeDomainData(sharedOutput.samples);
-  return measureAudioSamples(sharedOutput.samples);
+  sharedOutput.lufsAnalyser.getFloatTimeDomainData(sharedOutput.lufsSamples);
+  return {
+    ...measureAudioSamples(sharedOutput.samples),
+    lufsMomentary: measureKWeightedLoudness(sharedOutput.lufsSamples),
+  };
 }
 
 function createNode(context: AudioContext, effect: ResolvedAudioEffect): PreviewEffectNode | null {
