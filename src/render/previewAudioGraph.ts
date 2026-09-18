@@ -15,6 +15,8 @@ type PreviewGraphState = {
   nodes: PreviewEffectNode[];
   topology: string;
   connected: boolean;
+  trackGain: GainNode;
+  trackPan: StereoPannerNode | null;
 };
 
 let sharedContext: AudioContext | null = null;
@@ -48,6 +50,8 @@ export class PreviewAudioGraph {
       nodes: [],
       topology: '',
       connected: false,
+      trackGain: context.createGain(),
+      trackPan: typeof context.createStereoPanner === 'function' ? context.createStereoPanner() : null,
     };
     stateByElement.set(element, state);
     this.state = state;
@@ -70,6 +74,15 @@ export class PreviewAudioGraph {
     else this.updateNodes(resolved);
   }
 
+  setTrackMix(gain: number, pan: number) {
+    if (this.detached) return;
+    const now = this.state.context.currentTime;
+    setAudioParam(this.state.trackGain.gain, Math.max(0, Math.min(4, Number.isFinite(gain) ? gain : 1)), now);
+    if (this.state.trackPan) {
+      setAudioParam(this.state.trackPan.pan, Math.max(-1, Math.min(1, Number.isFinite(pan) ? pan : 0)), now);
+    }
+  }
+
   detach() {
     if (this.detached) return;
     this.detached = true;
@@ -89,7 +102,13 @@ export class PreviewAudioGraph {
       previous = item.node;
       this.state.nodes.push(item);
     }
-    previous.connect(getSharedOutput(this.state.context).gain);
+    previous.connect(this.state.trackGain);
+    if (this.state.trackPan) {
+      this.state.trackGain.connect(this.state.trackPan);
+      this.state.trackPan.connect(getSharedOutput(this.state.context).gain);
+    } else {
+      this.state.trackGain.connect(getSharedOutput(this.state.context).gain);
+    }
     this.state.connected = true;
     this.updateNodes(effects);
   }
@@ -178,6 +197,8 @@ function disconnectState(state: PreviewGraphState) {
   for (const item of state.nodes) {
     try { item.node.disconnect(); } catch { /* already disconnected */ }
   }
+  try { state.trackGain.disconnect(); } catch { /* already disconnected */ }
+  try { state.trackPan?.disconnect(); } catch { /* already disconnected */ }
   state.connected = false;
 }
 
