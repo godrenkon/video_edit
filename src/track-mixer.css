@@ -18,3 +18,13 @@
 .trackMixerControl b { color: var(--text); font-weight: 600; }
 .trackMixerControl input[type=range] { width: 100%; accent-color: var(--green); }
 .trackMixerReset { width: 100%; }
+
+.trackMixerBuses { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; }
+.trackBusStrip { padding: 7px; border: 1px solid #29404e; border-radius: 7px; background: #0b1419; display: grid; gap: 5px; }
+.trackBusStrip.muted { opacity: .65; }
+.trackBusHeader { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.trackBusHeader strong { font-size: 9px; color: #d8e4ea; }
+.trackBusHeader button { height: 22px; padding: 0 7px; border: 1px solid var(--line); border-radius: 5px; background: #11191f; color: var(--muted); font-size: 8px; cursor: pointer; }
+.trackBusHeader button.active { color: #ff9a9a; border-color: rgba(255,154,154,.45); }
+.trackMixerBusSelect { display: grid; grid-template-columns: 28px minmax(0,1fr); align-items: center; gap: 5px; font-size: 8px; color: var(--muted); }
+.trackMixerBusSelect select { min-width: 0; height: 25px; border: 1px solid var(--line); border-radius: 5px; background: #0a1014; color: var(--text); font-size: 8px; padding: 0 5px; }
