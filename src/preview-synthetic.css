@@ -11,3 +11,5 @@
 .previewPanel:fullscreen .stageOuter { min-height: 0; height: 100%; display: flex; align-items: center; justify-content: center; padding: 12px; box-sizing: border-box; }
 .previewPanel:fullscreen .stage { width: auto; height: calc(100vh - 118px); max-width: 100%; max-height: calc(100vh - 118px); aspect-ratio: var(--preview-aspect, 1.7778); flex: 0 1 auto; }
 .previewPanel:fullscreen .transport { min-height: 48px; }
+
+.previewVignetteOverlay { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: block; }
