@@ -128,6 +128,10 @@ function migrateTransition(value: unknown, clipDuration: number): ClipTransition
     && kind !== 'slide-right'
     && kind !== 'slide-up'
     && kind !== 'slide-down'
+    && kind !== 'wipe-left'
+    && kind !== 'wipe-right'
+    && kind !== 'wipe-up'
+    && kind !== 'wipe-down'
   ) return undefined;
   const duration = optionalClampedNumber(value.duration, 0, clipDuration);
   return duration && duration > 0 ? { kind, duration } : undefined;
