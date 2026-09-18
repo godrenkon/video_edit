@@ -53,6 +53,7 @@ export function buildAudioMixSegments(project: Project, startSeconds: number, en
       if (clip.muted || !clip.assetId) continue;
       const asset = assetById.get(clip.assetId);
       if (!asset || (asset.kind !== 'audio' && asset.kind !== 'video')) continue;
+      if (asset.kind === 'video' && typeof clip.freezeFrameAt === 'number' && Number.isFinite(clip.freezeFrameAt)) continue;
       const timelineStart = Math.max(start, clip.start);
       const timelineEnd = Math.min(end, clip.start + clip.duration);
       if (timelineEnd <= timelineStart) continue;
