@@ -13,12 +13,14 @@ export function groupSelectedClips(project: Project, clipIds: Iterable<string>) 
   let changed = false;
   const tracks = project.tracks.map((track) => {
     if (track.locked) return track;
+    let trackChanged = false;
     const clips = track.clips.map((clip) => {
       if (!editableIds.has(clip.id)) return clip;
+      trackChanged = true;
       changed = true;
       return { ...clip, groupId };
     });
-    return changed ? { ...track, clips } : track;
+    return trackChanged ? { ...track, clips } : track;
   });
   return changed ? { ...project, tracks } : project;
 }
@@ -39,13 +41,15 @@ export function ungroupSelectedClips(project: Project, clipIds: Iterable<string>
   let changed = false;
   const tracks = project.tracks.map((track) => {
     if (track.locked) return track;
+    let trackChanged = false;
     const clips = track.clips.map((clip) => {
       if (!clip.groupId || !groupIds.has(clip.groupId)) return clip;
+      trackChanged = true;
       changed = true;
       const { groupId: _groupId, ...rest } = clip;
       return rest;
     });
-    return changed ? { ...track, clips } : track;
+    return trackChanged ? { ...track, clips } : track;
   });
   return changed ? { ...project, tracks } : project;
 }
