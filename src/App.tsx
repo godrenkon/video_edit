@@ -30,6 +30,7 @@ import {
 } from './core/storage';
 import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
+import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { exportProjectVideo } from './render/projectExporter';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
@@ -49,6 +50,7 @@ interface UpdateOptions {
 export default function App() {
   const [project, setProject] = useState<Project>(() => createProject());
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [selectedClipIds, setSelectedClipIds] = useState<string[]>([]);
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [zoom, setZoom] = useState(48);
@@ -80,6 +82,36 @@ export default function App() {
     if (!selectedClipId) return null;
     return project.tracks.find((track) => track.clips.some((clip) => clip.id === selectedClipId))?.id ?? null;
   }, [project.tracks, selectedClipId]);
+
+  const selectClip = useCallback((clipId: string, additive = false) => {
+    if (!additive) {
+      setSelectedClipIds([clipId]);
+      setSelectedClipId(clipId);
+      return;
+    }
+    setSelectedClipIds((current) => {
+      if (current.includes(clipId)) {
+        const next = current.filter((id) => id !== clipId);
+        setSelectedClipId((primary) => primary === clipId ? (next.at(-1) ?? null) : primary);
+        return next;
+      }
+      setSelectedClipId(clipId);
+      return [...current, clipId];
+    });
+  }, []);
+
+  const clearClipSelection = useCallback(() => {
+    setSelectedClipIds([]);
+    setSelectedClipId(null);
+  }, []);
+
+  useEffect(() => {
+    const existing = existingClipIds(project, selectedClipIds);
+    if (existing.length !== selectedClipIds.length) {
+      setSelectedClipIds(existing);
+      if (selectedClipId && !existing.includes(selectedClipId)) setSelectedClipId(existing.at(-1) ?? null);
+    }
+  }, [project, selectedClipId, selectedClipIds]);
 
   useEffect(() => () => {
     renderAbort.current?.abort('Editor closed');
@@ -326,13 +358,13 @@ export default function App() {
   };
 
   const removeSelectedClip = useCallback(() => {
-    if (!selectedClipId || rendering) return;
-    updateProject((p) => ({
-      ...p,
-      tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => c.id !== selectedClipId) })),
-    }), { label: 'クリップ削除' });
-    setSelectedClipId(null);
-  }, [rendering, selectedClipId, updateProject]);
+    if (selectedClipIds.length === 0 || rendering) return;
+    const ids = [...selectedClipIds];
+    updateProject((p) => deleteSelectedClips(p, ids), {
+      label: ids.length > 1 ? `${ids.length}クリップ削除` : 'クリップ削除',
+    });
+    clearClipSelection();
+  }, [clearClipSelection, rendering, selectedClipIds, updateProject]);
 
   const splitSelectedClip = useCallback(() => {
     if (!selectedClipId || !selectedClip || rendering) return;
@@ -378,12 +410,16 @@ export default function App() {
   }, [project, rendering, selectedClipId]);
 
   const nudgeSelected = useCallback((frames: number) => {
-    if (!selectedClipId || rendering) return;
-    updateProject((p) => nudgeClip(p, selectedClipId, frames), {
-      label: 'クリップをフレーム移動',
-      key: `clip:${selectedClipId}:nudge`,
-    });
-  }, [rendering, selectedClipId, updateProject]);
+    if (selectedClipIds.length === 0 || rendering) return;
+    const ids = [...selectedClipIds];
+    updateProject(
+      (p) => ids.length > 1 ? nudgeSelectedClips(p, ids, frames) : nudgeClip(p, ids[0], frames),
+      {
+        label: ids.length > 1 ? '選択クリップをフレーム移動' : 'クリップをフレーム移動',
+        key: ids.length > 1 ? `multi:nudge:${ids.join(',')}` : `clip:${ids[0]}:nudge`,
+      },
+    );
+  }, [rendering, selectedClipIds, updateProject]);
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -633,9 +669,15 @@ export default function App() {
         time={time}
         zoom={zoom}
         selectedClipId={selectedClipId}
+        selectedClipIds={selectedClipIds}
         onZoom={setZoom}
         onTime={(v) => { setPlaying(false); setTime(v); }}
-        onSelect={setSelectedClipId}
+        onSelect={selectClip}
+        onClearSelection={clearClipSelection}
+        onMoveSelectedByDelta={(delta) => updateProject(
+          (p) => moveSelectedClipsByDelta(p, selectedClipIds, delta),
+          { label: '選択クリップ移動', key: `multi:move:${selectedClipIds.join(',')}` },
+        )}
         onSplitSelected={splitSelectedClip}
         onDeleteSelected={removeSelectedClip}
         onDuplicateSelected={duplicateSelectedClip}
