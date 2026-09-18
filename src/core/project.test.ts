@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultGeneratorClip, defaultSubtitleClip, defaultTextClip } from './project';
+import { defaultGeneratorClip, defaultLowerThirdClip, defaultSubtitleClip, defaultTextClip } from './project';
 
 describe('synthetic clip defaults', () => {
   it('creates editable text clips with serializable styling', () => {
@@ -8,6 +8,23 @@ describe('synthetic clip defaults', () => {
     expect(clip.start).toBe(3);
     expect(clip.duration).toBe(5);
     expect(clip.text).toMatchObject({ text: 'テキスト', fontSize: 72, color: '#ffffff', align: 'center' });
+  });
+
+  it('creates editable lower-third presets with safe-area positioning', () => {
+    const clean = defaultLowerThirdClip(1, 1920, 1080, 'clean');
+    const accent = defaultLowerThirdClip(1, 1920, 1080, 'accent');
+    const minimal = defaultLowerThirdClip(1, 1920, 1080, 'minimal');
+
+    expect(clean).toMatchObject({
+      kind: 'text',
+      start: 1,
+      name: '下部テロップ / Clean',
+      transform: { x: -825.6, y: 367.2, anchorX: 0, anchorY: 0.5 },
+      text: { text: '名前\n肩書き / 説明', align: 'left' },
+    });
+    expect(clean.text?.backgroundColor).toBeTruthy();
+    expect(accent.text?.backgroundColor).toBe('#5fd8ff');
+    expect(minimal.text?.backgroundColor).toBeUndefined();
   });
 
   it('creates subtitle clips at the requested vertical position', () => {
