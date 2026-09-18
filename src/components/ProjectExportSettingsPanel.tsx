@@ -1,7 +1,8 @@
-import { Camera, Download, Film, Music, X } from 'lucide-react';
+import { Camera, Download, Film, Images, Music, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { resolveExportDimensions } from '../render/projectExporter';
 import { exportProjectPng } from '../render/stillExporter';
+import { exportProjectPngSequence } from '../render/imageSequenceExporter';
 import { exportProjectWav } from '../render/wavExporter';
 import type { Project, ProjectExportContainer, ProjectExportQuality, ProjectExportSettings } from '../types/editor';
 import '../export-settings.css';
@@ -32,7 +33,11 @@ export function ProjectExportSettingsPanel({ project, timelineTime, onChange }: 
   const [wavStatus, setWavStatus] = useState('');
   const [pngBusy, setPngBusy] = useState(false);
   const [pngStatus, setPngStatus] = useState('');
+  const [sequenceBusy, setSequenceBusy] = useState(false);
+  const [sequenceProgress, setSequenceProgress] = useState<number | null>(null);
+  const [sequenceStatus, setSequenceStatus] = useState('');
   const wavAbort = useRef<AbortController | null>(null);
+  const sequenceAbort = useRef<AbortController | null>(null);
 
   const patch = (next: Partial<ProjectExportSettings>) => onChange({ ...settings, ...next });
 
@@ -67,6 +72,56 @@ export function ProjectExportSettingsPanel({ project, timelineTime, onChange }: 
   };
 
   const cancelWav = () => wavAbort.current?.abort('ユーザーがWAV書き出しを中止しました');
+
+  const exportSequence = async () => {
+    if (sequenceBusy) return;
+    const picker = (window as unknown as {
+      showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>;
+    }).showDirectoryPicker;
+    if (!picker) {
+      setSequenceStatus('このブラウザはフォルダへのPNG連番保存に対応していません。');
+      return;
+    }
+
+    let directory: FileSystemDirectoryHandle;
+    try {
+      directory = await picker({ mode: 'readwrite' });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setSequenceStatus('保存先フォルダの選択をキャンセルしました');
+        return;
+      }
+      setSequenceStatus(error instanceof Error ? error.message : '保存先フォルダを開けませんでした');
+      return;
+    }
+
+    const controller = new AbortController();
+    sequenceAbort.current = controller;
+    setSequenceBusy(true);
+    setSequenceProgress(0);
+    setSequenceStatus('PNG連番を書き出しています…');
+    try {
+      const result = await exportProjectPngSequence(project, {
+        directory,
+        signal: controller.signal,
+        onProgress: (progress) => setSequenceProgress(progress.fraction),
+      });
+      if (controller.signal.aborted) return;
+      setSequenceProgress(1);
+      setSequenceStatus(`${result.frameCount}枚 · ${result.width}×${result.height} · ${result.folderName}`);
+    } catch (error) {
+      if (controller.signal.aborted) setSequenceStatus('PNG連番書き出しを中止しました。生成済みフレームは保存先に残ります。');
+      else {
+        console.error(error);
+        setSequenceStatus(error instanceof Error ? error.message : 'PNG連番書き出しエラー');
+      }
+    } finally {
+      if (sequenceAbort.current === controller) sequenceAbort.current = null;
+      setSequenceBusy(false);
+    }
+  };
+
+  const cancelSequence = () => sequenceAbort.current?.abort('ユーザーがPNG連番書き出しを中止しました');
 
   const exportPng = async () => {
     if (pngBusy) return;
@@ -131,6 +186,21 @@ export function ProjectExportSettingsPanel({ project, timelineTime, onChange }: 
           <Download size={12} />{pngBusy ? 'PNGを生成中…' : '現在位置をPNGで保存'}
         </button>
         {pngStatus && <div className="audioExportStatus">{pngStatus}</div>}
+      </div>
+
+      <div className="audioOnlyExport">
+        <div className="audioOnlyTitle"><Images size={12} /><span>PNG連番</span><b>In / Out範囲</b></div>
+        {sequenceBusy ? (
+          <button type="button" className="audioExportButton cancel" onClick={cancelSequence}>
+            <X size={12} />中止 {sequenceProgress === null ? '' : `${Math.round(sequenceProgress * 100)}%`}
+          </button>
+        ) : (
+          <button type="button" className="audioExportButton" onClick={exportSequence}>
+            <Download size={12} />保存先を選んでPNG連番を書き出す
+          </button>
+        )}
+        {sequenceBusy && <progress className="audioExportProgress" max={1} value={sequenceProgress ?? 0} />}
+        {sequenceStatus && <div className="audioExportStatus">{sequenceStatus}</div>}
       </div>
 
       <div className="audioOnlyExport">
