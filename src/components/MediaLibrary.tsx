@@ -8,7 +8,10 @@ import { CameraRecorder } from './CameraRecorder';
 
 interface Props {
   assets: AssetMeta[];
+  timelineTime: number;
   onImport: (files: File[]) => void | Promise<void>;
+  onPunchInVoiceover: (file: File, startTime: number) => void | Promise<void>;
+  onPunchInPlayback: (active: boolean) => void;
   onImportFolder: () => void;
   folderImportSupported: boolean;
   onAdd: (assetId: string, mode: 'insert' | 'overwrite') => void;
@@ -38,7 +41,10 @@ const formatBytes = (bytes: number) => {
 
 export function MediaLibrary({
   assets,
+  timelineTime,
   onImport,
+  onPunchInVoiceover,
+  onPunchInPlayback,
   onImportFolder,
   folderImportSupported,
   onAdd,
@@ -116,7 +122,7 @@ export function MediaLibrary({
         <button type="button" onClick={onCreateSubtitle} title="字幕クリップを追加"><Captions size={14} /><span>字幕</span></button>
         <button type="button" onClick={onCreateGenerator} title="背景ジェネレーターを追加"><Palette size={14} /><span>背景</span></button>
       </div>
-      <MicrophoneRecorder onImport={onImport} />
+      <MicrophoneRecorder onImport={onImport} timelineTime={timelineTime} onPunchIn={onPunchInVoiceover} onPunchInPlayback={onPunchInPlayback} />
       <ScreenRecorder onImport={onImport} />
       <CameraRecorder onImport={onImport} />
       <div className="lowerThirdCreate">
