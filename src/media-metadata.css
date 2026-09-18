@@ -11,7 +11,7 @@
 .assetMetaEditor input, .assetMetaEditor select, .assetMetaEditor textarea { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 5px; background: #080d10; color: var(--text); font-size: 9px; padding: 5px 6px; outline: none; }
 .assetMetaEditor textarea { resize: vertical; }
 
-.mediaFilterRow { margin: 0 8px 6px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; gap: 5px; align-items: center; }
+.mediaFilterRow { margin: 0 8px 6px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto; gap: 5px; align-items: center; }
 .mediaFilterRow select { min-width: 0; height: 26px; border: 1px solid var(--line); border-radius: 5px; background: #0a0f12; color: var(--muted); font-size: 8px; padding: 0 5px; }
 .mediaFilterRow span { color: var(--muted); font-size: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
@@ -29,3 +29,10 @@
 .assetRelinkStatus b.online { color: #8fd9aa; }
 .assetRelinkStatus b.missing { color: #ff9a9a; }
 .assetRelink > button { height: 27px; border: 1px solid var(--line); border-radius: 5px; background: #11181d; color: var(--text); font-size: 8px; cursor: pointer; }
+
+.assetBinTools { margin: 0 8px 7px; display: grid; gap: 5px; }
+.assetBinCreate, .assetBinEdit { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 5px; }
+.assetBinTools input { min-width: 0; height: 27px; border: 1px solid var(--line); border-radius: 5px; background: #080d10; color: var(--text); padding: 0 6px; font-size: 8px; outline: none; }
+.assetBinTools button { height: 27px; min-width: 52px; border: 1px solid var(--line); border-radius: 5px; background: #11181d; color: var(--text); font-size: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; }
+.assetBinTools button:disabled { opacity: .4; cursor: default; }
+.assetBinTools button.danger { min-width: 32px; color: #ff9a9a; }
