@@ -263,7 +263,7 @@ Current implementation branch: `main`.
 - [x] OPFS-streamed screen / tab capture with normal media import
 - [x] OPFS-streamed front/rear camera capture with live preview
 - [x] shared cancellable 3-second countdown for mic / screen / camera capture
-- [ ] monitoring
+- [x] optional low-latency microphone monitoring with safe default-off behavior
 - [ ] punch-in voiceover
 
 ## Phase 10 — AI Assistance
