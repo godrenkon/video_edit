@@ -4,8 +4,21 @@ import { uid } from './project';
 export function groupSelectedClips(project: Project, clipIds: Iterable<string>) {
   const selected = new Set(clipIds);
   if (selected.size < 2) return project;
+
+  const inheritedGroupIds = new Set<string>();
+  for (const track of project.tracks) {
+    if (track.locked) continue;
+    for (const clip of track.clips) {
+      if (selected.has(clip.id) && clip.groupId) inheritedGroupIds.add(clip.groupId);
+    }
+  }
+
   const editableIds = new Set(
-    project.tracks.flatMap((track) => track.locked ? [] : track.clips.filter((clip) => selected.has(clip.id)).map((clip) => clip.id)),
+    project.tracks.flatMap((track) => track.locked
+      ? []
+      : track.clips
+          .filter((clip) => selected.has(clip.id) || (clip.groupId && inheritedGroupIds.has(clip.groupId)))
+          .map((clip) => clip.id)),
   );
   if (editableIds.size < 2) return project;
 
