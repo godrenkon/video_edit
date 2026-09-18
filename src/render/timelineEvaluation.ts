@@ -1,6 +1,6 @@
 import type { Clip, MouthCue, Project, Track } from '../types/editor';
 import { clipFadeGain } from './audioEnvelope';
-import { resolveTrackBusMix } from './trackMix';
+import { buildAudioDuckingEnvelope, duckingGainAt, resolveTrackBusMix } from './trackMix';
 
 export interface ActiveTimelineItem {
   track: Track;
@@ -67,6 +67,7 @@ export function audioTimelineItems(project: Project, timeSeconds: number) {
   const assetKinds = new Map(project.assets.map((asset) => [asset.id, asset.kind]));
   const candidates = project.tracks.filter((track) => track.kind === 'audio' || track.kind === 'video');
   const hasSolo = candidates.some((track) => track.solo);
+  const ducking = buildAudioDuckingEnvelope(project);
 
   return activeTimelineItems(project, timeSeconds)
     .filter(({ track, clip }) => {
@@ -79,6 +80,7 @@ export function audioTimelineItems(project: Project, timeSeconds: number) {
     })
     .map((item) => {
       const trackMix = resolveTrackBusMix(project, item.track);
+      const duckGain = duckingGainAt(ducking, timeSeconds, trackMix.busId);
       const fadeGain = clipFadeGain({
         duration: item.clip.duration,
         fadeIn: item.clip.fadeIn,
@@ -88,7 +90,7 @@ export function audioTimelineItems(project: Project, timeSeconds: number) {
         ...item,
         track: {
           ...item.track,
-          gain: trackMix.gain,
+          gain: trackMix.gain * duckGain,
           pan: trackMix.pan,
           muted: trackMix.muted,
         },
