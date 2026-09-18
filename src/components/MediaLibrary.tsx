@@ -1,6 +1,7 @@
 import { Captions, FileAudio, FileImage, Film, FolderOpen, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { AssetMeta } from '../types/editor';
+import type { LowerThirdPreset } from '../core/project';
 
 interface Props {
   assets: AssetMeta[];
@@ -16,6 +17,7 @@ interface Props {
   onCancelProxy: (assetId: string) => void;
   onRemoveProxy: (assetId: string) => void;
   onCreateText: () => void;
+  onCreateLowerThird: (preset: LowerThirdPreset) => void;
   onCreateSubtitle: () => void;
   onCreateGenerator: () => void;
 }
@@ -45,6 +47,7 @@ export function MediaLibrary({
   onCancelProxy,
   onRemoveProxy,
   onCreateText,
+  onCreateLowerThird,
   onCreateSubtitle,
   onCreateGenerator,
 }: Props) {
@@ -56,6 +59,7 @@ export function MediaLibrary({
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [kindFilter, setKindFilter] = useState<'all' | AssetMeta['kind']>('all');
   const [sortMode, setSortMode] = useState<'import' | 'name' | 'rating'>('import');
+  const [lowerThirdPreset, setLowerThirdPreset] = useState<LowerThirdPreset>('clean');
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return assets.filter((asset) => {
@@ -108,6 +112,15 @@ export function MediaLibrary({
         <button type="button" onClick={onCreateText} title="テキストクリップを追加"><Type size={14} /><span>テキスト</span></button>
         <button type="button" onClick={onCreateSubtitle} title="字幕クリップを追加"><Captions size={14} /><span>字幕</span></button>
         <button type="button" onClick={onCreateGenerator} title="背景ジェネレーターを追加"><Palette size={14} /><span>背景</span></button>
+      </div>
+      <div className="lowerThirdCreate">
+        <span>下部テロップ</span>
+        <select value={lowerThirdPreset} onChange={(event) => setLowerThirdPreset(event.target.value as LowerThirdPreset)}>
+          <option value="clean">Clean</option>
+          <option value="accent">Accent</option>
+          <option value="minimal">Minimal</option>
+        </select>
+        <button type="button" onClick={() => onCreateLowerThird(lowerThirdPreset)}>追加</button>
       </div>
       <div className="mediaEditMode" aria-label="タイムライン編集モード">
         <span>追加モード</span>
