@@ -630,6 +630,7 @@ export default function App() {
         onTime={(v) => { setPlaying(false); setTime(v); }}
         onSelect={setSelectedClipId}
         onSplitSelected={splitSelectedClip}
+        onDeleteSelected={removeSelectedClip}
         onDuplicateSelected={duplicateSelectedClip}
         onCopySelected={copySelectedClip}
         onPasteCopied={pasteCopiedClip}
