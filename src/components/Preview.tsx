@@ -283,7 +283,11 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
 
   return (
     <section className="previewColumn">
-      <div ref={panelRef} className="panel previewPanel">
+      <div
+        ref={panelRef}
+        className="panel previewPanel"
+        style={{ '--preview-aspect': project.width / Math.max(1, project.height) } as CSSProperties}
+      >
         <div className="previewToolbar">
           <span>{project.width}×{project.height}</span>
           <span>{project.fps} fps</span>
