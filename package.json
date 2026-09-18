@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "lucide-react": "1.46.0",
-    "mediabunny": "^1.54.0",
+    "mediabunny": "1.54.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
