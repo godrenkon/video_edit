@@ -11,6 +11,7 @@ import { previewCropLayout } from '../render/cropGeometry';
 import { canvasFilterForEffects } from '../render/effectEvaluation';
 import { PreviewAudioGraph } from '../render/previewAudioGraph';
 import { previewSyncTolerance } from '../render/previewClock';
+import { transitionOpacity } from '../render/transitionEnvelope';
 import {
   deterministicNoiseByte,
   generatorColor,
@@ -40,7 +41,7 @@ function layerStyle(clip: Clip, project: Project, time: number, extraY = 0): CSS
   return {
     transform: clipPreviewTransform(clip, project, extraY),
     transformOrigin: `${(clip.transform.anchorX ?? 0.5) * 100}% ${(clip.transform.anchorY ?? 0.5) * 100}%`,
-    opacity: Math.max(0, Math.min(1, clip.transform.opacity)),
+    opacity: Math.max(0, Math.min(1, clip.transform.opacity * transitionOpacity(clip, clipLocal))),
     mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
     filter: canvasFilterForEffects(clip.effects ?? [], clipLocal),
   };
@@ -78,7 +79,7 @@ function assetLayerStyles(
       overflow: 'hidden',
       transformOrigin: '0 0',
       transform: `rotate(${clip.transform.rotation}deg) scale(${clip.transform.scale}) translate(${-anchorX * 100}%, ${-anchorY * 100}%)`,
-      opacity: Math.max(0, Math.min(1, clip.transform.opacity)),
+      opacity: Math.max(0, Math.min(1, clip.transform.opacity * transitionOpacity(clip, clipLocal))),
       mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
       filter: canvasFilterForEffects(clip.effects ?? [], clipLocal),
       pointerEvents: 'none',
