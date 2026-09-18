@@ -10,9 +10,12 @@ interface Props {
   time: number;
   zoom: number;
   selectedClipId: string | null;
+  selectedClipIds: string[];
   onZoom: (value: number) => void;
   onTime: (time: number) => void;
-  onSelect: (clipId: string) => void;
+  onSelect: (clipId: string, additive: boolean) => void;
+  onClearSelection: () => void;
+  onMoveSelectedByDelta: (deltaSeconds: number) => void;
   onSplitSelected: () => void;
   onDeleteSelected: () => void;
   onDuplicateSelected: () => void;
@@ -35,9 +38,12 @@ export function Timeline(props: Props) {
     time,
     zoom,
     selectedClipId,
+    selectedClipIds,
     onZoom,
     onTime,
     onSelect,
+    onClearSelection,
+    onMoveSelectedByDelta,
     onSplitSelected,
     onDeleteSelected,
     onDuplicateSelected,
@@ -63,6 +69,7 @@ export function Timeline(props: Props) {
 
   const seekFromPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('.clip')) return;
+    onClearSelection();
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     onTime(Math.max(0, Math.min(project.duration, x / px)));
@@ -158,10 +165,12 @@ export function Timeline(props: Props) {
                     key={clip.id}
                     clip={clip}
                     px={px}
-                    selected={selectedClipId === clip.id}
+                    selected={selectedClipIds.includes(clip.id)}
+                    multiSelected={selectedClipIds.length > 1}
                     locked={track.locked}
                     onSelect={onSelect}
                     onMove={onMoveClip}
+                    onMoveSelectedByDelta={onMoveSelectedByDelta}
                     onSlide={onSlideClip}
                     onTrimLeft={onTrimClipLeft}
                     onTrimRight={onTrimClip}
@@ -182,9 +191,11 @@ function TimelineClip({
   clip,
   px,
   selected,
+  multiSelected,
   locked,
   onSelect,
   onMove,
+  onMoveSelectedByDelta,
   onSlide,
   onTrimLeft,
   onTrimRight,
@@ -194,9 +205,11 @@ function TimelineClip({
   clip: Clip;
   px: number;
   selected: boolean;
+  multiSelected: boolean;
   locked: boolean;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, additive: boolean) => void;
   onMove: (id: string, start: number) => void;
+  onMoveSelectedByDelta: (deltaSeconds: number) => void;
   onSlide: (id: string, start: number) => void;
   onTrimLeft: (id: string, start: number) => void;
   onTrimRight: (id: string, duration: number) => void;
@@ -206,13 +219,25 @@ function TimelineClip({
   const drag = (e: React.PointerEvent) => {
     if (locked || (e.target as HTMLElement).closest('.trimHandle')) return;
     e.stopPropagation();
-    onSelect(clip.id);
+    const additive = e.ctrlKey || e.metaKey;
+    if (additive) {
+      onSelect(clip.id, true);
+      return;
+    }
+    if (!selected) onSelect(clip.id, false);
     const startX = e.clientX;
+    let lastX = startX;
     const initial = clip.start;
-    const slide = e.altKey;
+    const slide = e.altKey && !multiSelected;
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
     const move = (ev: PointerEvent) => {
+      if (multiSelected && selected) {
+        const delta = (ev.clientX - lastX) / px;
+        lastX = ev.clientX;
+        onMoveSelectedByDelta(delta);
+        return;
+      }
       const start = Math.max(0, initial + (ev.clientX - startX) / px);
       if (slide) onSlide(clip.id, start);
       else onMove(clip.id, start);
@@ -226,7 +251,7 @@ function TimelineClip({
   const trimLeft = (e: React.PointerEvent) => {
     if (locked) return;
     e.stopPropagation();
-    onSelect(clip.id);
+    onSelect(clip.id, false);
     const mode = trimMode(e);
     const startX = e.clientX;
     const initialStart = clip.start;
@@ -247,7 +272,7 @@ function TimelineClip({
   const trimRight = (e: React.PointerEvent) => {
     if (locked) return;
     e.stopPropagation();
-    onSelect(clip.id);
+    onSelect(clip.id, false);
     const mode = trimMode(e);
     const startX = e.clientX;
     const initialDuration = clip.duration;
@@ -272,8 +297,12 @@ function TimelineClip({
       className={`clip ${clip.kind} ${selected ? 'selected' : ''}`}
       style={{ left: clip.start * px, width: Math.max(12, clip.duration * px) }}
       onPointerDown={drag}
-      onClick={(e) => { e.stopPropagation(); onSelect(clip.id); }}
-      title={`${clip.name} / ${clip.duration.toFixed(2)}s / Alt+ドラッグ: スライド編集`}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (e.ctrlKey || e.metaKey) return;
+        onSelect(clip.id, false);
+      }}
+      title={`${clip.name} / ${clip.duration.toFixed(2)}s / Ctrl/Cmd+クリック: 複数選択 / Alt+ドラッグ: スライド編集`}
     >
       <div className="trimHandle left" onPointerDown={trimLeft} title="トリム / Shift: リップル / Alt: ロール" />
       <span>{clip.name}</span>
