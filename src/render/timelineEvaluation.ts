@@ -24,6 +24,7 @@ export function clipLocalTime(clip: Clip, timeSeconds: number) {
 }
 
 export function clipSourceTime(clip: Clip, timeSeconds: number) {
+  if (typeof clip.freezeFrameAt === 'number' && Number.isFinite(clip.freezeFrameAt)) return Math.max(0, clip.freezeFrameAt);
   const local = clipLocalTime(clip, timeSeconds);
   const speed = Math.max(0.0001, clip.speed ?? 1);
   if (clip.reverse) {
@@ -71,6 +72,7 @@ export function audioTimelineItems(project: Project, timeSeconds: number) {
       if (track.kind !== 'audio' && track.kind !== 'video') return false;
       if (track.muted || (hasSolo && !track.solo) || clip.muted || !clip.assetId) return false;
       if (track.kind === 'audio') return true;
+      if (typeof clip.freezeFrameAt === 'number' && Number.isFinite(clip.freezeFrameAt)) return false;
       return assetKinds.get(clip.assetId) === 'video';
     })
     .map((item) => {
