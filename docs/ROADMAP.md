@@ -299,7 +299,7 @@ Large AI models must be optional and selected according to WebGPU/device capabil
 - [x] reusable asset bins with project persistence, assignment and filtering
 - [x] tags / rating / favorites / notes UI + filtering/sorting
 - [x] persistent favorite effects in effect picker
-- [ ] search everything
+- [x] ranked project-wide search palette with timeline/media navigation
 - [ ] customizable workspace
 - [ ] shortcut customization
 - [x] fullscreen preview
