@@ -1,0 +1,12 @@
+.mediaSearchRow { display: grid; grid-template-columns: minmax(0,1fr) 31px; gap: 5px; align-items: center; }
+.mediaSearchRow .searchBox { min-width: 0; }
+.favoriteFilter, .favoriteAssetBtn { height: 31px; border: 1px solid var(--line); border-radius: 6px; background: #11181d; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+.favoriteFilter.active, .favoriteAssetBtn.active { color: #ffc86b; border-color: rgba(255,200,107,.45); }
+.assetRow.selected { outline: 1px solid rgba(95,216,255,.5); background: rgba(95,216,255,.06); }
+.assetMetaEditor { margin: 6px 8px 7px; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: #0d1317; display: grid; gap: 6px; }
+.assetMetaHeader { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.assetMetaHeader strong { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 10px; }
+.assetMetaHeader .favoriteAssetBtn { width: 28px; height: 27px; }
+.assetMetaEditor label { display: grid; grid-template-columns: 36px minmax(0,1fr); gap: 5px; align-items: center; font-size: 9px; color: var(--muted); }
+.assetMetaEditor input, .assetMetaEditor select, .assetMetaEditor textarea { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 5px; background: #080d10; color: var(--text); font-size: 9px; padding: 5px 6px; outline: none; }
+.assetMetaEditor textarea { resize: vertical; }
