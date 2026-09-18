@@ -209,7 +209,7 @@ Current implementation branch: `main`.
 - [x] text clip UI / renderer
 - [x] fill / stroke / background controls for text
 - [x] text shadow control with Preview / final compositor parity
-- [ ] lower-third templates
+- [x] lower-third text templates with safe-area presets
 - [x] basic subtitle clip editor
 - [x] final-export text/subtitle compositor
 - [x] SRT import/export
@@ -291,10 +291,10 @@ Large AI models must be optional and selected according to WebGPU/device capabil
 
 - [x] rotating autosave snapshots
 - [x] recovery browser UI
-- [ ] project templates
+- [x] persistent safe project settings templates
 - [ ] reusable asset bins
 - [x] tags / rating / favorites / notes UI + filtering/sorting
-- [ ] favorite effects
+- [x] persistent favorite effects in effect picker
 - [ ] search everything
 - [ ] customizable workspace
 - [ ] shortcut customization
