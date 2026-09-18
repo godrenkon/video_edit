@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Lock, Scissors, Trash2, Unlock, ZoomIn, ZoomOut } from 'lucide-react';
+import { Copy, Eye, EyeOff, Lock, Scissors, Trash2, Unlock, ZoomIn, ZoomOut } from 'lucide-react';
 import { useMemo } from 'react';
 import type { Clip, Project } from '../types/editor';
 import '../timeline-enhancements.css';
@@ -14,6 +14,7 @@ interface Props {
   onTime: (time: number) => void;
   onSelect: (clipId: string) => void;
   onSplitSelected: () => void;
+  onDuplicateSelected: () => void;
   onRippleDeleteSelected: () => void;
   onMoveClip: (clipId: string, start: number) => void;
   onTrimClipLeft: (clipId: string, start: number) => void;
@@ -34,6 +35,7 @@ export function Timeline(props: Props) {
     onTime,
     onSelect,
     onSplitSelected,
+    onDuplicateSelected,
     onRippleDeleteSelected,
     onMoveClip,
     onTrimClipLeft,
@@ -69,6 +71,12 @@ export function Timeline(props: Props) {
             disabled={!selectedClipId}
             title="再生ヘッドで分割 (Ctrl/Cmd+K)"
           ><Scissors size={14} /></button>
+          <button
+            className="miniBtn"
+            onClick={onDuplicateSelected}
+            disabled={!selectedClipId}
+            title="選択クリップを複製 (Ctrl/Cmd+D)"
+          ><Copy size={14} /></button>
           <button
             className="miniBtn"
             onClick={onRippleDeleteSelected}
