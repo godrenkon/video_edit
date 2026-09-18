@@ -21,9 +21,13 @@ export async function createOpfsRecordingSink(requestedFileName: string): Promis
   const writable = await handle.createWritable();
   let queue: Promise<void> = Promise.resolve();
   let finished = false;
+  let firstWriteError: unknown = null;
 
   const enqueue = (work: () => Promise<void>) => {
     const result = queue.then(work, work);
+    void result.catch((error) => {
+      if (firstWriteError === null) firstWriteError = error;
+    });
     queue = result.then(() => undefined, () => undefined);
     return result;
   };
@@ -41,12 +45,23 @@ export async function createOpfsRecordingSink(requestedFileName: string): Promis
       if (finished) throw new Error('Recording sink is already closed');
       finished = true;
       await queue;
-      await writable.close();
-      const stored = await handle.getFile();
-      return new File([stored], fileName, {
-        type: mimeType || 'application/octet-stream',
-        lastModified: stored.lastModified || Date.now(),
-      });
+      if (firstWriteError !== null) {
+        await writable.abort().catch(() => undefined);
+        await dir.removeEntry(fileName).catch(() => undefined);
+        throw firstWriteError;
+      }
+      try {
+        await writable.close();
+        const stored = await handle.getFile();
+        return new File([stored], fileName, {
+          type: mimeType || 'application/octet-stream',
+          lastModified: stored.lastModified || Date.now(),
+        });
+      } catch (error) {
+        await writable.abort().catch(() => undefined);
+        await dir.removeEntry(fileName).catch(() => undefined);
+        throw error;
+      }
     },
     async abort() {
       if (finished) return;
