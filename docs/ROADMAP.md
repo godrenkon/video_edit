@@ -66,9 +66,10 @@ Current implementation branch: `main`.
 - [x] anchor point data model
 - [x] speed / reverse source-time evaluation
 - [x] speed / reverse inspector controls
-- [ ] freeze frame engine
+- [x] freeze frame engine + Inspector UI + Preview/export parity
 - [x] speed / reverse data model
-- [ ] clip grouping / compound clips
+- [x] clip grouping / ungrouping UI + grouped selection/move/delete
+- [ ] compound clips
 - [x] grouping field in clip model
 - [x] marker UI
 - [x] marker data model
