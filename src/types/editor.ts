@@ -31,6 +31,11 @@ export interface ProjectExportSettings {
   includeAudio?: boolean;
 }
 
+export interface AssetBin {
+  id: string;
+  name: string;
+}
+
 export interface AssetMeta {
   id: string;
   name: string;
@@ -49,6 +54,7 @@ export interface AssetMeta {
   rating?: number;
   favorite?: boolean;
   notes?: string;
+  binId?: string;
 }
 
 export interface Transform {
@@ -217,6 +223,7 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   assets: AssetMeta[];
+  assetBins?: AssetBin[];
   tracks: Track[];
   markers?: TimelineMarker[];
   inPoint?: number;
