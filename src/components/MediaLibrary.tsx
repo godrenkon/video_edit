@@ -1,4 +1,4 @@
-import { Captions, FileAudio, FileImage, Film, Palette, Plus, Search, Trash2, Type } from 'lucide-react';
+import { Captions, FileAudio, FileImage, Film, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { AssetMeta } from '../types/editor';
 
@@ -7,6 +7,7 @@ interface Props {
   onImport: (files: File[]) => void;
   onAdd: (assetId: string, mode: 'insert' | 'overwrite') => void;
   onDelete: (assetId: string) => void;
+  onAssetMeta: (assetId: string, patch: Partial<AssetMeta>) => void;
   onCreateText: () => void;
   onCreateSubtitle: () => void;
   onCreateGenerator: () => void;
@@ -28,6 +29,7 @@ export function MediaLibrary({
   onImport,
   onAdd,
   onDelete,
+  onAssetMeta,
   onCreateText,
   onCreateSubtitle,
   onCreateGenerator,
@@ -35,10 +37,23 @@ export function MediaLibrary({
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [editMode, setEditMode] = useState<'insert' | 'overwrite'>('insert');
-  const filtered = useMemo(
-    () => assets.filter((asset) => asset.name.toLowerCase().includes(query.toLowerCase())),
-    [assets, query],
-  );
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return assets.filter((asset) => {
+      if (favoritesOnly && !asset.favorite) return false;
+      if (!needle) return true;
+      const haystack = [
+        asset.name,
+        asset.kind,
+        ...(asset.tags ?? []),
+        asset.notes ?? '',
+      ].join(' ').toLowerCase();
+      return haystack.includes(needle);
+    });
+  }, [assets, favoritesOnly, query]);
+  const selectedAsset = assets.find((asset) => asset.id === selectedAssetId) ?? null;
 
   return (
     <aside className="panel mediaPanel">
@@ -70,7 +85,28 @@ export function MediaLibrary({
           <button type="button" className={editMode === 'overwrite' ? 'active' : ''} onClick={() => setEditMode('overwrite')} title="再生ヘッド位置の既存区間を素材で置き換える">上書き</button>
         </div>
       </div>
-      <div className="searchBox"><Search size={14} /><input placeholder="素材を検索" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+      <div className="mediaSearchRow">
+        <div className="searchBox"><Search size={14} /><input placeholder="名前・タグ・メモを検索" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+        <button type="button" className={`favoriteFilter ${favoritesOnly ? 'active' : ''}`} onClick={() => setFavoritesOnly((value) => !value)} title="お気に入りだけ表示"><Star size={13} fill={favoritesOnly ? 'currentColor' : 'none'} /></button>
+      </div>
+      {selectedAsset && (
+        <div className="assetMetaEditor">
+          <div className="assetMetaHeader">
+            <strong title={selectedAsset.name}>{selectedAsset.name}</strong>
+            <button
+              type="button"
+              className={`favoriteAssetBtn ${selectedAsset.favorite ? 'active' : ''}`}
+              onClick={() => onAssetMeta(selectedAsset.id, { favorite: !selectedAsset.favorite })}
+              title="お気に入り"
+            ><Star size={14} fill={selectedAsset.favorite ? 'currentColor' : 'none'} /></button>
+          </div>
+          <label><span>評価</span><select value={selectedAsset.rating ?? 0} onChange={(e) => onAssetMeta(selectedAsset.id, { rating: Number(e.target.value) })}>
+            <option value={0}>なし</option><option value={1}>★</option><option value={2}>★★</option><option value={3}>★★★</option><option value={4}>★★★★</option><option value={5}>★★★★★</option>
+          </select></label>
+          <label><span>タグ</span><input value={(selectedAsset.tags ?? []).join(', ')} placeholder="例: B-roll, ゲーム, voice" onChange={(e) => onAssetMeta(selectedAsset.id, { tags: normalizeTags(e.target.value) })} /></label>
+          <label><span>メモ</span><textarea rows={2} value={selectedAsset.notes ?? ''} onChange={(e) => onAssetMeta(selectedAsset.id, { notes: e.target.value || undefined })} /></label>
+        </div>
+      )}
       <div className="assetList">
         {filtered.length === 0 && (
           <button className="emptyImport" onClick={() => input.current?.click()}>
@@ -80,10 +116,10 @@ export function MediaLibrary({
           </button>
         )}
         {filtered.map((asset) => (
-          <div className="assetRow" key={asset.id} onDoubleClick={() => onAdd(asset.id, editMode)}>
+          <div className={`assetRow ${selectedAssetId === asset.id ? 'selected' : ''}`} key={asset.id} onClick={() => setSelectedAssetId(asset.id)} onDoubleClick={() => onAdd(asset.id, editMode)}>
             <div className={`assetIcon ${asset.kind}`}>{iconFor(asset.kind)}</div>
             <div className="assetText">
-              <strong title={asset.name}>{asset.name}</strong>
+              <strong title={asset.name}>{asset.favorite ? '★ ' : ''}{asset.name}</strong>
               <span>{asset.kind} · {formatBytes(asset.size)}{asset.duration ? ` · ${asset.duration.toFixed(1)}s` : ''}</span>
             </div>
             <button className="miniBtn" title={editMode === 'insert' ? '挿入編集でタイムラインに追加' : '上書き編集でタイムラインに追加'} onClick={() => onAdd(asset.id, editMode)}><Plus size={14} /></button>
@@ -93,4 +129,9 @@ export function MediaLibrary({
       </div>
     </aside>
   );
+}
+
+
+function normalizeTags(value: string) {
+  return [...new Set(value.split(',').map((tag) => tag.trim()).filter(Boolean))].slice(0, 24);
 }
