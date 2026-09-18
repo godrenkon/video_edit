@@ -12,6 +12,7 @@ import { canvasFilterForEffects } from '../render/effectEvaluation';
 import { PreviewAudioGraph } from '../render/previewAudioGraph';
 import { previewSyncTolerance } from '../render/previewClock';
 import { transitionOpacity } from '../render/transitionEnvelope';
+import { activeSubtitleHighlight, normalizeSubtitleHighlightColor } from '../render/subtitleHighlight';
 import {
   deterministicNoiseByte,
   generatorColor,
@@ -168,6 +169,9 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
   if (clip.kind === 'text' || clip.kind === 'subtitle') {
     const subtitle = clip.kind === 'subtitle' ? clip.subtitle?.text : undefined;
     const text = resolveTextStyle(clip.text ?? null, subtitle);
+    const highlight = clip.kind === 'subtitle'
+      ? activeSubtitleHighlight(clip.subtitle, Math.max(0, time - clip.start))
+      : null;
     if (!text.text) return null;
     const fontSizeCqw = text.fontSize / Math.max(1, project.width) * 100;
     const style: CSSProperties = {
@@ -182,9 +186,20 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
         ? `${text.shadowOffsetX / Math.max(1, project.width) * 100}cqw ${text.shadowOffsetY / Math.max(1, project.width) * 100}cqw ${text.shadowBlur / Math.max(1, project.width) * 100}cqw ${text.shadowColor}`
         : undefined,
     };
+    const highlightedText = highlight && subtitle === text.text
+      ? (
+          <>
+            {text.text.slice(0, highlight.charStart)}
+            <span className="subtitleActiveWord" style={{ color: normalizeSubtitleHighlightColor(clip.subtitle?.highlightColor) }}>
+              {text.text.slice(highlight.charStart, highlight.charEnd)}
+            </span>
+            {text.text.slice(highlight.charEnd)}
+          </>
+        )
+      : text.text;
     return (
       <div className="previewSynthetic previewTextLayer" style={style}>
-        <div style={{ background: text.backgroundColor ?? undefined }}>{text.text}</div>
+        <div style={{ background: text.backgroundColor ?? undefined }}>{highlightedText}</div>
       </div>
     );
   }
