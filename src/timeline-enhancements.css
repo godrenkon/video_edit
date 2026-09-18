@@ -11,3 +11,7 @@
 
 .clip.grouped { box-shadow: inset 0 0 0 1px rgba(104, 211, 255, .35); }
 .clip.grouped.selected { box-shadow: inset 0 0 0 1px rgba(104, 211, 255, .65), 0 0 0 1px rgba(104, 211, 255, .3); }
+
+.clip .transitionBand { position: absolute; top: 0; bottom: 0; z-index: 2; pointer-events: none; opacity: .8; max-width: 100%; }
+.clip .transitionBand.in { left: 0; background: linear-gradient(110deg, rgba(8,14,18,.72), rgba(95,216,255,.08)); border-right: 1px solid rgba(95,216,255,.35); }
+.clip .transitionBand.out { right: 0; background: linear-gradient(70deg, rgba(95,216,255,.08), rgba(8,14,18,.72)); border-left: 1px solid rgba(95,216,255,.35); }
