@@ -11,7 +11,7 @@ import {
   type AudioEffectState,
 } from './audioEffects';
 import { MediabunnyAudioProvider } from './mediabunnyAudioProvider';
-import { applyTrackGainPan, normalizeTrackGain, normalizeTrackPan } from './trackMix';
+import { applyTrackGainPan, resolveTrackBusMix } from './trackMix';
 
 export interface AudioMixSegment {
   clipId: string;
@@ -51,7 +51,8 @@ export function buildAudioMixSegments(project: Project, startSeconds: number, en
   const segments: AudioMixSegment[] = [];
 
   for (const track of candidateTracks) {
-    if (track.muted || (hasSolo && !track.solo)) continue;
+    const trackMix = resolveTrackBusMix(project, track);
+    if (trackMix.muted || (hasSolo && !track.solo)) continue;
     for (const clip of track.clips) {
       if (clip.muted || !clip.assetId) continue;
       const asset = assetById.get(clip.assetId);
@@ -72,8 +73,8 @@ export function buildAudioMixSegments(project: Project, startSeconds: number, en
         speed: Math.max(0.0001, clip.speed ?? 1),
         reverse: Boolean(clip.reverse),
         gain: Math.max(0, clip.volume),
-        trackGain: normalizeTrackGain(track.gain),
-        trackPan: normalizeTrackPan(track.pan),
+        trackGain: trackMix.gain,
+        trackPan: trackMix.pan,
         fadeIn: Math.max(0, clip.fadeIn ?? 0),
         fadeOut: Math.max(0, clip.fadeOut ?? 0),
         effects: clip.effects ?? [],
