@@ -14,6 +14,8 @@ export interface VoicevoxTimingResult {
   estimatedDuration: number;
   moraCount: number;
   speedScale: number;
+  text: string;
+  words: Array<{ text: string; start: number; end: number }>;
 }
 
 interface ParsedMora {
@@ -95,6 +97,8 @@ export function parseVoicevoxAudioQueryMouthCues(
   }
 
   const cues: MouthCue[] = [];
+  const words: Array<{ text: string; start: number; end: number }> = [];
+  const textParts: string[] = [];
   let cursorFrames = 0;
   pushCue(cues, { time: 0, state: 0 });
 
@@ -103,6 +107,8 @@ export function parseVoicevoxAudioQueryMouthCues(
     const vowelFrames = voicevoxFrames(mora.vowelLength);
     const mappedVowel = mapVoicevoxVowel(mora.vowel);
     const isSilence = !mappedVowel;
+    const wordStartFrames = cursorFrames;
+    if (mora.text) textParts.push(mora.text);
 
     if (consonantFrames > 0) {
       pushCue(cues, {
@@ -125,6 +131,14 @@ export function parseVoicevoxAudioQueryMouthCues(
           });
       cursorFrames += vowelFrames;
     }
+
+    if (mora.text && mappedVowel && cursorFrames > wordStartFrames) {
+      words.push({
+        text: mora.text,
+        start: wordStartFrames / VOICEVOX_FRAME_RATE,
+        end: cursorFrames / VOICEVOX_FRAME_RATE,
+      });
+    }
   }
 
   const estimatedDuration = cursorFrames / VOICEVOX_FRAME_RATE;
@@ -135,6 +149,8 @@ export function parseVoicevoxAudioQueryMouthCues(
     estimatedDuration,
     moraCount,
     speedScale,
+    text: textParts.join(''),
+    words,
   };
 }
 
