@@ -1,5 +1,6 @@
 import { Camera, Square } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { runCaptureCountdown } from '../core/captureCountdown';
 import { createOpfsRecordingSink, deleteTemporaryRecording, type RecordingSink } from '../core/recordingStorage';
 import { cameraCaptureFileName, preferredScreenCaptureMimeType } from '../core/screenCapture';
 import { formatRecordingElapsed } from '../core/microphoneRecording';
@@ -12,10 +13,12 @@ export function CameraRecorder({ onImport }: { onImport: (files: File[]) => void
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sinkRef = useRef<RecordingSink | null>(null);
+  const countdownAbortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<number | null>(null);
   const startedAtRef = useRef(0);
   const writeFailedRef = useRef(false);
   const [recording, setRecording] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const [facingMode, setFacingMode] = useState<FacingMode>('user');
   const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState('');
@@ -44,8 +47,16 @@ export function CameraRecorder({ onImport }: { onImport: (files: File[]) => void
     recorder.stop();
   };
 
+  const stopOrCancel = () => {
+    if (countdownAbortRef.current) {
+      countdownAbortRef.current.abort();
+      return;
+    }
+    stopRecording();
+  };
+
   const startRecording = async () => {
-    if (!supported || recording) return;
+    if (!supported || recording || countdownAbortRef.current) return;
     setError('');
     setElapsedMs(0);
     writeFailedRef.current = false;
@@ -119,6 +130,23 @@ export function CameraRecorder({ onImport }: { onImport: (files: File[]) => void
         })();
       };
 
+      for (const track of stream.getVideoTracks()) {
+        track.addEventListener('ended', stopOrCancel, { once: true });
+      }
+
+      const countdownController = new AbortController();
+      countdownAbortRef.current = countdownController;
+      const shouldRecord = await runCaptureCountdown(setCountdown, countdownController.signal);
+      if (countdownAbortRef.current === countdownController) countdownAbortRef.current = null;
+      if (!shouldRecord) {
+        recorder.onstop = null;
+        recorderRef.current = null;
+        sinkRef.current = null;
+        releaseStream();
+        await sink.abort().catch(() => undefined);
+        return;
+      }
+
       startedAtRef.current = Date.now();
       setRecording(true);
       recorder.start(1_000);
@@ -126,6 +154,9 @@ export function CameraRecorder({ onImport }: { onImport: (files: File[]) => void
         setElapsedMs(Date.now() - startedAtRef.current);
       }, 250);
     } catch (cause) {
+      countdownAbortRef.current?.abort();
+      countdownAbortRef.current = null;
+      setCountdown(null);
       clearTimer();
       releaseStream();
       recorderRef.current = null;
@@ -140,12 +171,15 @@ export function CameraRecorder({ onImport }: { onImport: (files: File[]) => void
   };
 
   useEffect(() => {
-    if (!recording || !videoRef.current || !streamRef.current) return;
-    videoRef.current.srcObject = streamRef.current;
-    void videoRef.current.play().catch(() => undefined);
-  }, [recording]);
+    if ((recording || countdown !== null) && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      void videoRef.current.play().catch(() => undefined);
+    }
+  }, [countdown, recording]);
 
   useEffect(() => () => {
+    countdownAbortRef.current?.abort();
+    countdownAbortRef.current = null;
     clearTimer();
     const recorder = recorderRef.current;
     recorderRef.current = null;
@@ -163,13 +197,15 @@ export function CameraRecorder({ onImport }: { onImport: (files: File[]) => void
     if (sink) void sink.abort();
   }, []);
 
+  const active = recording || countdown !== null;
+
   return (
-    <div className={`cameraRecorder ${recording ? 'recording' : ''}`}>
+    <div className={`cameraRecorder ${recording ? 'recording' : countdown !== null ? 'counting' : ''}`}>
       <div className="cameraRecorderRow">
         <span className="cameraRecorderLabel"><Camera size={13} />カメラ</span>
         <select
           value={facingMode}
-          disabled={recording}
+          disabled={active}
           onChange={(event) => setFacingMode(event.target.value as FacingMode)}
           aria-label="カメラ向き"
         >
@@ -177,20 +213,20 @@ export function CameraRecorder({ onImport }: { onImport: (files: File[]) => void
           <option value="environment">背面</option>
         </select>
         <span className={`cameraRecorderStatus ${error ? 'error' : ''}`} title={error || undefined}>
-          {error || (recording ? formatRecordingElapsed(elapsedMs) : supported ? 'OPFS直接保存' : '未対応')}
+          {error || (countdown !== null ? `開始まで ${countdown}` : recording ? formatRecordingElapsed(elapsedMs) : supported ? 'OPFS直接保存' : '未対応')}
         </span>
         <button
           type="button"
-          className={recording ? 'stop' : ''}
+          className={active ? 'stop' : ''}
           disabled={!supported}
-          onClick={recording ? stopRecording : startRecording}
-          title={!supported ? 'カメラ録画にはMediaRecorder・OPFS対応ブラウザが必要です' : recording ? 'カメラ録画を停止' : 'カメラ録画を開始'}
+          onClick={countdown !== null ? () => countdownAbortRef.current?.abort() : recording ? stopRecording : startRecording}
+          title={!supported ? 'カメラ録画にはMediaRecorder・OPFS対応ブラウザが必要です' : countdown !== null ? 'カウントダウンを中止' : recording ? 'カメラ録画を停止' : 'カメラ録画を開始'}
         >
-          {recording ? <Square size={12} fill="currentColor" /> : <Camera size={12} />}
-          {recording ? '停止' : '録画'}
+          {active ? <Square size={12} fill="currentColor" /> : <Camera size={12} />}
+          {countdown !== null ? '中止' : recording ? '停止' : '録画'}
         </button>
       </div>
-      {recording && <video ref={videoRef} className="cameraRecorderPreview" muted playsInline />}
+      {active && <video ref={videoRef} className="cameraRecorderPreview" muted playsInline />}
     </div>
   );
 }
