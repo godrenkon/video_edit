@@ -48,7 +48,7 @@ Current implementation branch: `main`.
 - [x] roll edit drag UI (Alt + trim handle, adjacent cuts only)
 - [x] slip edit core
 - [x] bounded slip / source-offset inspector UI
-- [ ] slide edit
+- [x] slide edit core + Alt-drag UI for gapless adjacent triplets
 - [ ] insert / overwrite
 - [ ] lift / extract
 - [ ] multi-select
@@ -202,7 +202,7 @@ Current implementation branch: `main`.
 - [x] subtitle word-timing schema
 - [x] text clip UI / renderer
 - [x] fill / stroke / background controls for text
-- [ ] text shadow control
+- [x] text shadow control with Preview / final compositor parity
 - [ ] lower-third templates
 - [x] basic subtitle clip editor
 - [x] final-export text/subtitle compositor
