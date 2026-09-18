@@ -8,7 +8,7 @@ import { createVoicePresetEffects, VOICE_PRESETS, type VoicePresetId } from '../
 import { isAudioEffectSupported, isRealtimeAudioEffectSupported } from '../render/audioEffects';
 import {
   evaluateEffectParameter,
-  isCanvasFilterEffectSupported,
+  isVisualEffectSupported,
 } from '../render/effectEvaluation';
 import type { Clip, EffectInstance, EffectParameter, EffectParameterValue, Interpolation } from '../types/editor';
 import '../effects-panel.css';
@@ -24,7 +24,7 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
   const [favoriteKinds, setFavoriteKinds] = useState(() => loadFavoriteEffects());
   const available = useMemo(() => {
     const items = [
-      ...listEffects('video').filter((effect) => isCanvasFilterEffectSupported(effect.kind)),
+      ...listEffects('video').filter((effect) => isVisualEffectSupported(effect.kind)),
       ...(clip.assetId ? listEffects('audio').filter((effect) => isAudioEffectSupported(effect.kind)) : []),
     ];
     const favoriteSet = new Set(favoriteKinds);
@@ -257,7 +257,7 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
         const descriptor = getEffectDescriptor(effect.kind);
         const renderSupported = descriptor?.domain === 'audio'
           ? isAudioEffectSupported(effect.kind)
-          : isCanvasFilterEffectSupported(effect.kind);
+          : isVisualEffectSupported(effect.kind);
         const realtimeSupported = descriptor?.domain === 'audio'
           ? isRealtimeAudioEffectSupported(effect.kind)
           : renderSupported;
