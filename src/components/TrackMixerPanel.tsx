@@ -1,7 +1,7 @@
 import { Volume2, VolumeX } from 'lucide-react';
-import { dbToLinear, linearToDb } from '../render/trackMix';
+import { AUDIO_BUS_DEFINITIONS, dbToLinear, linearToDb, normalizeAudioBuses, setAudioBusGain, setAudioBusMuted, setTrackBus } from '../render/trackMix';
 import { setTrackGain, setTrackMuted, setTrackPan, setTrackSolo } from '../core/trackOps';
-import type { Project, Track } from '../types/editor';
+import type { AudioBusId, Project, Track } from '../types/editor';
 import '../track-mixer.css';
 
 export function TrackMixerPanel({
@@ -12,10 +12,11 @@ export function TrackMixerPanel({
   onProject: (patch: Partial<Project>) => void;
 }) {
   const tracks = project.tracks.filter((track) => track.kind === 'audio' || track.kind === 'video');
+  const buses = normalizeAudioBuses(project.audioBuses);
 
   const apply = (next: Project) => {
     if (next === project) return;
-    onProject({ tracks: next.tracks });
+    onProject({ tracks: next.tracks, audioBuses: next.audioBuses });
   };
 
   if (tracks.length === 0) return null;
@@ -26,6 +27,21 @@ export function TrackMixerPanel({
         <strong>Track Mixer</strong>
         <span>{tracks.length} channels</span>
       </div>
+      <div className="trackMixerBuses">
+        {AUDIO_BUS_DEFINITIONS.map((definition) => {
+          const bus = buses.find((item) => item.id === definition.id)!;
+          return (
+            <BusStrip
+              key={definition.id}
+              label={definition.label}
+              gain={bus.gain}
+              muted={bus.muted}
+              onGain={(gain) => apply(setAudioBusGain(project, definition.id, gain))}
+              onMute={(muted) => apply(setAudioBusMuted(project, definition.id, muted))}
+            />
+          );
+        })}
+      </div>
       <div className="trackMixerChannels">
         {tracks.map((track) => (
           <TrackStrip
@@ -35,11 +51,12 @@ export function TrackMixerPanel({
             onSolo={(solo) => apply(setTrackSolo(project, track.id, solo))}
             onGain={(gain) => apply(setTrackGain(project, track.id, gain))}
             onPan={(pan) => apply(setTrackPan(project, track.id, pan))}
+            onBus={(busId) => apply(setTrackBus(project, track.id, busId))}
             onReset={() => apply(setTrackPan(setTrackGain(project, track.id, 1), track.id, 0))}
           />
         ))}
       </div>
-      <div className="trackMixerNote">gain/panはPreviewとoffline exportの両方へ反映</div>
+      <div className="trackMixerNote">Track → Voice/Music/SFX → Master のgain/muteをPreviewとoffline exportへ同じ順序で反映</div>
     </section>
   );
 }
@@ -50,6 +67,7 @@ function TrackStrip({
   onSolo,
   onGain,
   onPan,
+  onBus,
   onReset,
 }: {
   track: Track;
@@ -57,6 +75,7 @@ function TrackStrip({
   onSolo: (solo: boolean) => void;
   onGain: (gain: number) => void;
   onPan: (pan: number) => void;
+  onBus: (busId: AudioBusId) => void;
   onReset: () => void;
 }) {
   const gainDb = linearToDb(track.gain ?? 1);
@@ -68,6 +87,12 @@ function TrackStrip({
         <span className={`trackMixerBadge ${track.kind}`}>{track.kind === 'audio' ? 'A' : 'V'}</span>
         <strong>{track.name}</strong>
       </div>
+      <label className="trackMixerBusSelect">
+        <span>Bus</span>
+        <select value={track.busId ?? 'master'} onChange={(event) => onBus(event.target.value as AudioBusId)}>
+          {AUDIO_BUS_DEFINITIONS.map((bus) => <option key={bus.id} value={bus.id}>{bus.label}</option>)}
+        </select>
+      </label>
       <div className="trackMixerButtons">
         <button
           type="button"
@@ -127,4 +152,33 @@ function formatDb(value: number) {
 function formatPan(value: number) {
   if (Math.abs(value) < 0.005) return 'C';
   return `${value < 0 ? 'L' : 'R'}${Math.round(Math.abs(value) * 100)}`;
+}
+
+
+function BusStrip({
+  label,
+  gain,
+  muted,
+  onGain,
+  onMute,
+}: {
+  label: string;
+  gain: number;
+  muted: boolean;
+  onGain: (gain: number) => void;
+  onMute: (muted: boolean) => void;
+}) {
+  const gainDb = linearToDb(gain);
+  return (
+    <div className={`trackBusStrip ${muted ? 'muted' : ''}`}>
+      <div className="trackBusHeader">
+        <strong>{label}</strong>
+        <button type="button" className={muted ? 'active' : ''} onClick={() => onMute(!muted)}>{muted ? 'Muted' : 'Mute'}</button>
+      </div>
+      <label className="trackMixerControl">
+        <span>Gain <b>{formatDb(gainDb)}</b></span>
+        <input type="range" min={-60} max={12} step={0.5} value={gainDb} onChange={(event) => onGain(dbToLinear(Number(event.target.value)))} />
+      </label>
+    </div>
+  );
 }
