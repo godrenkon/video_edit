@@ -33,6 +33,19 @@ describe('clip grouping', () => {
     expect(groupSelectedClips(project([track('a', [clip('1')])]), ['1']).tracks[0].clips[0].groupId).toBeUndefined();
   });
 
+  it('merges whole existing groups instead of leaving split group identities behind', () => {
+    const input = project([track('a', [
+      { ...clip('1'), groupId: 'g1' },
+      { ...clip('2'), groupId: 'g1' },
+      { ...clip('3'), groupId: 'g2' },
+      { ...clip('4'), groupId: 'g2' },
+    ])]);
+    const output = groupSelectedClips(input, ['1', '3']);
+    const ids = new Set(output.tracks[0].clips.map((item) => item.groupId));
+    expect(ids.size).toBe(1);
+    expect([...ids][0]).toBeTruthy();
+  });
+
   it('expands normal selection to every editable member of the same group', () => {
     const a = { ...clip('1'), groupId: 'g' };
     const b = { ...clip('2'), groupId: 'g' };
