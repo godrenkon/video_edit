@@ -93,6 +93,7 @@ describe('migrateProject', () => {
           muted: false,
           fadeIn: -3,
           fadeOut: 99,
+          freezeFrameAt: -2,
           transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
         }],
       }],
@@ -104,7 +105,7 @@ describe('migrateProject', () => {
       quality: 'high',
       includeAudio: false,
     });
-    expect(project.tracks[0].clips[0]).toMatchObject({ fadeIn: 0, fadeOut: 4 });
+    expect(project.tracks[0].clips[0]).toMatchObject({ fadeIn: 0, fadeOut: 4, freezeFrameAt: 0 });
   });
 
   it('drops unknown export settings instead of trusting invalid persisted values', () => {
