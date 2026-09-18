@@ -3,6 +3,7 @@ import type { EffectInstance } from '../types/editor';
 import {
   createAudioEffectState,
   isAudioEffectSupported,
+  isRealtimeAudioEffectSupported,
   processAudioEffects,
   resolveAudioEffects,
 } from './audioEffects';
@@ -67,6 +68,9 @@ describe('audio effects', () => {
     expect(isAudioEffectSupported('gain')).toBe(true);
     expect(isAudioEffectSupported('compressor')).toBe(true);
     expect(isAudioEffectSupported('limiter')).toBe(true);
+    expect(isAudioEffectSupported('gate-expander')).toBe(true);
+    expect(isRealtimeAudioEffectSupported('gate-expander')).toBe(false);
+    expect(isRealtimeAudioEffectSupported('compressor')).toBe(true);
     expect(isAudioEffectSupported('reverb')).toBe(false);
   });
 
@@ -82,6 +86,41 @@ describe('audio effects', () => {
     const ceiling = 10 ** (-6 / 20);
     expect(left).toBeCloseTo(ceiling, 8);
     expect(right).toBeCloseTo(ceiling * 0.5, 8);
+  });
+
+  it('attenuates signals below gate threshold while preserving loud signals', () => {
+    const resolved = resolveAudioEffects([
+      effect('gate-expander', {
+        threshold: { value: -20 },
+        ratio: { value: 2 },
+        range: { value: 60 },
+        attack: { value: 0 },
+        release: { value: 0 },
+      }),
+    ], 0);
+    expect(resolved[0]).toMatchObject({ kind: 'gate-expander', thresholdDb: -20, ratio: 2, rangeDb: 60 });
+
+    const state = createAudioEffectState();
+    const [quiet] = processAudioEffects(0.01, 0.01, resolved, 48_000, state);
+    expect(Math.abs(quiet)).toBeLessThan(0.002);
+
+    const fresh = createAudioEffectState();
+    const [loud] = processAudioEffects(0.5, 0.5, resolved, 48_000, fresh);
+    expect(loud).toBeCloseTo(0.5, 8);
+  });
+
+  it('caps gate attenuation at the configured range', () => {
+    const resolved = resolveAudioEffects([
+      effect('gate-expander', {
+        threshold: { value: -20 },
+        ratio: { value: 20 },
+        range: { value: 12 },
+        attack: { value: 0 },
+        release: { value: 0 },
+      }),
+    ], 0);
+    const [output] = processAudioEffects(0.001, 0.001, resolved, 48_000, createAudioEffectState());
+    expect(output).toBeCloseTo(0.001 * 10 ** (-12 / 20), 10);
   });
 
   it('clamps limiter ceiling to its safe descriptor range', () => {
