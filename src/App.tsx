@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles } from 'lucide-react';
-import { rippleTrimClip, rollEditBoundary } from './core/advancedTimelineOps';
+import { rippleTrimClip, rollEditBoundary, slideEditClip } from './core/advancedTimelineOps';
 import { detectCapabilities } from './core/capabilities';
 import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
@@ -637,6 +637,10 @@ export default function App() {
         onMoveClip={(id, start) => updateProject(
           (p) => moveClip(p, id, start, time, snapThreshold),
           { label: 'クリップ移動', key: `clip:${id}:move` },
+        )}
+        onSlideClip={(id, start) => updateProject(
+          (p) => slideEditClip(p, id, start),
+          { label: 'スライド編集', key: `clip:${id}:slide` },
         )}
         onTrimClipLeft={(id, start) => updateProject(
           (p) => trimClipLeft(p, id, start, time, snapThreshold),
