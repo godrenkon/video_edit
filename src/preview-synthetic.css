@@ -13,3 +13,5 @@
 .previewPanel:fullscreen .transport { min-height: 48px; }
 
 .previewVignetteOverlay { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: block; }
+
+.previewColorWashOverlay { position: absolute; inset: 0; z-index: 2; pointer-events: none; display: block; }
