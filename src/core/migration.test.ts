@@ -20,6 +20,10 @@ describe('migrateProject', () => {
           size: 1000,
           duration: 4,
           storageName: 'asset-1.mp4',
+          tags: ['B-roll', 'game'],
+          rating: 99,
+          favorite: true,
+          notes: 'usable shot',
         },
       ],
       tracks: [
@@ -47,6 +51,12 @@ describe('migrateProject', () => {
     expect(project.id).toBe('legacy-project');
     expect(project.markers).toEqual([]);
     expect(project.exportSettings).toBeUndefined();
+    expect(project.assets[0]).toMatchObject({
+      tags: ['B-roll', 'game'],
+      rating: 5,
+      favorite: true,
+      notes: 'usable shot',
+    });
     expect(project.tracks[0]).toMatchObject({ muted: false, locked: false, visible: true, solo: false });
     expect(project.tracks[0].clips[0]).toMatchObject({
       id: 'clip-1',
