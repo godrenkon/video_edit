@@ -91,8 +91,8 @@ export function audioTimelineItems(project: Project, timeSeconds: number) {
     });
 }
 
-export function mouthCueState(cues: MouthCue[], localSeconds: number): 0 | 1 | 2 {
-  if (cues.length === 0 || localSeconds < cues[0].time) return 0;
+export function activeMouthCue(cues: MouthCue[], localSeconds: number): MouthCue | null {
+  if (cues.length === 0 || localSeconds < cues[0].time) return null;
 
   let low = 0;
   let high = cues.length - 1;
@@ -106,7 +106,11 @@ export function mouthCueState(cues: MouthCue[], localSeconds: number): 0 | 1 | 2
       high = mid - 1;
     }
   }
-  return cues[best]?.state ?? 0;
+  return cues[best] ?? null;
+}
+
+export function mouthCueState(cues: MouthCue[], localSeconds: number): 0 | 1 | 2 {
+  return activeMouthCue(cues, localSeconds)?.state ?? 0;
 }
 
 export function zundamonVisualState(clip: Clip, timeSeconds: number): ZundamonVisualState {
@@ -114,13 +118,14 @@ export function zundamonVisualState(clip: Clip, timeSeconds: number): ZundamonVi
   if (!z) return { assetId: null, mouthState: 0, blinking: false, bobOffset: 0 };
 
   const local = clipLocalTime(clip, timeSeconds);
-  const mouthState = mouthCueState(z.cues, local);
+  const activeCue = activeMouthCue(z.cues, local);
+  const mouthState = activeCue?.state ?? 0;
   const blinkPeriod = Math.max(1.5, z.blinkEvery || 0);
   const blinkPhase = local % blinkPeriod;
   const blinking = Boolean(z.blinkAssetId) && blinkPhase >= blinkPeriod - 0.13;
 
   let assetId = mouthState === 2
-    ? z.openAssetId
+    ? (activeCue?.vowel ? z.vowelAssetIds?.[activeCue.vowel] : undefined) || z.openAssetId
     : mouthState === 1
       ? (z.halfAssetId || z.openAssetId)
       : z.closedAssetId;
