@@ -138,7 +138,7 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
                 <input
                   type="checkbox"
                   checked={Boolean(selectedClip.text.backgroundColor)}
-                  onChange={(e) => patchText({ backgroundColor: e.target.checked ? safeColor(selectedClip.text.backgroundColor, '#0c1216') : undefined })}
+                  onChange={(e) => patchText({ backgroundColor: e.target.checked ? safeColor(selectedClip.text?.backgroundColor, '#0c1216') : undefined })}
                 />
               </label>
               {selectedClip.text.backgroundColor && (
