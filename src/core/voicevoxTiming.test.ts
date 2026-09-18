@@ -86,8 +86,10 @@ describe('VOICEVOX timing import', () => {
 
     expect(enabled.estimatedDuration - disabled.estimatedDuration)
       .toBeCloseTo(voicevoxFrames(0.15) / 93.75, 10);
-    expect(enabled.cues.filter((cue) => cue.vowel === 'o').length)
-      .toBeGreaterThan(disabled.cues.filter((cue) => cue.vowel === 'o').length);
+    expect(enabled.cues.some((cue) => cue.vowel === 'o' && cue.state === 2)).toBe(true);
+    expect(enabled.cues.at(-1)?.state).toBe(0);
+    expect(enabled.cues.at(-1)?.time).toBeCloseTo(enabled.estimatedDuration, 10);
+    expect(enabled.cues.at(-1)?.time).toBeGreaterThan(disabled.cues.at(-1)?.time ?? 0);
   });
 
   it('accepts snake_case compatible query fields', () => {
