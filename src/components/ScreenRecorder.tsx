@@ -1,5 +1,6 @@
 import { MonitorUp, Square } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { runCaptureCountdown } from '../core/captureCountdown';
 import { createOpfsRecordingSink, deleteTemporaryRecording, type RecordingSink } from '../core/recordingStorage';
 import { preferredScreenCaptureMimeType, screenCaptureFileName } from '../core/screenCapture';
 import { formatRecordingElapsed } from '../core/microphoneRecording';
@@ -9,10 +10,12 @@ export function ScreenRecorder({ onImport }: { onImport: (files: File[]) => void
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sinkRef = useRef<RecordingSink | null>(null);
+  const countdownAbortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<number | null>(null);
   const startedAtRef = useRef(0);
   const writeFailedRef = useRef(false);
   const [recording, setRecording] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState('');
 
@@ -39,8 +42,16 @@ export function ScreenRecorder({ onImport }: { onImport: (files: File[]) => void
     recorder.stop();
   };
 
+  const stopOrCancel = () => {
+    if (countdownAbortRef.current) {
+      countdownAbortRef.current.abort();
+      return;
+    }
+    stopRecording();
+  };
+
   const startRecording = async () => {
-    if (!supported || recording) return;
+    if (!supported || recording || countdownAbortRef.current) return;
     setError('');
     setElapsedMs(0);
     writeFailedRef.current = false;
@@ -108,7 +119,20 @@ export function ScreenRecorder({ onImport }: { onImport: (files: File[]) => void
       };
 
       for (const track of stream.getVideoTracks()) {
-        track.addEventListener('ended', stopRecording, { once: true });
+        track.addEventListener('ended', stopOrCancel, { once: true });
+      }
+
+      const countdownController = new AbortController();
+      countdownAbortRef.current = countdownController;
+      const shouldRecord = await runCaptureCountdown(setCountdown, countdownController.signal);
+      if (countdownAbortRef.current === countdownController) countdownAbortRef.current = null;
+      if (!shouldRecord) {
+        recorder.onstop = null;
+        recorderRef.current = null;
+        sinkRef.current = null;
+        releaseStream();
+        await sink.abort().catch(() => undefined);
+        return;
       }
 
       startedAtRef.current = Date.now();
@@ -118,6 +142,9 @@ export function ScreenRecorder({ onImport }: { onImport: (files: File[]) => void
         setElapsedMs(Date.now() - startedAtRef.current);
       }, 250);
     } catch (cause) {
+      countdownAbortRef.current?.abort();
+      countdownAbortRef.current = null;
+      setCountdown(null);
       clearTimer();
       releaseStream();
       recorderRef.current = null;
@@ -132,6 +159,8 @@ export function ScreenRecorder({ onImport }: { onImport: (files: File[]) => void
   };
 
   useEffect(() => () => {
+    countdownAbortRef.current?.abort();
+    countdownAbortRef.current = null;
     clearTimer();
     const recorder = recorderRef.current;
     recorderRef.current = null;
@@ -150,20 +179,20 @@ export function ScreenRecorder({ onImport }: { onImport: (files: File[]) => void
   }, []);
 
   return (
-    <div className={`screenRecorderRow ${recording ? 'recording' : ''}`}>
+    <div className={`screenRecorderRow ${recording ? 'recording' : countdown !== null ? 'counting' : ''}`}>
       <span className="screenRecorderLabel"><MonitorUp size={13} />画面 / タブ</span>
       <span className={`screenRecorderStatus ${error ? 'error' : ''}`} title={error || undefined}>
-        {error || (recording ? formatRecordingElapsed(elapsedMs) : supported ? 'OPFS直接保存' : '未対応')}
+        {error || (countdown !== null ? `開始まで ${countdown}` : recording ? formatRecordingElapsed(elapsedMs) : supported ? 'OPFS直接保存' : '未対応')}
       </span>
       <button
         type="button"
-        className={recording ? 'stop' : ''}
+        className={recording || countdown !== null ? 'stop' : ''}
         disabled={!supported}
-        onClick={recording ? stopRecording : startRecording}
-        title={!supported ? '画面録画には画面共有・MediaRecorder・OPFS対応ブラウザが必要です' : recording ? '画面録画を停止' : '画面またはタブの録画を開始'}
+        onClick={countdown !== null ? () => countdownAbortRef.current?.abort() : recording ? stopRecording : startRecording}
+        title={!supported ? '画面録画には画面共有・MediaRecorder・OPFS対応ブラウザが必要です' : countdown !== null ? 'カウントダウンを中止' : recording ? '画面録画を停止' : '画面またはタブの録画を開始'}
       >
-        {recording ? <Square size={12} fill="currentColor" /> : <MonitorUp size={12} />}
-        {recording ? '停止' : '録画'}
+        {recording || countdown !== null ? <Square size={12} fill="currentColor" /> : <MonitorUp size={12} />}
+        {countdown !== null ? '中止' : recording ? '停止' : '録画'}
       </button>
     </div>
   );
