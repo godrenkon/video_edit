@@ -88,6 +88,21 @@ describe('audio mix planning', () => {
     expect(buildAudioMixSegments(project, 0, 10)).toHaveLength(0);
   });
 
+  it('applies assigned bus and master gain while honoring bus mute', () => {
+    const project = baseProject();
+    project.tracks[0].gain = 0.5;
+    project.tracks[0].busId = 'voice';
+    project.audioBuses = [
+      { id: 'master', gain: 0.8, muted: false },
+      { id: 'voice', gain: 0.5, muted: false },
+    ];
+    const [segment] = buildAudioMixSegments(project, 3, 4);
+    expect(segment.trackGain).toBeCloseTo(0.2, 8);
+
+    project.audioBuses[1].muted = true;
+    expect(buildAudioMixSegments(project, 3, 4)).toEqual([]);
+  });
+
   it('maps reverse clips backward through source time', () => {
     const project = baseProject();
     project.tracks[0].clips[0].reverse = true;
