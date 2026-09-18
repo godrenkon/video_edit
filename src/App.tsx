@@ -6,7 +6,7 @@ import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } 
 import { HistoryController } from './core/history';
 import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClips } from './core/groupOps';
 import { insertClipAt, overwriteClipAt } from './core/editModes';
-import { analyzeMouthCues, buildAssetMeta } from './core/media';
+import { analyzeMouthCues, buildAssetMeta, mergeRelinkedAsset } from './core/media';
 import {
   clampProjectDuration,
   createProject,
@@ -423,6 +423,46 @@ export default function App() {
     setSaveState(`proxy解除: ${asset.name}`);
   }, [capabilities.opfs, project.assets, updateProject]);
 
+  const relinkAsset = useCallback(async (assetId: string, file: File) => {
+    if (rendering) return;
+    const current = project.assets.find((asset) => asset.id === assetId);
+    if (!current) return;
+
+    setSaveState(`元素材を再リンク中: ${current.name}`);
+    let replacement: Project['assets'][number] | null = null;
+    try {
+      replacement = await buildAssetMeta(file);
+      if (replacement.kind !== current.kind) {
+        if (replacement.objectUrl) URL.revokeObjectURL(replacement.objectUrl);
+        setSaveState(`再リンク失敗: ${current.kind}素材を選択してください`);
+        return;
+      }
+
+      if (capabilities.opfs) {
+        await saveAssetFile(current.storageName, file);
+        if (current.proxyStorageName) await deleteAssetFile(current.proxyStorageName).catch(() => undefined);
+        await deleteWaveformCache(waveformCacheKey(current)).catch(() => undefined);
+        await deleteThumbnailCachesForAsset(assetId).catch(() => undefined);
+      }
+
+      proxyAbort.current.get(assetId)?.abort('Original media relinked');
+      if (current.objectUrl) URL.revokeObjectURL(current.objectUrl);
+      if (current.proxyObjectUrl) URL.revokeObjectURL(current.proxyObjectUrl);
+      clearTimelineThumbnailCache(assetId);
+
+      const merged = mergeRelinkedAsset(current, replacement);
+      updateProject((p) => ({
+        ...p,
+        assets: p.assets.map((asset) => asset.id === assetId ? merged : asset),
+      }), { label: '元素材を再リンク' });
+      setSaveState(`再リンク済み: ${current.name}`);
+    } catch (error) {
+      console.error('Asset relink failed', error);
+      if (replacement?.objectUrl) URL.revokeObjectURL(replacement.objectUrl);
+      setSaveState(`再リンク失敗: ${current.name}`);
+    }
+  }, [capabilities.opfs, project.assets, rendering, updateProject]);
+
   const addAssetToTimeline = (assetId: string, mode: 'insert' | 'overwrite') => {
     if (rendering) return;
     updateProject((p) => {
@@ -807,6 +847,7 @@ export default function App() {
           onAdd={addAssetToTimeline}
           onDelete={deleteAsset}
           onAssetMeta={updateAssetMeta}
+          onRelink={relinkAsset}
           proxyProgress={proxyProgress}
           onGenerateProxy={generateAssetProxy}
           onCancelProxy={cancelAssetProxy}
