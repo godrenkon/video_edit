@@ -2,15 +2,17 @@ import { Download, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { addTrack } from '../core/trackOps';
 import {
+  subtitleClipsFromAss,
   subtitleClipsFromSrt,
   subtitleClipsFromWebVtt,
+  subtitleClipsToAss,
   subtitleClipsToSrt,
   subtitleClipsToWebVtt,
 } from '../core/subtitles';
 import type { Project } from '../types/editor';
 import '../subtitle-exchange.css';
 
-type SubtitleFileFormat = 'srt' | 'vtt';
+type SubtitleFileFormat = 'srt' | 'vtt' | 'ass';
 
 interface Props {
   project: Project;
@@ -39,7 +41,9 @@ export function SubtitleExchangePanel({ project, onProject }: Props) {
       const options = { y: project.height * 0.34 };
       const clips = format === 'vtt'
         ? subtitleClipsFromWebVtt(text, options)
-        : subtitleClipsFromSrt(text, options);
+        : format === 'ass'
+          ? subtitleClipsFromAss(text, options)
+          : subtitleClipsFromSrt(text, options);
       if (clips.length === 0) {
         setStatus(`有効な${formatLabel(format)}字幕キューが見つかりませんでした`);
         return;
@@ -70,7 +74,9 @@ export function SubtitleExchangePanel({ project, onProject }: Props) {
   const exportSubtitles = (format: SubtitleFileFormat) => {
     const text = format === 'vtt'
       ? subtitleClipsToWebVtt(subtitleClips)
-      : subtitleClipsToSrt(subtitleClips);
+      : format === 'ass'
+        ? subtitleClipsToAss(subtitleClips)
+        : subtitleClipsToSrt(subtitleClips);
     const hasCues = subtitleClips.length > 0 && (format === 'vtt' ? text.trim() !== 'WEBVTT' : Boolean(text));
     if (!hasCues) {
       setStatus('書き出せる字幕がありません');
@@ -78,8 +84,13 @@ export function SubtitleExchangePanel({ project, onProject }: Props) {
     }
 
     const isVtt = format === 'vtt';
+    const isAss = format === 'ass';
     const blob = new Blob([isVtt ? text : `\uFEFF${text}`], {
-      type: isVtt ? 'text/vtt;charset=utf-8' : 'application/x-subrip;charset=utf-8',
+      type: isVtt
+        ? 'text/vtt;charset=utf-8'
+        : isAss
+          ? 'text/x-ssa;charset=utf-8'
+          : 'application/x-subrip;charset=utf-8',
     });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -93,7 +104,7 @@ export function SubtitleExchangePanel({ project, onProject }: Props) {
   return (
     <section className="subtitleExchangeCard">
       <div className="subtitleExchangeTitle">
-        <strong>字幕交換 SRT / WebVTT</strong>
+        <strong>字幕交換 SRT / WebVTT / ASS</strong>
         <span>{subtitleClips.length} clips</span>
       </div>
       <div className="subtitleExchangeActions">
@@ -101,22 +112,30 @@ export function SubtitleExchangePanel({ project, onProject }: Props) {
         <button type="button" onClick={() => exportSubtitles('srt')} disabled={subtitleClips.length === 0}><Download size={12} />SRT出力</button>
         <button type="button" onClick={() => chooseImport('vtt')}><Upload size={12} />VTT読込</button>
         <button type="button" onClick={() => exportSubtitles('vtt')} disabled={subtitleClips.length === 0}><Download size={12} />VTT出力</button>
+        <button type="button" onClick={() => chooseImport('ass')}><Upload size={12} />ASS読込</button>
+        <button type="button" onClick={() => exportSubtitles('ass')} disabled={subtitleClips.length === 0}><Download size={12} />ASS出力</button>
       </div>
       <input
         ref={inputRef}
         type="file"
-        accept={importFormatRef.current === 'vtt' ? '.vtt,text/vtt,text/plain' : '.srt,application/x-subrip,text/plain'}
+        accept={importFormatRef.current === 'vtt'
+          ? '.vtt,text/vtt,text/plain'
+          : importFormatRef.current === 'ass'
+            ? '.ass,.ssa,text/x-ssa,text/plain'
+            : '.srt,application/x-subrip,text/plain'}
         hidden
         onChange={(event) => importSubtitles(event.target.files?.[0])}
       />
-      <div className="subtitleExchangeNote">読み込みは既存字幕を残したまま編集可能な字幕トラックへ追記します。SRT/VTTとも内部では同じ字幕クリップとして編集できます。</div>
+      <div className="subtitleExchangeNote">読み込みは既存字幕を残したまま編集可能な字幕トラックへ追記します。ASSはDialogueの時間・本文を扱うsubsetで、Style/Effectは内部の字幕styleへは引き継ぎません。</div>
       {status && <div className="subtitleExchangeStatus">{status}</div>}
     </section>
   );
 }
 
 function formatLabel(format: SubtitleFileFormat) {
-  return format === 'vtt' ? 'WebVTT' : 'SRT';
+  if (format === 'vtt') return 'WebVTT';
+  if (format === 'ass') return 'ASS';
+  return 'SRT';
 }
 
 function sanitizeFileName(name: string) {
