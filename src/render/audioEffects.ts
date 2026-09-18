@@ -53,7 +53,7 @@ export function isAudioEffectSupported(kind: string) {
 }
 
 export function isRealtimeAudioEffectSupported(kind: string) {
-  return SUPPORTED_AUDIO_EFFECTS.has(kind) && kind !== 'gate-expander' && kind !== 'de-esser';
+  return SUPPORTED_AUDIO_EFFECTS.has(kind);
 }
 
 export function resolveAudioEffects(effects: EffectInstance[], clipLocalTime: number): ResolvedAudioEffect[] {
