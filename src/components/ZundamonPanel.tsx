@@ -2,7 +2,7 @@ import { Bot, FileJson2, Save, Sparkles, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { parseVoicevoxAudioQueryMouthCues } from '../core/voicevoxTiming';
 import { createZundamonCharacterPreset, loadZundamonCharacterPresets, normalizeZundamonPresetName, resolveZundamonCharacterPreset, saveZundamonCharacterPresets } from '../core/zundamonPresets';
-import type { AssetMeta, MouthCue } from '../types/editor';
+import type { AssetMeta, MouthCue, SubtitlePayload } from '../types/editor';
 
 export interface ZundamonRequest {
   closedAssetId: string;
@@ -15,6 +15,7 @@ export interface ZundamonRequest {
   bobAmount: number;
   bobSpeed: number;
   timingCues?: MouthCue[];
+  subtitlePayload?: SubtitlePayload;
 }
 
 interface Props {
@@ -42,6 +43,8 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
   const [timingCues, setTimingCues] = useState<MouthCue[] | undefined>();
   const [timingLabel, setTimingLabel] = useState('');
   const [timingStatus, setTimingStatus] = useState('');
+  const [timingSubtitle, setTimingSubtitle] = useState<SubtitlePayload | undefined>();
+  const [autoSubtitle, setAutoSubtitle] = useState(true);
   const [presets, setPresets] = useState(() => loadZundamonCharacterPresets());
   const [presetId, setPresetId] = useState('');
   const [presetName, setPresetName] = useState('');
@@ -52,11 +55,18 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
     try {
       const result = parseVoicevoxAudioQueryMouthCues(await file.text());
       setTimingCues(result.cues);
+      setTimingSubtitle(result.text ? {
+        text: result.text,
+        words: result.words,
+        wordHighlight: true,
+        highlightColor: '#ffc928',
+      } : undefined);
       setTimingLabel(file.name);
       setTimingStatus(`${result.moraCount}モーラ / ${result.cues.length} cue / 約${result.estimatedDuration.toFixed(2)}秒`);
     } catch (error) {
       console.error(error);
       setTimingCues(undefined);
+      setTimingSubtitle(undefined);
       setTimingLabel('');
       setTimingStatus('AudioQueryを読み込めませんでした');
     }
@@ -64,6 +74,7 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
 
   const clearVoicevoxTiming = () => {
     setTimingCues(undefined);
+    setTimingSubtitle(undefined);
     setTimingLabel('');
     setTimingStatus('');
   };
@@ -170,6 +181,12 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
         </label>
         {timingCues && <button type="button" className="miniBtn" onClick={clearVoicevoxTiming} title="VOICEVOX timingを解除"><X size={13} /></button>}
         {timingStatus && <small>{timingStatus}</small>}
+        {timingSubtitle && (
+          <label className="zAutoSubtitle">
+            <input type="checkbox" checked={autoSubtitle} onChange={(e) => setAutoSubtitle(e.target.checked)} />
+            <span>AudioQuery文字列から字幕も自動作成（文字timingハイライト付き）</span>
+          </label>
+        )}
       </div>
       <div className="zControls">
         <label>瞬き <input type="number" min={1.5} max={10} step={0.1} value={blinkEvery} onChange={(e) => setBlinkEvery(Number(e.target.value))} /><span>秒</span></label>
@@ -193,6 +210,7 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
         bobAmount,
         bobSpeed,
         timingCues,
+        subtitlePayload: autoSubtitle ? timingSubtitle : undefined,
       })}><Sparkles size={16} />{busy ? '口パク生成中…' : '自動口パクをタイムラインに作成'}</button>
       <p>{timingCues ? 'VOICEVOX AudioQueryの母音タイミングを優先します。' : 'AudioQuery未指定時は音声を端末内で解析します。'} 画像はPSDTool等で書き出した透過PNGを素材欄に入れてください。</p>
     </section>
