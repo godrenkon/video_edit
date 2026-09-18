@@ -182,6 +182,15 @@ export interface AudioBusSettings {
   muted: boolean;
 }
 
+export interface AudioDuckingSettings {
+  enabled: boolean;
+  sourceBus: Exclude<AudioBusId, 'master'>;
+  targetBus: Exclude<AudioBusId, 'master'>;
+  reductionDb: number;
+  attack: number;
+  release: number;
+}
+
 export interface Track {
   id: string;
   name: string;
@@ -214,4 +223,5 @@ export interface Project {
   outPoint?: number;
   exportSettings?: ProjectExportSettings;
   audioBuses?: AudioBusSettings[];
+  audioDucking?: AudioDuckingSettings;
 }
