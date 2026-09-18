@@ -69,7 +69,9 @@ describe('audio effects', () => {
     expect(isAudioEffectSupported('compressor')).toBe(true);
     expect(isAudioEffectSupported('limiter')).toBe(true);
     expect(isAudioEffectSupported('gate-expander')).toBe(true);
+    expect(isAudioEffectSupported('de-esser')).toBe(true);
     expect(isRealtimeAudioEffectSupported('gate-expander')).toBe(false);
+    expect(isRealtimeAudioEffectSupported('de-esser')).toBe(false);
     expect(isRealtimeAudioEffectSupported('compressor')).toBe(true);
     expect(isAudioEffectSupported('reverb')).toBe(false);
   });
@@ -121,6 +123,62 @@ describe('audio effects', () => {
     ], 0);
     const [output] = processAudioEffects(0.001, 0.001, resolved, 48_000, createAudioEffectState());
     expect(output).toBeCloseTo(0.001 * 10 ** (-12 / 20), 10);
+  });
+
+  it('attenuates high-frequency sibilant energy while preserving steady low-frequency content', () => {
+    const resolved = resolveAudioEffects([
+      effect('de-esser', {
+        frequency: { value: 6000 },
+        threshold: { value: -30 },
+        ratio: { value: 10 },
+        maxReduction: { value: 18 },
+        attack: { value: 0 },
+        release: { value: 0 },
+      }),
+    ], 0);
+    expect(resolved[0]).toMatchObject({
+      kind: 'de-esser',
+      frequency: 6000,
+      thresholdDb: -30,
+      ratio: 10,
+      maxReductionDb: 18,
+    });
+
+    const highState = createAudioEffectState();
+    let high = 0;
+    for (let index = 0; index < 256; index += 1) {
+      [high] = processAudioEffects(index % 2 === 0 ? 0.8 : -0.8, index % 2 === 0 ? 0.8 : -0.8, resolved, 48_000, highState);
+    }
+    expect(Math.abs(high)).toBeLessThan(0.5);
+
+    const steadyState = createAudioEffectState();
+    let steady = 0;
+    for (let index = 0; index < 256; index += 1) {
+      [steady] = processAudioEffects(0.8, 0.8, resolved, 48_000, steadyState);
+    }
+    expect(steady).toBeCloseTo(0.8, 6);
+  });
+
+  it('clamps de-esser parameters to safe ranges', () => {
+    const resolved = resolveAudioEffects([
+      effect('de-esser', {
+        frequency: { value: 99_999 },
+        threshold: { value: -999 },
+        ratio: { value: 999 },
+        maxReduction: { value: 999 },
+        attack: { value: 9 },
+        release: { value: 9 },
+      }),
+    ], 0);
+    expect(resolved[0]).toMatchObject({
+      kind: 'de-esser',
+      frequency: 14_000,
+      thresholdDb: -60,
+      ratio: 20,
+      maxReductionDb: 30,
+      attack: 0.2,
+      release: 1,
+    });
   });
 
   it('clamps limiter ceiling to its safe descriptor range', () => {
