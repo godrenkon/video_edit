@@ -21,3 +21,11 @@
 .keyframeInterpolation { width: 100%; height: 25px !important; font-size: 8px; }
 .audioFadeGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .audioFadeCard .effectsTime { text-align: left; line-height: 1.4; }
+
+.effectPresetCard { padding: 7px; border: 1px solid var(--line); border-radius: 7px; background: #0a1014; display: grid; gap: 6px; }
+.effectPresetSave { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 5px; }
+.effectPresetApply { display: grid; grid-template-columns: minmax(0,1fr) repeat(3, auto); gap: 5px; }
+.effectPresetCard input, .effectPresetCard select { min-width: 0; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: #080d10; color: var(--text); padding: 0 7px; font-size: 9px; outline: none; }
+.effectPresetCard button { min-width: 42px; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: #12191f; color: var(--text); font-size: 8px; cursor: pointer; }
+.effectPresetCard button:disabled { opacity: .45; cursor: default; }
+.effectPresetCard button.danger { color: #ff9a9a; }
