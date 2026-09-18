@@ -8,7 +8,7 @@ import {
   zundamonVisualState,
 } from '../render/timelineEvaluation';
 import { previewCropLayout } from '../render/cropGeometry';
-import { canvasFilterForEffects } from '../render/effectEvaluation';
+import { canvasFilterForEffects, resolveVignetteEffects, vignetteCssBackground } from '../render/effectEvaluation';
 import { PreviewAudioGraph } from '../render/previewAudioGraph';
 import { previewSyncTolerance } from '../render/previewClock';
 import { transitionOpacity } from '../render/transitionEnvelope';
@@ -135,6 +135,7 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
     return (
       <div className="previewAssetFrame" style={styles.frame}>
         <video ref={videoRef} className="previewAssetSource" src={mediaUrl} muted playsInline style={styles.source} />
+        <VignetteOverlays clip={clip} time={time} />
       </div>
     );
   }
@@ -142,6 +143,7 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
     return (
       <div className="previewAssetFrame" style={styles.frame}>
         <img className="previewAssetSource" src={mediaUrl} alt="" draggable={false} style={styles.source} />
+        <VignetteOverlays clip={clip} time={time} />
       </div>
     );
   }
@@ -159,6 +161,7 @@ function ZundamonLayer({ clip, assets, project, time }: { clip: Clip; assets: As
   return (
     <div className="previewAssetFrame" style={styles.frame}>
       <img className="previewAssetSource zundamonMedia" src={asset.objectUrl} alt="" draggable={false} style={styles.source} />
+      <VignetteOverlays clip={clip} time={time} />
     </div>
   );
 }
@@ -200,6 +203,7 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
     return (
       <div className="previewSynthetic previewTextLayer" style={style}>
         <div style={{ background: text.backgroundColor ?? undefined }}>{highlightedText}</div>
+        <VignetteOverlays clip={clip} time={time} />
       </div>
     );
   }
@@ -211,6 +215,7 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
         <div className="previewSynthetic previewGenerator" style={common}>
           <div className="previewBarsTop" />
           <div className="previewBarsBottom" />
+          <VignetteOverlays clip={clip} time={time} />
         </div>
       );
     }
@@ -224,10 +229,32 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
     } else {
       background = generatorColor(generator, 'color', '#202830');
     }
-    return <div className="previewSynthetic previewGenerator" style={{ ...common, background }} />;
+    return (
+      <div className="previewSynthetic previewGenerator" style={{ ...common, background }}>
+        <VignetteOverlays clip={clip} time={time} />
+      </div>
+    );
   }
 
   return null;
+}
+
+function VignetteOverlays({ clip, time }: { clip: Clip; time: number }) {
+  const localTime = clipLocalTime(clip, time);
+  const vignettes = resolveVignetteEffects(clip.effects ?? [], localTime);
+  if (vignettes.length === 0) return null;
+  return (
+    <>
+      {vignettes.map((vignette, index) => (
+        <i
+          key={index}
+          className="previewVignetteOverlay"
+          style={{ background: vignetteCssBackground(vignette) }}
+          aria-hidden="true"
+        />
+      ))}
+    </>
+  );
 }
 
 function AudioLayer({ clip, asset, time, playing, trackMuted, trackGain, trackPan, fps }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean; trackMuted: boolean; trackGain: number; trackPan: number; fps: number }) {
