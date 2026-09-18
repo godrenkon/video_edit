@@ -80,6 +80,13 @@ body { overflow: hidden; }
 .zTitle { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }.zTitle > div:last-child { display: grid; }
 .zTitle strong { font-size: 12px; }.zIcon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; color: var(--green); background: #19261b; }
 .zGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }.zGrid label, .zControls label { display: grid; gap: 4px; font-size: 9px; color: var(--muted); }.zGrid .wide { grid-column: 1 / -1; }
+.zPresetPanel { margin: 0 0 9px; padding: 7px; border: 1px solid #284932; border-radius: 8px; background: #0b1210; display: grid; gap: 6px; }
+.zPresetSave { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 5px; }
+.zPresetApply { display: grid; grid-template-columns: minmax(0,1fr) auto 30px; gap: 5px; }
+.zPresetPanel input, .zPresetPanel select { min-width: 0; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: #080d10; color: var(--text); padding: 0 7px; font-size: 9px; outline: none; }
+.zPresetPanel button { min-width: 42px; height: 28px; border: 1px solid #315239; border-radius: 6px; background: #152019; color: #dfffd7; font-size: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; }
+.zPresetPanel button:disabled { opacity: .45; cursor: default; }
+.zPresetPanel button.danger { min-width: 30px; color: #ffb0b0; border-color: #5b3030; background: #251414; }
 .zGrid select, .zControls input, .field input { width: 100%; min-width: 0; height: 30px; border: 1px solid var(--line); border-radius: 6px; padding: 0 7px; color: var(--text); background: #0a0f12; }
 .zControls { display: flex; gap: 10px; margin: 9px 0; }.zControls label { grid-template-columns: auto 65px auto; align-items: center; }.zControls input { height: 27px; }
 .zTimingImport { margin: 9px 0 0; display: grid; grid-template-columns: minmax(0,1fr) 28px; gap: 6px; align-items: center; }
