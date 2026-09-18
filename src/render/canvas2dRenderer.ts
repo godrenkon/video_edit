@@ -1,6 +1,6 @@
 import type { BlendMode, Project } from '../types/editor';
 import { resolveCropRectangle } from './cropGeometry';
-import { canvasFilterForEffects, resolveVignetteEffects, type ResolvedVignette } from './effectEvaluation';
+import { canvasFilterForEffects, resolveTemperatureTintEffects, resolveVignetteEffects, type ResolvedColorWash, type ResolvedVignette } from './effectEvaluation';
 import { buildVisualFramePlan, type VisualFrameLayerPlan } from './framePlan';
 import { activeSubtitleHighlight, normalizeSubtitleHighlightColor, type SubtitleHighlightRange } from './subtitleHighlight';
 import { RenderAssetStore } from './renderAssetStore';
@@ -72,7 +72,7 @@ export class Canvas2DProjectRenderer {
         } else {
           context.drawImage(frame.bitmap, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight);
         }
-        drawVignetteEffects(context, layer.effects, layer.clipLocalTime, dx, dy, drawWidth, drawHeight);
+        drawVisualOverlayEffects(context, layer.effects, layer.clipLocalTime, dx, dy, drawWidth, drawHeight);
         context.restore();
       } finally {
         this.assets.releaseFrame(frame);
@@ -298,11 +298,11 @@ function drawGeneratorLayer(
     context.fillRect(dx, dy, width, height);
   }
 
-  drawVignetteEffects(context, layer.effects, layer.clipLocalTime, dx, dy, width, height);
+  drawVisualOverlayEffects(context, layer.effects, layer.clipLocalTime, dx, dy, width, height);
   context.restore();
 }
 
-function drawVignetteEffects(
+function drawVisualOverlayEffects(
   context: RenderContext2D,
   effects: VisualFrameLayerPlan['effects'],
   clipLocalTime: number,
@@ -312,8 +312,29 @@ function drawVignetteEffects(
   height: number,
 ) {
   if (width <= 0 || height <= 0) return;
+  const washes = resolveTemperatureTintEffects(effects, clipLocalTime);
+  for (const wash of washes) drawColorWash(context, wash, x, y, width, height);
   const vignettes = resolveVignetteEffects(effects, clipLocalTime);
   for (const vignette of vignettes) drawVignette(context, vignette, x, y, width, height);
+}
+
+function drawColorWash(
+  context: RenderContext2D,
+  wash: ResolvedColorWash,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  context.save();
+  context.beginPath();
+  context.rect(x, y, width, height);
+  context.clip();
+  context.globalCompositeOperation = wash.blendMode;
+  context.globalAlpha *= wash.alpha;
+  context.fillStyle = wash.color;
+  context.fillRect(x, y, width, height);
+  context.restore();
 }
 
 function drawVignette(
