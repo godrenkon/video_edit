@@ -22,6 +22,7 @@ import {
 } from '../render/syntheticLayers';
 import type { AssetMeta, Clip, Project } from '../types/editor';
 import { PlaybackDiagnostics } from './PlaybackDiagnostics';
+import { PausedPreviewCanvas } from './PausedPreviewCanvas';
 import { PreviewAudioMeter } from './PreviewAudioMeter';
 import '../preview-synthetic.css';
 
@@ -374,6 +375,9 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
               }
               return <VisualLayer key={clip.id} clip={clip} project={project} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} />;
             })}
+            {visuals.length > 0 && (
+              <PausedPreviewCanvas project={project} time={time} playing={playing} enabled={!playing} />
+            )}
             {visuals.length === 0 && <div className="stageEmpty"><FilmIcon /><span>タイムラインに素材を追加</span></div>}
           </div>
         </div>
