@@ -10,3 +10,7 @@
 .assetMetaEditor label { display: grid; grid-template-columns: 36px minmax(0,1fr); gap: 5px; align-items: center; font-size: 9px; color: var(--muted); }
 .assetMetaEditor input, .assetMetaEditor select, .assetMetaEditor textarea { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 5px; background: #080d10; color: var(--text); font-size: 9px; padding: 5px 6px; outline: none; }
 .assetMetaEditor textarea { resize: vertical; }
+
+.mediaFilterRow { margin: 0 8px 6px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; gap: 5px; align-items: center; }
+.mediaFilterRow select { min-width: 0; height: 26px; border: 1px solid var(--line); border-radius: 5px; background: #0a0f12; color: var(--muted); font-size: 8px; padding: 0 5px; }
+.mediaFilterRow span { color: var(--muted); font-size: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
