@@ -20,6 +20,8 @@ export function addTrack(project: Project, kind: TrackKind, options: AddTrackOpt
     muted: false,
     locked: false,
     visible: true,
+    gain: 1,
+    pan: 0,
     clips: [],
   };
   const fallbackIndex = insertionIndexForKind(project, kind);
@@ -75,6 +77,28 @@ export function setTrackSolo(project: Project, trackId: string, solo: boolean): 
     if (track.id !== trackId || Boolean(track.solo) === solo) return track;
     changed = true;
     return { ...track, solo };
+  });
+  return changed ? { ...project, tracks } : project;
+}
+
+export function setTrackGain(project: Project, trackId: string, gain: number): Project {
+  const safe = Number.isFinite(gain) ? Math.max(0, Math.min(4, gain)) : 1;
+  let changed = false;
+  const tracks = project.tracks.map((track) => {
+    if (track.id !== trackId || (track.gain ?? 1) === safe) return track;
+    changed = true;
+    return { ...track, gain: safe };
+  });
+  return changed ? { ...project, tracks } : project;
+}
+
+export function setTrackPan(project: Project, trackId: string, pan: number): Project {
+  const safe = Number.isFinite(pan) ? Math.max(-1, Math.min(1, pan)) : 0;
+  let changed = false;
+  const tracks = project.tracks.map((track) => {
+    if (track.id !== trackId || (track.pan ?? 0) === safe) return track;
+    changed = true;
+    return { ...track, pan: safe };
   });
   return changed ? { ...project, tracks } : project;
 }
