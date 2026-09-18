@@ -5,6 +5,7 @@ const PROJECT_FILE = 'project.json';
 const ASSET_DIR = 'assets';
 const SNAPSHOT_DIR = 'snapshots';
 const WAVEFORM_DIR = 'waveforms';
+const THUMBNAIL_DIR = 'thumbnails';
 const SNAPSHOT_COUNT = 8;
 const SNAPSHOT_INTERVAL_MS = 30_000;
 let lastSnapshotAt = 0;
@@ -76,6 +77,39 @@ export async function deleteWaveformCache(cacheKey: string) {
     const r = await root();
     const dir = await r.getDirectoryHandle(WAVEFORM_DIR);
     await dir.removeEntry(waveformCacheFileName(cacheKey)).catch(() => undefined);
+  } catch {
+    // Missing cache directory is equivalent to an empty cache.
+  }
+}
+
+export async function saveThumbnailCache(assetId: string, cacheKey: string, blob: Blob) {
+  const r = await root();
+  const rootDir = await r.getDirectoryHandle(THUMBNAIL_DIR, { create: true });
+  const assetDir = await rootDir.getDirectoryHandle(thumbnailAssetDirectoryName(assetId), { create: true });
+  const handle = await assetDir.getFileHandle(thumbnailCacheFileName(cacheKey), { create: true });
+  const writable = await handle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
+export async function readThumbnailCache(assetId: string, cacheKey: string): Promise<File | null> {
+  try {
+    const r = await root();
+    const rootDir = await r.getDirectoryHandle(THUMBNAIL_DIR);
+    const assetDir = await rootDir.getDirectoryHandle(thumbnailAssetDirectoryName(assetId));
+    const handle = await assetDir.getFileHandle(thumbnailCacheFileName(cacheKey));
+    const file = await handle.getFile();
+    return file.size > 0 ? file : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteThumbnailCachesForAsset(assetId: string) {
+  try {
+    const r = await root();
+    const dir = await r.getDirectoryHandle(THUMBNAIL_DIR);
+    await dir.removeEntry(thumbnailAssetDirectoryName(assetId), { recursive: true }).catch(() => undefined);
   } catch {
     // Missing cache directory is equivalent to an empty cache.
   }
@@ -208,10 +242,22 @@ async function writeText(handle: FileSystemFileHandle, text: string) {
 
 
 function waveformCacheFileName(cacheKey: string) {
+  return `waveform-${fnv1a(cacheKey)}-${cacheKey.length}.json`;
+}
+
+function thumbnailAssetDirectoryName(assetId: string) {
+  return `asset-${fnv1a(assetId)}-${assetId.length}`;
+}
+
+function thumbnailCacheFileName(cacheKey: string) {
+  return `thumb-${fnv1a(cacheKey)}-${cacheKey.length}.webp`;
+}
+
+function fnv1a(value: string) {
   let hash = 0x811c9dc5;
-  for (let index = 0; index < cacheKey.length; index += 1) {
-    hash ^= cacheKey.charCodeAt(index);
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
     hash = Math.imul(hash, 0x01000193);
   }
-  return `waveform-${(hash >>> 0).toString(16).padStart(8, '0')}-${cacheKey.length}.json`;
+  return (hash >>> 0).toString(16).padStart(8, '0');
 }
