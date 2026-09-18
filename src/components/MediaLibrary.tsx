@@ -8,6 +8,10 @@ interface Props {
   onAdd: (assetId: string, mode: 'insert' | 'overwrite') => void;
   onDelete: (assetId: string) => void;
   onAssetMeta: (assetId: string, patch: Partial<AssetMeta>) => void;
+  proxyProgress: Record<string, number>;
+  onGenerateProxy: (assetId: string) => void;
+  onCancelProxy: (assetId: string) => void;
+  onRemoveProxy: (assetId: string) => void;
   onCreateText: () => void;
   onCreateSubtitle: () => void;
   onCreateGenerator: () => void;
@@ -30,6 +34,10 @@ export function MediaLibrary({
   onAdd,
   onDelete,
   onAssetMeta,
+  proxyProgress,
+  onGenerateProxy,
+  onCancelProxy,
+  onRemoveProxy,
   onCreateText,
   onCreateSubtitle,
   onCreateGenerator,
@@ -123,6 +131,27 @@ export function MediaLibrary({
           </select></label>
           <label><span>タグ</span><input value={(selectedAsset.tags ?? []).join(', ')} placeholder="例: B-roll, ゲーム, voice" onChange={(e) => onAssetMeta(selectedAsset.id, { tags: normalizeTags(e.target.value) })} /></label>
           <label><span>メモ</span><textarea rows={2} value={selectedAsset.notes ?? ''} onChange={(e) => onAssetMeta(selectedAsset.id, { notes: e.target.value || undefined })} /></label>
+          {selectedAsset.kind === 'video' && (
+            <div className="proxyEditor">
+              <div className="proxyStatus">
+                <span>Proxy</span>
+                <b>{selectedAsset.proxyStorageName ? '有効' : proxyProgress[selectedAsset.id] !== undefined ? '生成中' : '未生成'}</b>
+              </div>
+              {proxyProgress[selectedAsset.id] !== undefined && (
+                <progress max={1} value={proxyProgress[selectedAsset.id]} aria-label="proxy生成進捗" />
+              )}
+              <div className="proxyActions">
+                {proxyProgress[selectedAsset.id] !== undefined ? (
+                  <button type="button" onClick={() => onCancelProxy(selectedAsset.id)}>中止</button>
+                ) : (
+                  <button type="button" onClick={() => onGenerateProxy(selectedAsset.id)}>
+                    {selectedAsset.proxyStorageName ? '再生成' : 'Proxy生成'}
+                  </button>
+                )}
+                <button type="button" disabled={!selectedAsset.proxyStorageName} onClick={() => onRemoveProxy(selectedAsset.id)}>解除</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <div className="assetList">
@@ -138,7 +167,7 @@ export function MediaLibrary({
             <div className={`assetIcon ${asset.kind}`}>{iconFor(asset.kind)}</div>
             <div className="assetText">
               <strong title={asset.name}>{asset.favorite ? '★ ' : ''}{asset.name}</strong>
-              <span>{asset.kind} · {formatBytes(asset.size)}{asset.duration ? ` · ${asset.duration.toFixed(1)}s` : ''}</span>
+              <span>{asset.kind} · {formatBytes(asset.size)}{asset.duration ? ` · ${asset.duration.toFixed(1)}s` : ''}{asset.proxyStorageName ? ' · proxy' : ''}</span>
             </div>
             <button className="miniBtn" title={editMode === 'insert' ? '挿入編集でタイムラインに追加' : '上書き編集でタイムラインに追加'} onClick={() => onAdd(asset.id, editMode)}><Plus size={14} /></button>
             <button className="miniBtn danger" title="素材を削除" onClick={() => onDelete(asset.id)}><Trash2 size={14} /></button>
