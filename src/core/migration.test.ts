@@ -31,6 +31,8 @@ describe('migrateProject', () => {
           id: 'track-1',
           name: 'Video',
           kind: 'video',
+          gain: 99,
+          pan: -99,
           clips: [
             {
               id: 'clip-1',
