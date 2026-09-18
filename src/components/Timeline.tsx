@@ -1,4 +1,4 @@
-import { Copy, Eye, EyeOff, Lock, Scissors, Trash2, Unlock, ZoomIn, ZoomOut } from 'lucide-react';
+import { ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, Lock, Scissors, Trash2, Unlock, ZoomIn, ZoomOut } from 'lucide-react';
 import { useMemo } from 'react';
 import type { Clip, Project } from '../types/editor';
 import '../timeline-enhancements.css';
@@ -15,6 +15,8 @@ interface Props {
   onSelect: (clipId: string) => void;
   onSplitSelected: () => void;
   onDuplicateSelected: () => void;
+  onCopySelected: () => void;
+  onPasteCopied: () => void;
   onRippleDeleteSelected: () => void;
   onMoveClip: (clipId: string, start: number) => void;
   onTrimClipLeft: (clipId: string, start: number) => void;
@@ -36,6 +38,8 @@ export function Timeline(props: Props) {
     onSelect,
     onSplitSelected,
     onDuplicateSelected,
+    onCopySelected,
+    onPasteCopied,
     onRippleDeleteSelected,
     onMoveClip,
     onTrimClipLeft,
@@ -77,6 +81,17 @@ export function Timeline(props: Props) {
             disabled={!selectedClipId}
             title="選択クリップを複製 (Ctrl/Cmd+D)"
           ><Copy size={14} /></button>
+          <button
+            className="miniBtn"
+            onClick={onCopySelected}
+            disabled={!selectedClipId}
+            title="選択クリップをコピー (Ctrl/Cmd+C)"
+          ><ClipboardCopy size={14} /></button>
+          <button
+            className="miniBtn"
+            onClick={onPasteCopied}
+            title="コピーしたクリップを再生ヘッド位置へ貼り付け (Ctrl/Cmd+V)"
+          ><ClipboardPaste size={14} /></button>
           <button
             className="miniBtn"
             onClick={onRippleDeleteSelected}
