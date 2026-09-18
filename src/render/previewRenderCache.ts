@@ -121,7 +121,11 @@ export class PreviewRenderCache {
     ctx.restore();
 
     const bitmap = await canvasToImageBitmap(this.scaleCanvas);
-    throwIfAborted(signal);
+    if (signal?.aborted || this.closed) {
+      bitmap.close();
+      throwIfAborted(signal);
+      throw new Error('Preview render cache is closed');
+    }
     const entry: CacheEntry = {
       bitmap,
       width: dimensions.width,
