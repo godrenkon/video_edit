@@ -12,6 +12,33 @@ const effect = (kind: string, parameters: EffectInstance['parameters']): EffectI
   kind,
   enabled: true,
   parameters,
+  it('resolves and applies a stereo-linked peak limiter ceiling', () => {
+    const limiter = {
+      id: 'limiter',
+      kind: 'limiter',
+      enabled: true,
+      parameters: { ceiling: { value: -6 } },
+    };
+    const resolved = resolveAudioEffects([limiter], 0);
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]).toMatchObject({ kind: 'limiter', ceilingDb: -6 });
+    if (resolved[0].kind !== 'limiter') throw new Error('Expected limiter');
+
+    const [left, right] = processAudioEffects(1, 0.5, resolved, 48_000, createAudioEffectState());
+    const ceiling = 10 ** (-6 / 20);
+    expect(left).toBeCloseTo(ceiling, 8);
+    expect(right).toBeCloseTo(ceiling * 0.5, 8);
+  });
+
+  it('clamps limiter ceiling to its safe descriptor range', () => {
+    const resolved = resolveAudioEffects([{
+      id: 'limiter',
+      kind: 'limiter',
+      enabled: true,
+      parameters: { ceiling: { value: 12 } },
+    }], 0);
+    expect(resolved[0]).toMatchObject({ kind: 'limiter', ceilingDb: 0, ceiling: 1 });
+  });
 });
 
 describe('audio effects', () => {
