@@ -1,4 +1,4 @@
-import { Mic, Square } from 'lucide-react';
+import { Headphones, Mic, Square } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { runCaptureCountdown } from '../core/captureCountdown';
 import {
@@ -7,6 +7,7 @@ import {
   microphoneRecordingFileName,
   preferredAudioRecordingMimeType,
 } from '../core/microphoneRecording';
+import { MicrophoneMonitor } from '../render/microphoneMonitor';
 import '../microphone-recorder.css';
 
 export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => void | Promise<void> }) {
@@ -16,8 +17,10 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
   const timerRef = useRef<number | null>(null);
   const startedAtRef = useRef(0);
   const countdownAbortRef = useRef<AbortController | null>(null);
+  const monitorRef = useRef(new MicrophoneMonitor());
   const [recording, setRecording] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [monitorEnabled, setMonitorEnabled] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState('');
 
@@ -34,6 +37,7 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
   };
 
   const releaseStream = () => {
+    void monitorRef.current.close();
     for (const track of streamRef.current?.getTracks() ?? []) track.stop();
     streamRef.current = null;
   };
@@ -74,6 +78,7 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
 
       recorder.onerror = () => {
         setError('録音エラー');
+        stopRecording();
       };
 
       recorder.onstop = () => {
@@ -97,7 +102,10 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
           microphoneRecordingFileName(now, finalMime),
           { type: finalMime, lastModified: now.getTime() },
         );
-        onImport([file]);
+        void Promise.resolve(onImport([file])).catch((cause) => {
+          console.warn('Microphone recording import failed', cause);
+          setError('録音素材を読み込めませんでした');
+        });
       };
 
       const countdownController = new AbortController();
@@ -136,6 +144,21 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
     }
   };
 
+  useEffect(() => {
+    const stream = streamRef.current;
+    const active = recording || countdown !== null;
+    if (!monitorEnabled || !stream || !active) {
+      void monitorRef.current.close();
+      return;
+    }
+
+    void monitorRef.current.attach(stream, 0.35).catch((cause) => {
+      console.warn('Microphone monitor failed', cause);
+      setMonitorEnabled(false);
+      setError('モニターを開始できません');
+    });
+  }, [countdown, monitorEnabled, recording]);
+
   useEffect(() => () => {
     countdownAbortRef.current?.abort();
     countdownAbortRef.current = null;
@@ -153,6 +176,8 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
     releaseStream();
   }, []);
 
+  const active = recording || countdown !== null;
+
   return (
     <div className={`micRecorderRow ${recording ? 'recording' : countdown !== null ? 'counting' : ''}`}>
       <span className="micRecorderLabel"><Mic size={13} />マイク録音</span>
@@ -161,12 +186,22 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
       </span>
       <button
         type="button"
-        className={recording || countdown !== null ? 'stop' : ''}
+        className={`monitor ${monitorEnabled ? 'active' : ''}`}
+        disabled={!supported}
+        onClick={() => setMonitorEnabled((value) => !value)}
+        title={monitorEnabled ? 'マイクモニターOFF' : 'マイクモニターON（ヘッドホン推奨）'}
+        aria-label={monitorEnabled ? 'マイクモニターOFF' : 'マイクモニターON'}
+      >
+        <Headphones size={12} />
+      </button>
+      <button
+        type="button"
+        className={active ? 'stop' : ''}
         disabled={!supported}
         onClick={countdown !== null ? () => countdownAbortRef.current?.abort() : recording ? stopRecording : startRecording}
         title={!supported ? 'このブラウザはマイク録音に未対応です' : countdown !== null ? 'カウントダウンを中止' : recording ? '録音を停止' : 'マイク録音を開始'}
       >
-        {recording || countdown !== null ? <Square size={12} fill="currentColor" /> : <Mic size={12} />}
+        {active ? <Square size={12} fill="currentColor" /> : <Mic size={12} />}
         {countdown !== null ? '中止' : recording ? '停止' : '録音'}
       </button>
     </div>
