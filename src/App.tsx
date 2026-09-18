@@ -793,7 +793,7 @@ export default function App() {
     setZBusy(true);
     setSaveState(request.timingCues?.length ? 'VOICEVOX timingを反映中…' : 'ずんだもん音声解析中…');
     try {
-      const { timingCues, ...zundamonRequest } = request;
+      const { timingCues, subtitlePayload, ...zundamonRequest } = request;
       let cues = timingCues;
       if (!cues?.length) {
         let blob: Blob;
@@ -819,20 +819,29 @@ export default function App() {
         zundamon: { ...zundamonRequest, cues },
       };
       const audioClip = defaultClip(audio.name, audio.id, time, audio.duration);
+      const subtitleClip = subtitlePayload?.text
+        ? {
+            ...defaultSubtitleClip(time, project.height * 0.34, audio.duration),
+            name: `VOICEVOX字幕 / ${audio.name}`,
+            subtitle: subtitlePayload,
+          }
+        : null;
       updateProject((p) => {
         const overlay = p.tracks.find((t) => t.kind === 'overlay');
         const audioTrack = p.tracks.find((t) => t.kind === 'audio');
+        const subtitleTrack = p.tracks.find((t) => t.kind === 'subtitle' && !t.locked);
         return {
           ...p,
           tracks: p.tracks.map((track) => {
             if (track.id === overlay?.id) return { ...track, clips: [...track.clips, zClip] };
             if (track.id === audioTrack?.id) return { ...track, clips: [...track.clips, audioClip] };
+            if (subtitleClip && track.id === subtitleTrack?.id) return { ...track, clips: [...track.clips, subtitleClip] };
             return track;
           }),
         };
-      }, { label: 'ずんだもんを生成' });
+      }, { label: subtitleClip ? 'ずんだもん + VOICEVOX字幕を生成' : 'ずんだもんを生成' });
       setSelectedClipId(zClip.id);
-      setSaveState(`${timingCues?.length ? 'VOICEVOX timing' : '音声解析'} / 口パク ${cues.length} 点を生成`);
+      setSaveState(`${timingCues?.length ? 'VOICEVOX timing' : '音声解析'} / 口パク ${cues.length} 点${subtitleClip ? ' + 字幕' : ''}を生成`);
     } catch (error) {
       console.error(error);
       setSaveState('口パク生成エラー');
