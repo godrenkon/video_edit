@@ -38,6 +38,7 @@ import { exportProjectVideo } from './render/projectExporter';
 import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
 import { waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
+import { generateVideoProxy } from './render/proxyGenerator';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
@@ -70,11 +71,13 @@ export default function App() {
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState<number | null>(null);
+  const [proxyProgress, setProxyProgress] = useState<Record<string, number>>({});
   const capabilities = useMemo(() => detectCapabilities(), []);
   const playbackOrigin = useRef<{ wallMs: number; time: number } | null>(null);
   const timeRef = useRef(0);
   const history = useRef(new HistoryController<Project>(120, 750));
   const renderAbort = useRef<AbortController | null>(null);
+  const proxyAbort = useRef(new Map<string, AbortController>());
   const clipClipboard = useRef<ClipClipboardPayload | null>(null);
 
   const selectedClip = useMemo(() => {
@@ -131,6 +134,8 @@ export default function App() {
 
   useEffect(() => () => {
     renderAbort.current?.abort('Editor closed');
+    for (const controller of proxyAbort.current.values()) controller.abort('Editor closed');
+    proxyAbort.current.clear();
   }, []);
 
   useEffect(() => {
@@ -336,6 +341,88 @@ export default function App() {
     });
   }, [rendering, updateProject]);
 
+  const generateAssetProxy = useCallback(async (assetId: string) => {
+    if (rendering || !capabilities.opfs || proxyAbort.current.has(assetId)) return;
+    const asset = project.assets.find((item) => item.id === assetId);
+    if (!asset || asset.kind !== 'video') return;
+
+    const controller = new AbortController();
+    proxyAbort.current.set(assetId, controller);
+    setProxyProgress((current) => ({ ...current, [assetId]: 0 }));
+    setSaveState(`proxy生成中: ${asset.name}`);
+
+    if (asset.proxyObjectUrl) URL.revokeObjectURL(asset.proxyObjectUrl);
+    if (asset.proxyStorageName) await deleteAssetFile(asset.proxyStorageName).catch(() => undefined);
+    clearTimelineThumbnailCache(assetId);
+    await deleteThumbnailCachesForAsset(assetId).catch(() => undefined);
+    updateProject((p) => ({
+      ...p,
+      assets: p.assets.map((item) => item.id === assetId
+        ? { ...item, proxyStorageName: undefined, proxyObjectUrl: undefined }
+        : item),
+    }), { history: false });
+
+    try {
+      const generated = await generateVideoProxy(asset, {
+        signal: controller.signal,
+        onProgress: (progress) => {
+          setProxyProgress((current) => ({ ...current, [assetId]: progress }));
+        },
+      });
+      const proxyObjectUrl = URL.createObjectURL(generated.file);
+      clearTimelineThumbnailCache(assetId);
+      await deleteThumbnailCachesForAsset(assetId).catch(() => undefined);
+      updateProject((p) => ({
+        ...p,
+        assets: p.assets.map((item) => item.id === assetId
+          ? {
+              ...item,
+              proxyStorageName: generated.storageName,
+              proxyObjectUrl,
+            }
+          : item),
+      }), { history: false });
+      setSaveState(`proxy生成済み: ${asset.name} (${generated.width}×${generated.height})`);
+    } catch (error) {
+      if (controller.signal.aborted) {
+        setSaveState(`proxy生成を中止: ${asset.name}`);
+      } else {
+        console.error('Proxy generation failed', error);
+        setSaveState(`proxy生成失敗: ${asset.name}`);
+      }
+    } finally {
+      proxyAbort.current.delete(assetId);
+      setProxyProgress((current) => {
+        const next = { ...current };
+        delete next[assetId];
+        return next;
+      });
+    }
+  }, [capabilities.opfs, project.assets, rendering, updateProject]);
+
+  const cancelAssetProxy = useCallback((assetId: string) => {
+    proxyAbort.current.get(assetId)?.abort('Proxy generation canceled');
+  }, []);
+
+  const removeAssetProxy = useCallback(async (assetId: string) => {
+    proxyAbort.current.get(assetId)?.abort('Proxy removed');
+    const asset = project.assets.find((item) => item.id === assetId);
+    if (!asset) return;
+    if (asset.proxyStorageName && capabilities.opfs) {
+      await deleteAssetFile(asset.proxyStorageName).catch(() => undefined);
+    }
+    if (asset.proxyObjectUrl) URL.revokeObjectURL(asset.proxyObjectUrl);
+    clearTimelineThumbnailCache(assetId);
+    await deleteThumbnailCachesForAsset(assetId).catch(() => undefined);
+    updateProject((p) => ({
+      ...p,
+      assets: p.assets.map((item) => item.id === assetId
+        ? { ...item, proxyStorageName: undefined, proxyObjectUrl: undefined }
+        : item),
+    }), { history: false });
+    setSaveState(`proxy解除: ${asset.name}`);
+  }, [capabilities.opfs, project.assets, updateProject]);
+
   const addAssetToTimeline = (assetId: string, mode: 'insert' | 'overwrite') => {
     if (rendering) return;
     updateProject((p) => {
@@ -388,11 +475,15 @@ export default function App() {
     if (!asset) return;
     if (capabilities.opfs) {
       await deleteAssetFile(asset.storageName);
+      if (asset.proxyStorageName) await deleteAssetFile(asset.proxyStorageName).catch(() => undefined);
       await deleteWaveformCache(waveformCacheKey(asset));
       await deleteThumbnailCachesForAsset(assetId);
     }
+    proxyAbort.current.get(assetId)?.abort('Asset deleted');
+    proxyAbort.current.delete(assetId);
     clearTimelineThumbnailCache(assetId);
     if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
+    if (asset.proxyObjectUrl) URL.revokeObjectURL(asset.proxyObjectUrl);
     history.current.clear();
     updateProject((p) => ({
       ...p,
@@ -716,6 +807,10 @@ export default function App() {
           onAdd={addAssetToTimeline}
           onDelete={deleteAsset}
           onAssetMeta={updateAssetMeta}
+          proxyProgress={proxyProgress}
+          onGenerateProxy={generateAssetProxy}
+          onCancelProxy={cancelAssetProxy}
+          onRemoveProxy={removeAssetProxy}
           onCreateText={createText}
           onCreateSubtitle={createSubtitle}
           onCreateGenerator={createGenerator}
@@ -817,12 +912,23 @@ function EngineStatus({ capabilities, storageText }: { capabilities: ReturnType<
 
 async function hydrateProjectAssets(input: Project): Promise<Project> {
   const assets = await Promise.all(input.assets.map(async (asset) => {
+    let next = { ...asset };
     try {
       const file = await readAssetFile(asset.storageName);
-      return { ...asset, objectUrl: URL.createObjectURL(file) };
+      next = { ...next, objectUrl: URL.createObjectURL(file) };
     } catch {
-      return asset;
+      // Missing original media is preserved as an offline asset reference.
     }
+
+    if (asset.proxyStorageName) {
+      try {
+        const proxy = await readAssetFile(asset.proxyStorageName);
+        next = { ...next, proxyObjectUrl: URL.createObjectURL(proxy) };
+      } catch {
+        next = { ...next, proxyStorageName: undefined, proxyObjectUrl: undefined };
+      }
+    }
+    return next;
   }));
   return { ...input, assets };
 }
@@ -830,6 +936,7 @@ async function hydrateProjectAssets(input: Project): Promise<Project> {
 function revokeProjectUrls(input: Project) {
   for (const asset of input.assets) {
     if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
+    if (asset.proxyObjectUrl) URL.revokeObjectURL(asset.proxyObjectUrl);
   }
 }
 
