@@ -212,7 +212,7 @@ Current implementation branch: `main`.
 - [x] final-export text/subtitle compositor
 - [x] SRT import/export
 - [x] VTT import/export
-- [ ] ASS subset
+- [x] ASS Dialogue import/export subset
 - [ ] word-by-word highlight
 - [ ] transcript document model
 - [ ] speech-to-text adapter
@@ -299,7 +299,7 @@ Large AI models must be optional and selected according to WebGPU/device capabil
 - [x] fullscreen preview
 - [x] PWA manifest + standalone install shell
 - [x] service-worker offline app shell after first successful load
-- [ ] file-system folder import where available
+- [x] recursive File System Access API folder import where available
 - [ ] plugin contracts: Effect / Generator / Importer / Exporter / Analysis / Character / Automation
 
 ## Definition of usable
