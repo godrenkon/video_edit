@@ -1,5 +1,5 @@
-import { Maximize2, Pause, Play, SkipBack, Volume2 } from 'lucide-react';
-import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { Maximize2, Minimize2, Pause, Play, SkipBack, Volume2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   audioTimelineItems,
   clipLocalTime,
@@ -259,17 +259,37 @@ function AudioLayer({ clip, asset, time, playing, trackMuted }: { clip: Clip; as
 }
 
 export function Preview({ project, time, playing, onTogglePlay, onTime }: Props) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const visuals = useMemo(() => visualTimelineItems(project, time), [project, time]);
   const audios = useMemo(() => audioTimelineItems(project, time), [project, time]);
   const aspect = `${project.width} / ${project.height}`;
 
+  useEffect(() => {
+    const sync = () => setFullscreen(document.fullscreenElement === panelRef.current);
+    document.addEventListener('fullscreenchange', sync);
+    sync();
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement === panelRef.current) await document.exitFullscreen();
+      else await panelRef.current?.requestFullscreen();
+    } catch (error) {
+      console.warn('Fullscreen preview is unavailable', error);
+    }
+  };
+
   return (
     <section className="previewColumn">
-      <div className="panel previewPanel">
+      <div ref={panelRef} className="panel previewPanel">
         <div className="previewToolbar">
           <span>{project.width}×{project.height}</span>
           <span>{project.fps} fps</span>
-          <button className="miniBtn"><Maximize2 size={14} /></button>
+          <button className="miniBtn" type="button" onClick={toggleFullscreen} title={fullscreen ? 'フルスクリーンを終了' : 'フルスクリーン'} aria-label={fullscreen ? 'フルスクリーンを終了' : 'フルスクリーン'}>
+            {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          </button>
         </div>
         <div className="stageOuter">
           <div className="stage" style={{ aspectRatio: aspect, background: project.background }}>
