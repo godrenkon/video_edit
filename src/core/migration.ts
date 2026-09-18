@@ -98,6 +98,7 @@ function migrateClip(clip: Record<string, unknown>, index: number): Clip {
     muted: Boolean(clip.muted),
     fadeIn: optionalClampedNumber(clip.fadeIn, 0, duration),
     fadeOut: optionalClampedNumber(clip.fadeOut, 0, duration),
+    freezeFrameAt: optionalClampedNumber(clip.freezeFrameAt, 0, Number.MAX_SAFE_INTEGER),
     transform: {
       x: finiteNumber(transform.x, 0),
       y: finiteNumber(transform.y, 0),
