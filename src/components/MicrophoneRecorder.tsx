@@ -10,7 +10,19 @@ import {
 import { MicrophoneMonitor } from '../render/microphoneMonitor';
 import '../microphone-recorder.css';
 
-export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => void | Promise<void> }) {
+interface Props {
+  onImport: (files: File[]) => void | Promise<void>;
+  timelineTime: number;
+  onPunchIn: (file: File, startTime: number) => void | Promise<void>;
+  onPunchInPlayback: (active: boolean) => void;
+}
+
+export function MicrophoneRecorder({
+  onImport,
+  timelineTime,
+  onPunchIn,
+  onPunchInPlayback,
+}: Props) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -18,9 +30,13 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
   const startedAtRef = useRef(0);
   const countdownAbortRef = useRef<AbortController | null>(null);
   const monitorRef = useRef(new MicrophoneMonitor());
+  const punchStartRef = useRef(0);
+  const punchModeRef = useRef(false);
+  const punchPlaybackActiveRef = useRef(false);
   const [recording, setRecording] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [monitorEnabled, setMonitorEnabled] = useState(false);
+  const [punchInEnabled, setPunchInEnabled] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState('');
 
@@ -34,6 +50,12 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
   const clearTimer = () => {
     if (timerRef.current !== null) window.clearInterval(timerRef.current);
     timerRef.current = null;
+  };
+
+  const restorePunchPlayback = () => {
+    if (!punchPlaybackActiveRef.current) return;
+    punchPlaybackActiveRef.current = false;
+    onPunchInPlayback(false);
   };
 
   const releaseStream = () => {
@@ -89,9 +111,11 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
         recorderRef.current = null;
         releaseStream();
         setRecording(false);
+        restorePunchPlayback();
 
         const blob = new Blob(chunks, { type: finalMime });
         if (blob.size <= 0) {
+          punchModeRef.current = false;
           setError('録音データが空です');
           return;
         }
@@ -102,7 +126,12 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
           microphoneRecordingFileName(now, finalMime),
           { type: finalMime, lastModified: now.getTime() },
         );
-        void Promise.resolve(onImport([file])).catch((cause) => {
+
+        const action = punchModeRef.current
+          ? onPunchIn(file, punchStartRef.current)
+          : onImport([file]);
+        punchModeRef.current = false;
+        void Promise.resolve(action).catch((cause) => {
           console.warn('Microphone recording import failed', cause);
           setError('録音素材を読み込めませんでした');
         });
@@ -120,6 +149,13 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
         return;
       }
 
+      punchModeRef.current = punchInEnabled;
+      punchStartRef.current = Math.max(0, timelineTime);
+      if (punchInEnabled) {
+        punchPlaybackActiveRef.current = true;
+        onPunchInPlayback(true);
+      }
+
       startedAtRef.current = Date.now();
       setRecording(true);
       recorder.start(1_000);
@@ -134,8 +170,10 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
       countdownAbortRef.current = null;
       setCountdown(null);
       clearTimer();
+      restorePunchPlayback();
       releaseStream();
       recorderRef.current = null;
+      punchModeRef.current = false;
       setRecording(false);
       const denied = cause instanceof DOMException
         && (cause.name === 'NotAllowedError' || cause.name === 'SecurityError');
@@ -173,6 +211,7 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
       }
     }
     recorderRef.current = null;
+    restorePunchPlayback();
     releaseStream();
   }, []);
 
@@ -182,8 +221,26 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
     <div className={`micRecorderRow ${recording ? 'recording' : countdown !== null ? 'counting' : ''}`}>
       <span className="micRecorderLabel"><Mic size={13} />マイク録音</span>
       <span className={`micRecorderStatus ${error ? 'error' : ''}`} title={error || undefined}>
-        {error || (countdown !== null ? `開始まで ${countdown}` : recording ? formatRecordingElapsed(elapsedMs) : '最大30:00')}
+        {error || (
+          countdown !== null
+            ? `${punchInEnabled ? 'Punch ' : ''}開始まで ${countdown}`
+            : recording
+              ? `${punchModeRef.current ? 'Punch · ' : ''}${formatRecordingElapsed(elapsedMs)}`
+              : punchInEnabled
+                ? 'Punch-in待機'
+                : '最大30:00'
+        )}
       </span>
+      <button
+        type="button"
+        className={`punch ${punchInEnabled ? 'active' : ''}`}
+        disabled={!supported || active}
+        onClick={() => setPunchInEnabled((value) => !value)}
+        title={punchInEnabled ? '通常録音へ戻す' : 'Punch-in: 再生しながら現在位置から録音'}
+        aria-label={punchInEnabled ? 'Punch-in OFF' : 'Punch-in ON'}
+      >
+        P
+      </button>
       <button
         type="button"
         className={`monitor ${monitorEnabled ? 'active' : ''}`}
@@ -199,10 +256,10 @@ export function MicrophoneRecorder({ onImport }: { onImport: (files: File[]) => 
         className={active ? 'stop' : ''}
         disabled={!supported}
         onClick={countdown !== null ? () => countdownAbortRef.current?.abort() : recording ? stopRecording : startRecording}
-        title={!supported ? 'このブラウザはマイク録音に未対応です' : countdown !== null ? 'カウントダウンを中止' : recording ? '録音を停止' : 'マイク録音を開始'}
+        title={!supported ? 'このブラウザはマイク録音に未対応です' : countdown !== null ? 'カウントダウンを中止' : recording ? '録音を停止' : punchInEnabled ? 'Punch-in録音を開始' : 'マイク録音を開始'}
       >
         {active ? <Square size={12} fill="currentColor" /> : <Mic size={12} />}
-        {countdown !== null ? '中止' : recording ? '停止' : '録音'}
+        {countdown !== null ? '中止' : recording ? '停止' : punchInEnabled ? 'Punch' : '録音'}
       </button>
     </div>
   );
