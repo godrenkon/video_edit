@@ -14,3 +14,11 @@
 .mediaFilterRow { margin: 0 8px 6px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; gap: 5px; align-items: center; }
 .mediaFilterRow select { min-width: 0; height: 26px; border: 1px solid var(--line); border-radius: 5px; background: #0a0f12; color: var(--muted); font-size: 8px; padding: 0 5px; }
 .mediaFilterRow span { color: var(--muted); font-size: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.proxyEditor { display: grid; gap: 6px; padding-top: 3px; border-top: 1px solid var(--line); }
+.proxyStatus { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 9px; }
+.proxyStatus b { color: #cfd9df; font-weight: 700; }
+.proxyEditor progress { width: 100%; height: 6px; accent-color: var(--cyan); }
+.proxyActions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 5px; }
+.proxyActions button { height: 27px; border: 1px solid var(--line); border-radius: 5px; background: #11181d; color: var(--text); font-size: 8px; cursor: pointer; }
+.proxyActions button:disabled { opacity: .42; cursor: default; }
