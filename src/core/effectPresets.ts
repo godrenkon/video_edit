@@ -1,5 +1,5 @@
 import { uid } from './project';
-import type { EffectInstance, EffectParameterValue } from '../types/editor';
+import type { EffectInstance, EffectParameterValue, Interpolation } from '../types/editor';
 
 export interface EffectPreset {
   id: string;
@@ -103,7 +103,7 @@ function parseParameter(value: unknown) {
   const keyframes = Array.isArray(value.keyframes)
     ? value.keyframes.flatMap((keyframe) => {
         if (!isRecord(keyframe) || typeof keyframe.id !== 'string' || !Number.isFinite(keyframe.time) || !isParameterValue(keyframe.value)) return [];
-        const interpolation = keyframe.interpolation === 'hold' || keyframe.interpolation === 'bezier' ? keyframe.interpolation : 'linear';
+        const interpolation: Interpolation = keyframe.interpolation === 'hold' || keyframe.interpolation === 'bezier' ? keyframe.interpolation : 'linear';
         return [{
           id: keyframe.id,
           time: Math.max(0, Number(keyframe.time)),
