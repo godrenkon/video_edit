@@ -102,7 +102,6 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
   const videoRef = useRef<HTMLVideoElement>(null);
   const sourceTime = clipSourceTime(clip, time);
   const playbackRate = Math.max(0.0625, Math.min(16, clip.speed ?? 1));
-  const syncTolerance = previewSyncTolerance(fps);
   const syncTolerance = previewSyncTolerance(project.fps);
 
   useEffect(() => {
@@ -216,6 +215,7 @@ function AudioLayer({ clip, asset, time, playing, trackMuted, fps }: { clip: Cli
   const sourceTime = clipSourceTime(clip, time);
   const localTime = clipLocalTime(clip, time);
   const playbackRate = Math.max(0.0625, Math.min(16, clip.speed ?? 1));
+  const syncTolerance = previewSyncTolerance(fps);
 
   useEffect(() => {
     const el = ref.current;
