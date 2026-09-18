@@ -58,7 +58,11 @@ export function saveEffectPresets(
   storage: Pick<Storage, 'setItem'> | null = browserStorage(),
 ) {
   if (!storage) return;
-  storage.setItem(STORAGE_KEY, serializeEffectPresets(presets));
+  try {
+    storage.setItem(STORAGE_KEY, serializeEffectPresets(presets));
+  } catch {
+    // Presets are a convenience layer. A storage quota/privacy failure must not break editing.
+  }
 }
 
 export function normalizePresetName(value: string) {
