@@ -135,7 +135,7 @@ Current implementation branch: `main`.
 - [ ] transparent WebM where supported
 - [x] WAV / audio-only chunked export with OPFS + memory fallback
 - [x] PNG still export at playhead using the final compositor
-- [ ] PNG image sequence
+- [x] streamed PNG image sequence to user-selected folder
 - [x] bitrate / quality preset UI
 - [x] 720p / 1080p / 1440p / 4K preset UI
 - [ ] hardware encoder preference / benchmark
@@ -150,7 +150,7 @@ Current implementation branch: `main`.
 - [x] clip gain in offline export mix
 - [x] clip fade in / fade out model, UI, preview envelope and offline export
 - [x] pan rendering
-- [ ] track mixer UI
+- [x] track mixer UI with mute/solo, gain and pan in Preview/offline export
 - [x] mute / solo semantics in offline export
 - [ ] bus routing
 - [x] initial high-pass / low-pass rendering
@@ -215,7 +215,7 @@ Current implementation branch: `main`.
 - [x] SRT import/export
 - [x] VTT import/export
 - [x] ASS Dialogue import/export subset
-- [ ] word-by-word highlight
+- [x] timed word/character subtitle highlight with Preview/export parity
 - [ ] transcript document model
 - [ ] speech-to-text adapter
 - [ ] speaker detection
