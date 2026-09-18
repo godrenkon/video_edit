@@ -69,6 +69,24 @@ export async function buildAssetMeta(file: File): Promise<AssetMeta> {
   };
 }
 
+export function mergeRelinkedAsset(existing: AssetMeta, replacement: AssetMeta): AssetMeta {
+  if (existing.kind !== replacement.kind) {
+    throw new Error(`Relink kind mismatch: expected ${existing.kind}, got ${replacement.kind}`);
+  }
+  return {
+    ...existing,
+    mime: replacement.mime,
+    size: replacement.size,
+    duration: replacement.duration,
+    width: replacement.width,
+    height: replacement.height,
+    objectUrl: replacement.objectUrl,
+    hash: replacement.hash,
+    proxyStorageName: undefined,
+    proxyObjectUrl: undefined,
+  };
+}
+
 export async function analyzeMouthCues(file: Blob) {
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) throw new Error('Web Audio API is not available');
