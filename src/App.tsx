@@ -504,6 +504,12 @@ export default function App() {
         splitSelectedClip();
         return;
       }
+      if (mod && lower === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) ungroupSelection();
+        else groupSelection();
+        return;
+      }
       if (mod && lower === 'd') {
         e.preventDefault();
         duplicateSelectedClip();
@@ -546,7 +552,7 @@ export default function App() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, nudgeSelected, undo, redo]);
+  }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, groupSelection, ungroupSelection, nudgeSelected, undo, redo]);
 
   const manualSave = async () => {
     try {
