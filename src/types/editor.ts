@@ -45,6 +45,7 @@ export interface AssetMeta {
   hash?: string;
   tags?: string[];
   rating?: number;
+  favorite?: boolean;
   notes?: string;
 }
 
