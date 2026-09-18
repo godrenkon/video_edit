@@ -42,6 +42,7 @@ export interface AssetMeta {
   storageName: string;
   objectUrl?: string;
   proxyStorageName?: string;
+  proxyObjectUrl?: string;
   hash?: string;
   tags?: string[];
   rating?: number;
