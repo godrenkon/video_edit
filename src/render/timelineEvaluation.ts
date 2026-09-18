@@ -1,5 +1,6 @@
 import type { Clip, MouthCue, Project, Track } from '../types/editor';
 import { clipFadeGain } from './audioEnvelope';
+import { resolveTrackBusMix } from './trackMix';
 
 export interface ActiveTimelineItem {
   track: Track;
@@ -70,12 +71,14 @@ export function audioTimelineItems(project: Project, timeSeconds: number) {
   return activeTimelineItems(project, timeSeconds)
     .filter(({ track, clip }) => {
       if (track.kind !== 'audio' && track.kind !== 'video') return false;
-      if (track.muted || (hasSolo && !track.solo) || clip.muted || !clip.assetId) return false;
+      const trackMix = resolveTrackBusMix(project, track);
+      if (trackMix.muted || (hasSolo && !track.solo) || clip.muted || !clip.assetId) return false;
       if (track.kind === 'audio') return true;
       if (typeof clip.freezeFrameAt === 'number' && Number.isFinite(clip.freezeFrameAt)) return false;
       return assetKinds.get(clip.assetId) === 'video';
     })
     .map((item) => {
+      const trackMix = resolveTrackBusMix(project, item.track);
       const fadeGain = clipFadeGain({
         duration: item.clip.duration,
         fadeIn: item.clip.fadeIn,
@@ -83,6 +86,12 @@ export function audioTimelineItems(project: Project, timeSeconds: number) {
       }, clipLocalTime(item.clip, timeSeconds));
       return {
         ...item,
+        track: {
+          ...item.track,
+          gain: trackMix.gain,
+          pan: trackMix.pan,
+          muted: trackMix.muted,
+        },
         clip: {
           ...item.clip,
           volume: Math.max(0, Math.min(1, item.clip.volume * fadeGain)),
