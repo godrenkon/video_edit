@@ -40,8 +40,11 @@ function baseProject(): Project {
 }
 
 describe('audio mix planning', () => {
-  it('clips segments to the requested timeline chunk', () => {
-    const [segment] = buildAudioMixSegments(baseProject(), 3, 5);
+  it('clips segments to the requested timeline chunk and carries track mix state', () => {
+    const project = baseProject();
+    project.tracks[0].gain = 1.5;
+    project.tracks[0].pan = -0.25;
+    const [segment] = buildAudioMixSegments(project, 3, 5);
     expect(segment).toMatchObject({
       clipId: 'c1',
       assetId: 'a1',
@@ -53,6 +56,8 @@ describe('audio mix planning', () => {
       speed: 2,
       reverse: false,
       gain: 0.5,
+      trackGain: 1.5,
+      trackPan: -0.25,
       fadeIn: 0,
       fadeOut: 0,
     });
