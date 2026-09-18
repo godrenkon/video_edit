@@ -50,7 +50,7 @@ Current implementation branch: `main`.
 - [x] bounded slip / source-offset inspector UI
 - [x] slide edit core + Alt-drag UI for gapless adjacent triplets
 - [ ] insert / overwrite
-- [ ] lift / extract
+- [x] lift / extract via toolbar + Delete / Shift+Delete
 - [ ] multi-select
 - [x] single-clip copy / paste / duplicate UI + Ctrl/Cmd shortcuts
 - [x] copy / paste / duplicate operation core with fresh nested identities
