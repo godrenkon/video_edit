@@ -28,9 +28,39 @@ describe('synthetic render helpers', () => {
       fontWeight: 900,
       color: '#00ff00',
       strokeWidth: 3,
+      shadowColor: '#112233',
+      shadowBlur: 24,
+      shadowOffsetX: -8,
+      shadowOffsetY: 12,
       align: 'left',
     };
-    expect(resolveTextStyle(text)).toMatchObject({ text: 'Title', fontSize: 90, fontWeight: 900, color: '#00ff00', strokeWidth: 3, align: 'left' });
+    expect(resolveTextStyle(text)).toMatchObject({
+      text: 'Title',
+      fontSize: 90,
+      fontWeight: 900,
+      color: '#00ff00',
+      strokeWidth: 3,
+      shadowColor: '#112233',
+      shadowBlur: 24,
+      shadowOffsetX: -8,
+      shadowOffsetY: 12,
+      align: 'left',
+    });
+  });
+
+  it('clamps unsafe text shadow values', () => {
+    expect(resolveTextStyle({
+      text: 'Shadow',
+      shadowColor: '#000000',
+      shadowBlur: 999,
+      shadowOffsetX: -999,
+      shadowOffsetY: 999,
+    })).toMatchObject({
+      shadowColor: '#000000',
+      shadowBlur: 100,
+      shadowOffsetX: -200,
+      shadowOffsetY: 200,
+    });
   });
 
   it('wraps Japanese text deterministically using character boundaries', () => {
