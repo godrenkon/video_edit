@@ -10,6 +10,17 @@ const CANVAS_FILTER_EFFECTS = new Set([
   'blur',
   'drop-shadow',
 ]);
+const VISUAL_OVERLAY_EFFECTS = new Set(['vignette']);
+
+export interface ResolvedVignette {
+  amount: number;
+  size: number;
+  softness: number;
+  start: number;
+  end: number;
+  color: 'black' | 'white';
+  alpha: number;
+}
 
 export function effectNumber(effect: EffectInstance, parameterId: string, timeSeconds: number, fallback: number) {
   const parameter = effect.parameters[parameterId];
@@ -27,6 +38,39 @@ export function effectString(effect: EffectInstance, parameterId: string, timeSe
 
 export function isCanvasFilterEffectSupported(kind: string) {
   return CANVAS_FILTER_EFFECTS.has(kind);
+}
+
+export function isVisualEffectSupported(kind: string) {
+  return CANVAS_FILTER_EFFECTS.has(kind) || VISUAL_OVERLAY_EFFECTS.has(kind);
+}
+
+export function resolveVignetteEffects(effects: EffectInstance[], clipLocalTime: number): ResolvedVignette[] {
+  const result: ResolvedVignette[] = [];
+  for (const effect of effects) {
+    if (!effect.enabled || effect.kind !== 'vignette') continue;
+    const amount = clamp(effectNumber(effect, 'amount', clipLocalTime, 0), -1, 1);
+    if (Math.abs(amount) <= 1e-6) continue;
+    const size = clamp01(effectNumber(effect, 'size', clipLocalTime, 0.75));
+    const softness = clamp01(effectNumber(effect, 'softness', clipLocalTime, 0.5));
+    const halfSoftness = softness * 0.5;
+    const start = clamp(size - halfSoftness, 0, 0.999);
+    const end = clamp(Math.max(start + 0.001, size + halfSoftness), 0.001, 1);
+    result.push({
+      amount,
+      size,
+      softness,
+      start,
+      end,
+      color: amount >= 0 ? 'black' : 'white',
+      alpha: Math.abs(amount),
+    });
+  }
+  return result;
+}
+
+export function vignetteCssBackground(vignette: ResolvedVignette) {
+  const edge = vignette.color === 'black' ? '0,0,0' : '255,255,255';
+  return `radial-gradient(ellipse at center, rgba(${edge},0) ${format(vignette.start * 100)}%, rgba(${edge},${format(vignette.alpha)}) ${format(vignette.end * 100)}%)`;
 }
 
 /**
