@@ -10,7 +10,7 @@ const CANVAS_FILTER_EFFECTS = new Set([
   'blur',
   'drop-shadow',
 ]);
-const VISUAL_OVERLAY_EFFECTS = new Set(['vignette']);
+const VISUAL_OVERLAY_EFFECTS = new Set(['vignette', 'temperature-tint']);
 
 export interface ResolvedVignette {
   amount: number;
@@ -20,6 +20,13 @@ export interface ResolvedVignette {
   end: number;
   color: 'black' | 'white';
   alpha: number;
+}
+
+export interface ResolvedColorWash {
+  source: 'temperature' | 'tint';
+  color: string;
+  alpha: number;
+  blendMode: 'soft-light';
 }
 
 export function effectNumber(effect: EffectInstance, parameterId: string, timeSeconds: number, fallback: number) {
@@ -42,6 +49,33 @@ export function isCanvasFilterEffectSupported(kind: string) {
 
 export function isVisualEffectSupported(kind: string) {
   return CANVAS_FILTER_EFFECTS.has(kind) || VISUAL_OVERLAY_EFFECTS.has(kind);
+}
+
+export function resolveTemperatureTintEffects(effects: EffectInstance[], clipLocalTime: number): ResolvedColorWash[] {
+  const result: ResolvedColorWash[] = [];
+  for (const effect of effects) {
+    if (!effect.enabled || effect.kind !== 'temperature-tint') continue;
+    const temperature = clamp(effectNumber(effect, 'temperature', clipLocalTime, 0), -1, 1);
+    const tint = clamp(effectNumber(effect, 'tint', clipLocalTime, 0), -1, 1);
+
+    if (Math.abs(temperature) > 1e-6) {
+      result.push({
+        source: 'temperature',
+        color: temperature >= 0 ? '#ff9a52' : '#527dff',
+        alpha: Math.abs(temperature) * 0.34,
+        blendMode: 'soft-light',
+      });
+    }
+    if (Math.abs(tint) > 1e-6) {
+      result.push({
+        source: 'tint',
+        color: tint >= 0 ? '#ff57c8' : '#54d982',
+        alpha: Math.abs(tint) * 0.28,
+        blendMode: 'soft-light',
+      });
+    }
+  }
+  return result;
 }
 
 export function resolveVignetteEffects(effects: EffectInstance[], clipLocalTime: number): ResolvedVignette[] {
