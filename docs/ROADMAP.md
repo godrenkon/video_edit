@@ -159,7 +159,8 @@ Current implementation branch: `main`.
 - [x] realtime Web Audio preview graph for supported clip audio effects
 - [ ] exact DSP parity tests between Web Audio preview and offline processor
 - [x] initial stereo-linked offline peak limiter + realtime preview approximation
-- [ ] gate / expander
+- [x] offline gate / downward expander DSP + keyframe support
+- [ ] realtime gate / expander via AudioWorklet
 - [ ] de-esser
 - [ ] noise suppression
 - [ ] loudness meter
