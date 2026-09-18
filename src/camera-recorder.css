@@ -1,0 +1,11 @@
+.cameraRecorder { margin: 0 8px 6px; border: 1px solid var(--line); border-radius: 7px; background: #0c1216; overflow: hidden; }
+.cameraRecorderRow { padding: 6px 7px; display: grid; grid-template-columns: auto auto minmax(0,1fr) auto; gap: 6px; align-items: center; }
+.cameraRecorderLabel { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; color: var(--text); white-space: nowrap; }
+.cameraRecorderRow select { height: 26px; border: 1px solid var(--line); border-radius: 6px; background: #080d10; color: var(--muted); font-size: 8px; padding: 0 5px; }
+.cameraRecorderStatus { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: 500 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.cameraRecorderStatus.error { color: #ff9a9a; }
+.cameraRecorderRow button { height: 26px; min-width: 52px; border: 1px solid var(--line); border-radius: 6px; background: #12191f; color: var(--text); display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 8px; cursor: pointer; }
+.cameraRecorder.recording, .cameraRecorderRow button.stop { border-color: rgba(255,105,105,.48); }
+.cameraRecorderRow button.stop { color: #ff9a9a; background: rgba(255,80,80,.08); }
+.cameraRecorderRow button:disabled, .cameraRecorderRow select:disabled { opacity: .45; cursor: default; }
+.cameraRecorderPreview { display: block; width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #050708; border-top: 1px solid var(--line); }
