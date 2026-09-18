@@ -1,4 +1,4 @@
-import { readAssetFile } from '../core/storage';
+import { readAssetFile, readThumbnailCache, saveThumbnailCache } from '../core/storage';
 import type { AssetMeta } from '../types/editor';
 import { MediabunnyVideoProvider } from './mediabunnyProvider';
 
@@ -51,12 +51,21 @@ export function getTimelineThumbnail(asset: AssetMeta, sourceTime: number): Prom
       return secondRead.url;
     }
 
+    const persisted = await readThumbnailCache(asset.id, key).catch(() => null);
+    if (persisted) {
+      const url = URL.createObjectURL(persisted);
+      thumbnails.set(key, { url, lastUsed: performanceNow() });
+      pruneThumbnails();
+      return url;
+    }
+
     const provider = await getProvider(asset);
     const sample = await provider.getFrameAt(Math.max(0, Math.min(asset.duration || sourceTime, sourceTime)));
     if (!sample) return null;
     try {
       const blob = await drawSampleToBlob(sample);
       if (!blob) return null;
+      await saveThumbnailCache(asset.id, key, blob).catch(() => undefined);
       const url = URL.createObjectURL(blob);
       thumbnails.set(key, { url, lastUsed: performanceNow() });
       pruneThumbnails();
