@@ -11,7 +11,7 @@ import {
   type AudioEffectState,
 } from './audioEffects';
 import { MediabunnyAudioProvider } from './mediabunnyAudioProvider';
-import { applyTrackGainPan, resolveTrackBusMix } from './trackMix';
+import { applyTrackGainPan, buildAudioDuckingEnvelope, duckingGainAt, resolveTrackBusMix, type AudioDuckingEnvelope } from './trackMix';
 
 export interface AudioMixSegment {
   clipId: string;
@@ -26,6 +26,8 @@ export interface AudioMixSegment {
   gain: number;
   trackGain: number;
   trackPan: number;
+  trackBusId?: import('../types/editor').AudioBusId;
+  ducking?: AudioDuckingEnvelope | null;
   fadeIn: number;
   fadeOut: number;
   effects: EffectInstance[];
@@ -49,6 +51,7 @@ export function buildAudioMixSegments(project: Project, startSeconds: number, en
   const candidateTracks = project.tracks.filter((track) => track.kind === 'audio' || track.kind === 'video');
   const hasSolo = candidateTracks.some((track) => track.solo);
   const segments: AudioMixSegment[] = [];
+  const ducking = buildAudioDuckingEnvelope(project);
 
   for (const track of candidateTracks) {
     const trackMix = resolveTrackBusMix(project, track);
@@ -75,6 +78,8 @@ export function buildAudioMixSegments(project: Project, startSeconds: number, en
         gain: Math.max(0, clip.volume),
         trackGain: trackMix.gain,
         trackPan: trackMix.pan,
+        trackBusId: trackMix.busId,
+        ducking,
         fadeIn: Math.max(0, clip.fadeIn ?? 0),
         fadeOut: Math.max(0, clip.fadeOut ?? 0),
         effects: clip.effects ?? [],
@@ -232,7 +237,8 @@ function mixSegment(
     let left = sampleChannel(source, 0, sourceFrame) * clipGain;
     let right = sampleChannel(source, Math.min(1, source.numberOfChannels - 1), sourceFrame) * clipGain;
     [left, right] = processAudioEffects(left, right, resolvedEffects, output.sampleRate, effectState);
-    [left, right] = applyTrackGainPan(left, right, segment.trackGain, segment.trackPan);
+    const duckGain = duckingGainAt(segment.ducking ?? null, timelineTime, segment.trackBusId);
+    [left, right] = applyTrackGainPan(left, right, segment.trackGain * duckGain, segment.trackPan);
 
     if (outputChannels.length === 1) {
       outputChannels[0][frame] += (left + right) * 0.5;
