@@ -23,7 +23,9 @@ export function PlaybackDiagnostics({ time, playing, fps }: { time: number; play
       windowStart.current = 0;
       samples.current = 0;
       elapsedTotal.current = 0;
+      droppedTotal.current = 0;
       maxDelay.current = 0;
+      setStats({ fps: 0, dropped: 0, maxDelayMs: 0 });
       return;
     }
 
