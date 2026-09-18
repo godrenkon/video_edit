@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { EffectInstance, EffectParameter } from '../types/editor';
-import { canvasFilterForEffects, evaluateEffectParameter, isCanvasFilterEffectSupported } from './effectEvaluation';
+import {
+  canvasFilterForEffects,
+  evaluateEffectParameter,
+  isCanvasFilterEffectSupported,
+  isVisualEffectSupported,
+  resolveVignetteEffects,
+  vignetteCssBackground,
+} from './effectEvaluation';
 
 const parameter = (value: number, keyframes?: EffectParameter['keyframes']): EffectParameter => ({ value, keyframes });
 
@@ -72,8 +79,48 @@ describe('effect evaluation', () => {
     expect(filter).toContain('drop-shadow(10px 0px 4px rgba(0,0,0,0.5))');
   });
 
-  it('reports only effects with current Canvas/CSS parity as supported', () => {
+  it('reports filter-backed and overlay-backed visual effects separately', () => {
     expect(isCanvasFilterEffectSupported('blur')).toBe(true);
-    expect(isCanvasFilterEffectSupported('chroma-key')).toBe(false);
+    expect(isCanvasFilterEffectSupported('vignette')).toBe(false);
+    expect(isVisualEffectSupported('vignette')).toBe(true);
+    expect(isVisualEffectSupported('chroma-key')).toBe(false);
+  });
+
+  it('resolves vignette parameters and keyframes for Preview/export overlays', () => {
+    const vignettes = resolveVignetteEffects([
+      effect('vignette', {
+        amount: parameter(0, [
+          { id: 'a', time: 0, value: 0, interpolation: 'linear' },
+          { id: 'b', time: 2, value: 0.8, interpolation: 'linear' },
+        ]),
+        size: parameter(0.75),
+        softness: parameter(0.5),
+      }),
+    ], 1);
+    expect(vignettes).toHaveLength(1);
+    expect(vignettes[0]).toMatchObject({
+      amount: 0.4,
+      size: 0.75,
+      softness: 0.5,
+      start: 0.5,
+      end: 1,
+      color: 'black',
+      alpha: 0.4,
+    });
+    expect(vignetteCssBackground(vignettes[0])).toContain('rgba(0,0,0,0.4)');
+  });
+
+  it('uses a white edge for negative vignette amount and skips zero amount', () => {
+    const bright = resolveVignetteEffects([
+      effect('vignette', {
+        amount: parameter(-0.5),
+        size: parameter(0.4),
+        softness: parameter(0.2),
+      }),
+    ], 0);
+    expect(bright[0]).toMatchObject({ color: 'white', alpha: 0.5, start: 0.3, end: 0.5 });
+    expect(resolveVignetteEffects([
+      effect('vignette', { amount: parameter(0), size: parameter(0.75), softness: parameter(0.5) }),
+    ], 0)).toEqual([]);
   });
 });
