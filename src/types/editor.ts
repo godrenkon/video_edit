@@ -154,6 +154,7 @@ export interface Clip {
   blendMode?: BlendMode;
   speed?: number;
   reverse?: boolean;
+  freezeFrameAt?: number;
   effects?: EffectInstance[];
   groupId?: string;
   text?: TextPayload;
