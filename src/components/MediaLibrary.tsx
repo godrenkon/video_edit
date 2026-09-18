@@ -2,6 +2,7 @@ import { Captions, FileAudio, FileImage, Film, FolderOpen, Palette, Plus, Search
 import { useMemo, useRef, useState } from 'react';
 import type { AssetMeta } from '../types/editor';
 import type { LowerThirdPreset } from '../core/project';
+import { MicrophoneRecorder } from './MicrophoneRecorder';
 
 interface Props {
   assets: AssetMeta[];
@@ -113,6 +114,7 @@ export function MediaLibrary({
         <button type="button" onClick={onCreateSubtitle} title="字幕クリップを追加"><Captions size={14} /><span>字幕</span></button>
         <button type="button" onClick={onCreateGenerator} title="背景ジェネレーターを追加"><Palette size={14} /><span>背景</span></button>
       </div>
+      <MicrophoneRecorder onImport={onImport} />
       <div className="lowerThirdCreate">
         <span>下部テロップ</span>
         <select value={lowerThirdPreset} onChange={(event) => setLowerThirdPreset(event.target.value as LowerThirdPreset)}>
