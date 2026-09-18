@@ -233,6 +233,26 @@ describe('migrateProject', () => {
     expect(project.markers?.[0]).toMatchObject({ time: 0, duration: 2 });
   });
 
+  it('migrates asset bins and clears dangling asset assignments', () => {
+    const project = migrateProject({
+      version: 2,
+      assets: [
+        { id: 'a', name: 'A', kind: 'video', mime: 'video/mp4', size: 1, duration: 1, storageName: 'a.mp4', binId: 'bin-a' },
+        { id: 'b', name: 'B', kind: 'audio', mime: 'audio/wav', size: 1, duration: 1, storageName: 'b.wav', binId: 'missing' },
+      ],
+      assetBins: [
+        { id: 'bin-a', name: '  B-roll   Main ' },
+        { id: 'bin-a', name: 'duplicate id' },
+        { id: 'bin-b', name: 'B-roll Main' },
+      ],
+      tracks: [],
+    });
+
+    expect(project.assetBins).toEqual([{ id: 'bin-a', name: 'B-roll Main' }]);
+    expect(project.assets[0].binId).toBe('bin-a');
+    expect(project.assets[1].binId).toBeUndefined();
+  });
+
   it('rejects unsupported future project versions instead of silently corrupting them', () => {
     expect(() => migrateProject({ version: 99 })).toThrow('Unsupported project version: 99');
   });
