@@ -38,6 +38,21 @@ export function TopBar({
   const [diagnostics, setDiagnostics] = useState<BrowserCapabilityReport | null>(null);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(true);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+
+  useEffect(() => {
+    const beforeInstall = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const installed = () => setInstallPrompt(null);
+    window.addEventListener('beforeinstallprompt', beforeInstall);
+    window.addEventListener('appinstalled', installed);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', beforeInstall);
+      window.removeEventListener('appinstalled', installed);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -69,6 +84,18 @@ export function TopBar({
   };
 
   const progressLabel = renderProgress === null ? '準備中' : `${Math.round(renderProgress * 100)}%`;
+
+  const installApp = async () => {
+    if (!installPrompt) return;
+    try {
+      await installPrompt.prompt();
+      await installPrompt.userChoice;
+    } catch (error) {
+      console.warn('PWA install prompt failed', error);
+    } finally {
+      setInstallPrompt(null);
+    }
+  };
 
   return (
     <header className="topbar">
@@ -105,6 +132,11 @@ export function TopBar({
             />
           )}
         </div>
+        {installPrompt && (
+          <button className="button" onClick={installApp} disabled={rendering} title="このエディタを端末へインストール">
+            <Download size={16} />アプリ化
+          </button>
+        )}
         <button className="button" onClick={onSave} disabled={rendering}><Save size={16} />保存</button>
         <button className="button" onClick={onBackup} disabled={rendering} title="プロジェクトJSONを端末へバックアップ">
           <Download size={16} />バックアップ
@@ -215,4 +247,10 @@ function formatBytes(bytes: number) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
   return `${(bytes / 1024 ** index).toFixed(index >= 3 ? 1 : 0)} ${units[index]}`;
+}
+
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
