@@ -80,11 +80,12 @@ describe('transcript captions', () => {
       speaker: 'ずんだもん',
       wordHighlight: true,
       highlightColor: '#ffd84d',
-      words: [
-        { text: 'こんにちは', start: 0, end: 1.2 },
-        { text: '世界', start: 1.4, end: 3 },
-      ],
     });
+    expect(clip.subtitle?.words?.[0]).toMatchObject({ text: 'こんにちは', start: 0 });
+    expect(clip.subtitle?.words?.[0].end).toBeCloseTo(1.2, 10);
+    expect(clip.subtitle?.words?.[1].text).toBe('世界');
+    expect(clip.subtitle?.words?.[1].start).toBeCloseTo(1.4, 10);
+    expect(clip.subtitle?.words?.[1].end).toBe(3);
   });
 
   it('respects a locked generated subtitle track', () => {
