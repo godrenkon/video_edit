@@ -31,7 +31,9 @@ interface Props {
   onCancelProxy: (assetId: string) => void;
   onRemoveProxy: (assetId: string) => void;
   silenceAnalysisAssetId?: string | null;
+  beatAnalysisAssetId?: string | null;
   onDetectSilence: (assetId: string) => void;
+  onDetectBeats: (assetId: string) => void;
   onCreateText: () => void;
   onCreateLowerThird: (preset: LowerThirdPreset) => void;
   onCreateSubtitle: () => void;
@@ -74,7 +76,9 @@ export function MediaLibrary({
   onCancelProxy,
   onRemoveProxy,
   silenceAnalysisAssetId,
+  beatAnalysisAssetId,
   onDetectSilence,
+  onDetectBeats,
   onCreateText,
   onCreateLowerThird,
   onCreateSubtitle,
@@ -283,14 +287,24 @@ export function MediaLibrary({
                 <span>ローカル音声解析</span>
                 <small>波形キャッシュから無音区間を検出し、タイムラインへマーカー化</small>
               </div>
-              <button
-                type="button"
-                onClick={() => onDetectSilence(selectedAsset.id)}
-                disabled={silenceAnalysisAssetId === selectedAsset.id}
-              >
-                <Activity size={12} />
-                {silenceAnalysisAssetId === selectedAsset.id ? '解析中…' : '無音を検出'}
-              </button>
+              <div className="assetAnalysisActions">
+                <button
+                  type="button"
+                  onClick={() => onDetectSilence(selectedAsset.id)}
+                  disabled={silenceAnalysisAssetId === selectedAsset.id || beatAnalysisAssetId === selectedAsset.id}
+                >
+                  <Activity size={12} />
+                  {silenceAnalysisAssetId === selectedAsset.id ? '解析中…' : '無音'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDetectBeats(selectedAsset.id)}
+                  disabled={silenceAnalysisAssetId === selectedAsset.id || beatAnalysisAssetId === selectedAsset.id}
+                >
+                  <Activity size={12} />
+                  {beatAnalysisAssetId === selectedAsset.id ? '解析中…' : 'ビート'}
+                </button>
+              </div>
             </div>
           )}
           {selectedAsset.kind === 'video' && (
