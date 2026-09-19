@@ -1,4 +1,4 @@
-import { Copy, FileText, ListTree, RefreshCcw, Search, Trash2, X } from 'lucide-react';
+import { Captions, Copy, FileText, ListTree, RefreshCcw, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   buildTranscriptFromSubtitleTracks,
@@ -7,6 +7,7 @@ import {
   updateTranscriptSegment,
 } from '../core/transcript';
 import { buildTranscriptChapterCandidates, mergeAutoChapterMarkers, youtubeChapterText } from '../core/chapters';
+import { applyTranscriptAsSubtitles } from '../core/transcriptCaptions';
 import type { Project, TranscriptSegment } from '../types/editor';
 import '../transcript-panel.css';
 
@@ -85,6 +86,20 @@ export function TranscriptPanel({
     }
   };
 
+  const generateTranscriptSubtitles = () => {
+    const result = applyTranscriptAsSubtitles(project);
+    if (result.reason === 'no-transcript') {
+      setChapterStatus('字幕へ変換できるトランスクリプトがありません');
+      return;
+    }
+    if (result.reason === 'locked-track') {
+      setChapterStatus('Transcript字幕トラックがロックされています');
+      return;
+    }
+    onProject({ tracks: result.project.tracks, duration: result.project.duration });
+    setChapterStatus(`${result.clipCount}個の字幕クリップをTranscript字幕トラックへ生成しました`);
+  };
+
   return (
     <section className="transcriptPanel">
       <div className="transcriptHeader">
@@ -109,6 +124,9 @@ export function TranscriptPanel({
           </div>
 
           <div className="transcriptChapterTools">
+            <button type="button" onClick={generateTranscriptSubtitles} disabled={!transcript.segments.length} title="トランスクリプトから専用字幕トラックを生成">
+              <Captions size={12} />字幕トラック生成
+            </button>
             <button type="button" onClick={generateChapterMarkers} disabled={chapterCandidates.length === 0} title="Transcriptの時間ギャップから章候補を生成">
               <ListTree size={12} />章マーカー生成
             </button>
