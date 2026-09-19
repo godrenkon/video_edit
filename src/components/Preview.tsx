@@ -23,6 +23,8 @@ import {
 import type { AssetMeta, Clip, Project } from '../types/editor';
 import { PlaybackDiagnostics } from './PlaybackDiagnostics';
 import { PausedPreviewCanvas } from './PausedPreviewCanvas';
+import { RealtimeProcessedPreviewCanvas } from './RealtimeProcessedPreviewCanvas';
+import { hasPixelEffects } from '../render/pixelEffects';
 import { PreviewAudioMeter } from './PreviewAudioMeter';
 import '../preview-synthetic.css';
 
@@ -346,6 +348,10 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
   const [fullscreen, setFullscreen] = useState(false);
   const visuals = useMemo(() => visualTimelineItems(project, time), [project, time]);
   const audios = useMemo(() => audioTimelineItems(project, time), [project, time]);
+  const requiresProcessedPreview = useMemo(
+    () => project.tracks.some((track) => track.clips.some((clip) => hasPixelEffects(clip.effects))),
+    [project],
+  );
   const aspect = `${project.width} / ${project.height}`;
 
   useEffect(() => {
@@ -390,7 +396,15 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
               return <VisualLayer key={clip.id} clip={clip} project={project} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} />;
             })}
             {visuals.length > 0 && (
-              <PausedPreviewCanvas project={project} time={time} playing={playing} enabled={!playing} />
+              <>
+                <PausedPreviewCanvas project={project} time={time} playing={playing} enabled={!playing} />
+                <RealtimeProcessedPreviewCanvas
+                  project={project}
+                  time={time}
+                  playing={playing}
+                  enabled={playing && requiresProcessedPreview}
+                />
+              </>
             )}
             {visuals.length === 0 && <div className="stageEmpty"><FilmIcon /><span>タイムラインに素材を追加</span></div>}
           </div>
