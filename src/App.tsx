@@ -9,6 +9,7 @@ import { HistoryController } from './core/history';
 import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClips } from './core/groupOps';
 import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
 import { addPunchInVoiceover } from './core/punchInVoiceover';
+import { loadShortcutOverrides, saveShortcutOverrides, shortcutMatches, type ShortcutOverrides } from './core/shortcuts';
 import { insertClipAt, overwriteClipAt } from './core/editModes';
 import { analyzeMouthCues, buildAssetMeta, mergeRelinkedAsset } from './core/media';
 import {
@@ -81,6 +82,7 @@ export default function App() {
   const [proxyProgress, setProxyProgress] = useState<Record<string, number>>({});
   const [searchOpen, setSearchOpen] = useState(false);
   const [mediaFocus, setMediaFocus] = useState<{ assetId?: string; binId?: string; token: number }>({ token: 0 });
+  const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>(() => loadShortcutOverrides());
   const capabilities = useMemo(() => detectCapabilities(), []);
   const playbackOrigin = useRef<{ wallMs: number; time: number } | null>(null);
   const timeRef = useRef(0);
@@ -714,6 +716,12 @@ export default function App() {
     );
   }, [rendering, selectedClipIds, updateProject]);
 
+  const updateShortcutOverrides = useCallback((next: ShortcutOverrides) => {
+    setShortcutOverrides(next);
+    saveShortcutOverrides(next);
+    setSaveState('ショートカット設定を保存しました');
+  }, []);
+
   const navigateSearchResult = useCallback((result: ProjectSearchResult) => {
     setPlaying(false);
 
@@ -758,94 +766,96 @@ export default function App() {
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      const mod = e.ctrlKey || e.metaKey;
-      const lower = e.key.toLowerCase();
-      if (mod && e.shiftKey && lower === 'f') {
+      if (shortcutMatches(e, 'search', shortcutOverrides)) {
         e.preventDefault();
         setSearchOpen(true);
         return;
       }
 
-      const target = e.target as HTMLElement;
-      if (target.matches('input, textarea, select')) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
       if (showRecovery || rendering || searchOpen) return;
-      if (mod && lower === 'a') {
+
+      if (e.key === 'Escape' && selectedClipIds.length > 0) {
+        e.preventDefault();
+        clearClipSelection();
+        return;
+      }
+      if (shortcutMatches(e, 'select-all', shortcutOverrides)) {
         e.preventDefault();
         const ids = project.tracks.flatMap((track) => track.clips.map((clip) => clip.id));
         setSelectedClipIds(ids);
         setSelectedClipId(ids.at(-1) ?? null);
         return;
       }
-      if (e.key === 'Escape' && selectedClipIds.length > 0) {
+      if (shortcutMatches(e, 'undo', shortcutOverrides)) {
         e.preventDefault();
-        clearClipSelection();
+        undo();
         return;
       }
-      if (mod && lower === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-        return;
-      }
-      if (mod && lower === 'y') {
+      if (shortcutMatches(e, 'redo', shortcutOverrides)) {
         e.preventDefault();
         redo();
         return;
       }
-      if (mod && lower === 'k') {
+      if (shortcutMatches(e, 'split', shortcutOverrides)) {
         e.preventDefault();
         splitSelectedClip();
         return;
       }
-      if (mod && lower === 'g') {
+      if (shortcutMatches(e, 'group', shortcutOverrides)) {
         e.preventDefault();
-        if (e.shiftKey) ungroupSelection();
-        else groupSelection();
+        groupSelection();
         return;
       }
-      if (mod && lower === 'd') {
+      if (shortcutMatches(e, 'ungroup', shortcutOverrides)) {
+        e.preventDefault();
+        ungroupSelection();
+        return;
+      }
+      if (shortcutMatches(e, 'duplicate', shortcutOverrides)) {
         e.preventDefault();
         duplicateSelectedClip();
         return;
       }
-      if (mod && lower === 'c') {
+      if (shortcutMatches(e, 'copy', shortcutOverrides)) {
         e.preventDefault();
         copySelectedClip();
         return;
       }
-      if (mod && lower === 'v') {
+      if (shortcutMatches(e, 'paste', shortcutOverrides)) {
         e.preventDefault();
         pasteCopiedClip();
         return;
       }
-      if (e.altKey && e.key === 'ArrowLeft') {
+      if (shortcutMatches(e, 'nudge-left', shortcutOverrides)) {
         e.preventDefault();
         nudgeSelected(-1);
         return;
       }
-      if (e.altKey && e.key === 'ArrowRight') {
+      if (shortcutMatches(e, 'nudge-right', shortcutOverrides)) {
         e.preventDefault();
         nudgeSelected(1);
         return;
       }
-      if (e.code === 'Space') {
+      if (shortcutMatches(e, 'play-pause', shortcutOverrides)) {
         e.preventDefault();
-        setPlaying((v) => !v);
+        setPlaying((value) => !value);
         return;
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && e.shiftKey && selectedClipId) {
+      if (selectedClipId && shortcutMatches(e, 'ripple-delete', shortcutOverrides)) {
         e.preventDefault();
         rippleDeleteSelectedClip();
         return;
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipId) {
+      if (selectedClipId && shortcutMatches(e, 'delete', shortcutOverrides)) {
         e.preventDefault();
         removeSelectedClip();
       }
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, searchOpen, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, groupSelection, ungroupSelection, nudgeSelected, undo, redo]);
+  }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, searchOpen, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, groupSelection, ungroupSelection, nudgeSelected, undo, redo, shortcutOverrides]);
 
   const manualSave = async () => {
     try {
@@ -1059,6 +1069,8 @@ export default function App() {
             '変形',
           )}
           onDeleteClip={removeSelectedClip}
+          shortcutOverrides={shortcutOverrides}
+          onShortcutOverrides={updateShortcutOverrides}
         />
       </main>
 
