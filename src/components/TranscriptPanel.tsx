@@ -1,4 +1,4 @@
-import { FileText, RefreshCcw, Search, Trash2, X } from 'lucide-react';
+import { Copy, FileText, ListTree, RefreshCcw, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   buildTranscriptFromSubtitleTracks,
@@ -6,6 +6,7 @@ import {
   searchTranscript,
   updateTranscriptSegment,
 } from '../core/transcript';
+import { buildTranscriptChapterCandidates, mergeAutoChapterMarkers, youtubeChapterText } from '../core/chapters';
 import type { Project, TranscriptSegment } from '../types/editor';
 import '../transcript-panel.css';
 
@@ -21,6 +22,7 @@ export function TranscriptPanel({
   const transcript = project.transcript;
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState('');
+  const [chapterStatus, setChapterStatus] = useState('');
 
   const visibleSegments = useMemo(() => {
     if (!transcript) return [];
@@ -35,6 +37,10 @@ export function TranscriptPanel({
     ?? visibleSegments[0]
     ?? transcript?.segments[0]
     ?? null;
+  const chapterCandidates = useMemo(
+    () => buildTranscriptChapterCandidates(transcript),
+    [transcript],
+  );
 
   useEffect(() => {
     if (!selectedId && selected) setSelectedId(selected.id);
@@ -62,6 +68,23 @@ export function TranscriptPanel({
     setSelectedId(next.segments[0]?.id ?? '');
   };
 
+  const generateChapterMarkers = () => {
+    if (!chapterCandidates.length) return;
+    onProject({ markers: mergeAutoChapterMarkers(project.markers, chapterCandidates) });
+    setChapterStatus(`${chapterCandidates.length}個の自動チャプターマーカーを更新しました`);
+  };
+
+  const copyYoutubeChapters = async () => {
+    if (!chapterCandidates.length) return;
+    const value = youtubeChapterText(chapterCandidates);
+    try {
+      await navigator.clipboard.writeText(value);
+      setChapterStatus('YouTube用チャプターをコピーしました');
+    } catch {
+      setChapterStatus('コピーできませんでした。ブラウザのクリップボード権限を確認してください');
+    }
+  };
+
   return (
     <section className="transcriptPanel">
       <div className="transcriptHeader">
@@ -84,6 +107,17 @@ export function TranscriptPanel({
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="本文・話者・単語を検索" />
             <span>{visibleSegments.length}</span>
           </div>
+
+          <div className="transcriptChapterTools">
+            <button type="button" onClick={generateChapterMarkers} disabled={chapterCandidates.length === 0} title="Transcriptの時間ギャップから章候補を生成">
+              <ListTree size={12} />章マーカー生成
+            </button>
+            <button type="button" onClick={copyYoutubeChapters} disabled={chapterCandidates.length === 0} title="YouTube概要欄用チャプターテキストをコピー">
+              <Copy size={12} />YouTube章をコピー
+            </button>
+            <span>{chapterCandidates.length} chapters</span>
+          </div>
+          {chapterStatus && <div className="transcriptChapterStatus">{chapterStatus}</div>}
 
           <div className="transcriptList">
             {visibleSegments.length === 0 && <div className="transcriptEmpty">一致するsegmentはありません。</div>}
