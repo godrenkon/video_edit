@@ -1,4 +1,4 @@
-import type { TranscriptDocument, TranscriptSegment } from '../types/editor';
+import type { TimelineMarker, TranscriptDocument, TranscriptSegment } from '../types/editor';
 
 export type TranscriptCleanupCandidateKind = 'pause' | 'filler';
 
@@ -17,6 +17,8 @@ export interface TranscriptCleanupOptions {
   minFillerDuration?: number;
   fillerTerms?: string[];
 }
+
+export const TRANSCRIPT_CLEANUP_NOTE_PREFIX = 'transcript-cleanup:';
 
 const DEFAULT_FILLERS = [
   'えー',
@@ -94,6 +96,25 @@ export function transcriptCleanupSummary(candidates: TranscriptCleanupCandidate[
     pauseSeconds: pauses.reduce((sum, candidate) => sum + Math.max(0, candidate.end - candidate.start), 0),
     fillers: fillers.length,
   };
+}
+
+export function mergeTranscriptCleanupMarkers(
+  markers: TimelineMarker[] | undefined,
+  candidates: TranscriptCleanupCandidate[],
+) {
+  const preserved = (markers ?? []).filter(
+    (marker) => !marker.note?.startsWith(TRANSCRIPT_CLEANUP_NOTE_PREFIX),
+  );
+  const generated = candidates.map((candidate): TimelineMarker => ({
+    id: `cleanup_${candidate.id}`,
+    time: candidate.start,
+    duration: Math.max(0, candidate.end - candidate.start),
+    name: candidate.label,
+    color: candidate.kind === 'pause' ? '#f59e0b' : '#ef4444',
+    note: `${TRANSCRIPT_CLEANUP_NOTE_PREFIX}${candidate.kind}`,
+  }));
+  return [...preserved, ...generated]
+    .sort((a, b) => a.time - b.time || a.name.localeCompare(b.name, 'ja'));
 }
 
 function isFillerOnly(text: string, filler: string) {
