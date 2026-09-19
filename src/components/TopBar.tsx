@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Activity, Clapperboard, Download, FolderOpen, RefreshCcw, Save, Search, X } from 'lucide-react';
+import { Activity, Clapperboard, Download, FolderOpen, ListVideo, RefreshCcw, Save, Search, X } from 'lucide-react';
 import {
   probeCapabilities,
   type BrowserCapabilityReport,
   type CapabilityReport,
   type CapabilityState,
 } from '../core/capabilities';
+import { RenderQueuePanel } from './RenderQueuePanel';
+import type { RenderQueueJob } from '../render/renderQueue';
 import '../capabilities.css';
 
 interface Props {
@@ -18,6 +20,10 @@ interface Props {
   onCancelRender: () => void;
   rendering: boolean;
   renderProgress: number | null;
+  renderQueueJobs: RenderQueueJob[];
+  onQueueRender: () => void;
+  onRemoveQueuedRender: (jobId: string) => void;
+  onClearFinishedRenders: () => void;
   capabilities: CapabilityReport;
   saveState: string;
 }
@@ -32,6 +38,10 @@ export function TopBar({
   onCancelRender,
   rendering,
   renderProgress,
+  renderQueueJobs,
+  onQueueRender,
+  onRemoveQueuedRender,
+  onClearFinishedRenders,
   capabilities,
   saveState,
 }: Props) {
@@ -39,6 +49,7 @@ export function TopBar({
   const total = Object.keys(capabilities).length;
   const [diagnostics, setDiagnostics] = useState<BrowserCapabilityReport | null>(null);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [renderQueueOpen, setRenderQueueOpen] = useState(false);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(true);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
@@ -139,6 +150,27 @@ export function TopBar({
             <Download size={16} />アプリ化
           </button>
         )}
+        <div className="capWrap">
+          <button
+            type="button"
+            className={`capPill capButton ${renderQueueJobs.some((job) => job.status === 'failed') ? 'warn' : ''}`}
+            onClick={() => setRenderQueueOpen((value) => !value)}
+            aria-expanded={renderQueueOpen}
+            aria-label="書き出しキューを表示"
+          >
+            <ListVideo size={13} />
+            queue
+            <span>{renderQueueJobs.filter((job) => job.status === 'queued' || job.status === 'rendering').length}/{renderQueueJobs.length}</span>
+          </button>
+          {renderQueueOpen && (
+            <RenderQueuePanel
+              jobs={renderQueueJobs}
+              onAdd={onQueueRender}
+              onRemoveQueued={onRemoveQueuedRender}
+              onClearFinished={onClearFinishedRenders}
+            />
+          )}
+        </div>
         <button className="button" onClick={onSearch} disabled={rendering} title="プロジェクト全体検索 (Ctrl/Cmd+Shift+F)">
           <Search size={16} />検索
         </button>
