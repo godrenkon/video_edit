@@ -89,6 +89,19 @@ describe('buildVisualFramePlan', () => {
     expect(buildVisualFramePlan(input, 9)[0].transform.opacity).toBeCloseTo(0.4, 8);
   });
 
+  it('carries dip-to-black brightness through the shared export frame plan', () => {
+    const source = clip('video', 'video', {
+      transitionIn: { kind: 'dip-black', duration: 2 },
+      transitionOut: { kind: 'dip-black', duration: 2 },
+    });
+    const input = project([track('video', 'video', [source])]);
+
+    expect(buildVisualFramePlan(input, 0)[0].transitionBrightness).toBe(0);
+    expect(buildVisualFramePlan(input, 1)[0].transitionBrightness).toBeCloseTo(0.5, 8);
+    expect(buildVisualFramePlan(input, 5)[0].transitionBrightness).toBe(1);
+    expect(buildVisualFramePlan(input, 9)[0].transitionBrightness).toBeCloseTo(0.5, 8);
+  });
+
   it('applies slide transition motion in the shared export frame plan', () => {
     const source = clip('video', 'video', {
       transform: { x: 10, y: 20, scale: 1, rotation: 0, opacity: 1 },
