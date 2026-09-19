@@ -31,7 +31,7 @@ Current implementation branch: `main`.
 - [x] browser capability and codec diagnostics
 - [ ] deterministic EditorCommand layer for every edit
 - [ ] multiple project launcher
-- [ ] customizable keyboard shortcut manager
+- [x] customizable keyboard shortcut manager with persistence + conflict detection
 
 ## Phase 1 — Practical Editing Core
 
@@ -168,7 +168,7 @@ Current implementation branch: `main`.
 - [ ] noise suppression
 - [x] realtime shared-bus Peak / RMS dBFS meter
 - [x] realtime K-weighted Momentary LUFS meter
-- [ ] Short-term / Integrated LUFS with gating
+- [x] realtime Short-term / gated Integrated LUFS meter
 - [x] deterministic Voice/Music/SFX automatic ducking with Preview/offline parity
 - [x] effect parameter keyframe evaluation in offline audio processing
 - [x] effect parameter keyframe updates in realtime Web Audio preview
@@ -301,7 +301,7 @@ Large AI models must be optional and selected according to WebGPU/device capabil
 - [x] persistent favorite effects in effect picker
 - [x] ranked project-wide search palette with timeline/media navigation
 - [ ] customizable workspace
-- [ ] shortcut customization
+- [x] shortcut customization UI with per-action reset
 - [x] fullscreen preview
 - [x] PWA manifest + standalone install shell
 - [x] service-worker offline app shell after first successful load
