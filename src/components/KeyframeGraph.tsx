@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { evaluateEffectParameter } from '../core/keyframes';
 import type { EffectParameter, Keyframe } from '../types/editor';
 import '../keyframe-graph.css';
@@ -49,7 +49,7 @@ export function KeyframeGraph({
     return points.join(' ');
   }, [parameter, safeDuration, safeMax, safeMin]);
 
-  const pointerValues = (event: ReactPointerEvent<SVGSVGElement>) => {
+  const pointerValues = (event: ReactPointerEvent<SVGSVGElement> | ReactMouseEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - rect.left) / Math.max(1, rect.width) * WIDTH;
     const y = (event.clientY - rect.top) / Math.max(1, rect.height) * HEIGHT;
@@ -75,7 +75,7 @@ export function KeyframeGraph({
     setDraggingId(null);
   };
 
-  const addKeyframe = (event: ReactPointerEvent<SVGSVGElement>) => {
+  const addKeyframe = (event: ReactMouseEvent<SVGSVGElement>) => {
     if (draggingId) return;
     const next = pointerValues(event);
     const keyframe: Keyframe = {
