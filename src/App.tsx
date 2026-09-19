@@ -44,6 +44,7 @@ import {
   type StoredProjectInfo,
 } from './core/storage';
 import { beginEditorSession, markEditorSessionClean } from './core/session';
+import { beatMarkersForAsset, detectBeatCandidates, mergeBeatMarkers } from './core/beatDetection';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { exportProjectVideo } from './render/projectExporter';
@@ -90,6 +91,7 @@ export default function App() {
   const [renderQueue, setRenderQueue] = useState<RenderQueueJob[]>([]);
   const [proxyProgress, setProxyProgress] = useState<Record<string, number>>({});
   const [silenceAnalysisAssetId, setSilenceAnalysisAssetId] = useState<string | null>(null);
+  const [beatAnalysisAssetId, setBeatAnalysisAssetId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mediaFocus, setMediaFocus] = useState<{ assetId?: string; binId?: string; token: number }>({ token: 0 });
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>(() => loadShortcutOverrides());
@@ -626,6 +628,40 @@ export default function App() {
       setSilenceAnalysisAssetId(null);
     }
   }, [project, rendering, silenceAnalysisAssetId, updateProject]);
+
+  const detectAssetBeats = useCallback(async (assetId: string) => {
+    if (rendering || beatAnalysisAssetId || silenceAnalysisAssetId) return;
+    const asset = project.assets.find((item) => item.id === assetId);
+    if (!asset || asset.kind === 'image') return;
+
+    setBeatAnalysisAssetId(assetId);
+    setSaveState(`ビート解析中: ${asset.name}`);
+    try {
+      const waveform = await getAssetWaveform(asset, {
+        samplesPerSecond: 100,
+        maxBins: 30_000,
+        chunkSeconds: 30,
+      });
+      if (!waveform) {
+        setSaveState(`音声トラックが見つかりません: ${asset.name}`);
+        return;
+      }
+
+      const result = detectBeatCandidates(waveform);
+      const generated = beatMarkersForAsset(project, assetId, result.candidates);
+      updateProject((current) => ({
+        ...current,
+        markers: mergeBeatMarkers(current.markers, assetId, generated),
+      }), { label: 'ビート候補を解析' });
+      const bpm = result.estimatedBpm ? ` / 約${result.estimatedBpm} BPM` : '';
+      setSaveState(`ビート解析完了: ${result.candidates.length}候補 / ${generated.length}マーカー${bpm}`);
+    } catch (error) {
+      console.error('Beat analysis failed', error);
+      setSaveState(error instanceof Error ? `ビート解析エラー: ${error.message}` : 'ビート解析エラー');
+    } finally {
+      setBeatAnalysisAssetId(null);
+    }
+  }, [beatAnalysisAssetId, project, rendering, silenceAnalysisAssetId, updateProject]);
 
   const removeAssetProxy = useCallback(async (assetId: string) => {
     proxyAbort.current.get(assetId)?.abort('Proxy removed');
@@ -1255,7 +1291,9 @@ export default function App() {
           onCancelProxy={cancelAssetProxy}
           onRemoveProxy={removeAssetProxy}
           silenceAnalysisAssetId={silenceAnalysisAssetId}
+          beatAnalysisAssetId={beatAnalysisAssetId}
           onDetectSilence={detectAssetSilence}
+          onDetectBeats={detectAssetBeats}
           onCreateText={createText}
           onCreateLowerThird={createLowerThird}
           onCreateSubtitle={createSubtitle}
