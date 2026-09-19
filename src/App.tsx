@@ -42,6 +42,7 @@ import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { exportProjectVideo } from './render/projectExporter';
+import { clearFinishedRenderJobs, createRenderQueueJob, nextQueuedRenderJob, updateRenderQueueJob, type RenderQueueJob } from './render/renderQueue';
 import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
 import { waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
@@ -79,6 +80,7 @@ export default function App() {
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState<number | null>(null);
+  const [renderQueue, setRenderQueue] = useState<RenderQueueJob[]>([]);
   const [proxyProgress, setProxyProgress] = useState<Record<string, number>>({});
   const [searchOpen, setSearchOpen] = useState(false);
   const [mediaFocus, setMediaFocus] = useState<{ assetId?: string; binId?: string; token: number }>({ token: 0 });
@@ -876,42 +878,91 @@ export default function App() {
     setSaveState('プロジェクトをバックアップしました');
   };
 
-  const renderVideo = useCallback(async () => {
-    if (rendering) return;
+  const queueCurrentRender = useCallback(() => {
+    const job = createRenderQueueJob(project, uid('render'));
+    setRenderQueue((current) => [...current, job]);
+    setSaveState(`書き出しキューに追加: ${job.projectName}`);
+  }, [project]);
+
+  const removeQueuedRender = useCallback((jobId: string) => {
+    setRenderQueue((current) => current.filter((job) => job.id !== jobId || job.status !== 'queued'));
+  }, []);
+
+  const clearFinishedRenders = useCallback(() => {
+    setRenderQueue((current) => clearFinishedRenderJobs(current));
+  }, []);
+
+  const runRenderJob = useCallback(async (job: RenderQueueJob) => {
     setPlaying(false);
 
     const controller = new AbortController();
     renderAbort.current = controller;
     setRendering(true);
     setRenderProgress(null);
-    setSaveState('動画書き出しを準備中…');
+    setRenderQueue((current) => updateRenderQueueJob(current, job.id, {
+      status: 'rendering',
+      progress: null,
+      error: undefined,
+    }));
+    setSaveState(`動画書き出しを準備中: ${job.projectName}`);
 
     try {
-      const result = await exportProjectVideo(project, {
+      const result = await exportProjectVideo(job.project, {
         signal: controller.signal,
         preferOpfs: true,
-        onProgress: (progress) => setRenderProgress(progress.fraction),
+        onProgress: (progress) => {
+          setRenderProgress(progress.fraction);
+          setRenderQueue((current) => updateRenderQueueJob(current, job.id, {
+            status: 'rendering',
+            progress: progress.fraction,
+          }));
+        },
       });
       if (controller.signal.aborted) return;
 
       const output = result.storage === 'opfs' ? result.file : result.blob;
       downloadBlob(output, result.fileName);
       setRenderProgress(1);
+      setRenderQueue((current) => updateRenderQueueJob(current, job.id, {
+        status: 'completed',
+        progress: 1,
+        error: undefined,
+      }));
       const format = result.container.toUpperCase();
-      setSaveState(result.hasAudio ? `${format} 書き出し完了（音声込み）` : `${format} 書き出し完了`);
+      setSaveState(result.hasAudio
+        ? `${format} 書き出し完了（音声込み）: ${job.projectName}`
+        : `${format} 書き出し完了: ${job.projectName}`);
     } catch (error) {
       if (controller.signal.aborted) {
-        setSaveState('動画書き出しを中止しました');
+        setRenderQueue((current) => updateRenderQueueJob(current, job.id, {
+          status: 'canceled',
+          progress: null,
+          error: undefined,
+        }));
+        setSaveState(`動画書き出しを中止: ${job.projectName}`);
       } else {
         console.error(error);
-        setSaveState(error instanceof Error ? `動画書き出しエラー: ${error.message}` : '動画書き出しエラー');
+        const message = error instanceof Error ? error.message : '不明なエラー';
+        setRenderQueue((current) => updateRenderQueueJob(current, job.id, {
+          status: 'failed',
+          progress: null,
+          error: message,
+        }));
+        setSaveState(`動画書き出しエラー: ${message}`);
       }
     } finally {
       if (renderAbort.current === controller) renderAbort.current = null;
       setRendering(false);
       setRenderProgress(null);
     }
-  }, [project, rendering]);
+  }, []);
+
+  useEffect(() => {
+    if (rendering) return;
+    const next = nextQueuedRenderJob(renderQueue);
+    if (!next) return;
+    void runRenderJob(next);
+  }, [renderQueue, rendering, runRenderJob]);
 
   const cancelRender = useCallback(() => {
     renderAbort.current?.abort('ユーザーが動画書き出しを中止しました');
@@ -1009,10 +1060,14 @@ export default function App() {
         onSave={manualSave}
         onBackup={backupProject}
         onSearch={() => setSearchOpen(true)}
-        onRender={renderVideo}
+        onRender={queueCurrentRender}
         onCancelRender={cancelRender}
         rendering={rendering}
         renderProgress={renderProgress}
+        renderQueueJobs={renderQueue}
+        onQueueRender={queueCurrentRender}
+        onRemoveQueuedRender={removeQueuedRender}
+        onClearFinishedRenders={clearFinishedRenders}
         capabilities={capabilities}
         saveState={saveState}
       />
