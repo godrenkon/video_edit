@@ -1,4 +1,4 @@
-import { FileAudio, FileImage, Film, Flag, Folder, Layers3, Search, X } from 'lucide-react';
+import { FileAudio, FileImage, Film, Flag, Folder, Layers3, MessageSquareText, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { searchProject, type ProjectSearchResult } from '../core/projectSearch';
 import type { Project } from '../types/editor';
@@ -118,6 +118,7 @@ export function SearchEverythingPalette({
 
 function resultIcon(result: ProjectSearchResult, project: Project) {
   if (result.kind === 'marker') return <Flag size={15} />;
+  if (result.kind === 'transcript') return <MessageSquareText size={15} />;
   if (result.kind === 'track') return <Layers3 size={15} />;
   if (result.kind === 'bin') return <Folder size={15} />;
   if (result.kind === 'asset') {
@@ -133,6 +134,7 @@ function kindLabel(kind: ProjectSearchResult['kind']) {
   if (kind === 'clip') return 'クリップ';
   if (kind === 'track') return 'トラック';
   if (kind === 'marker') return 'マーカー';
+  if (kind === 'transcript') return 'トランスクリプト';
   return '素材ビン';
 }
 
