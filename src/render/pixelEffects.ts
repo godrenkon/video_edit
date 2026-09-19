@@ -12,8 +12,16 @@ export interface ResolvedChromaKey {
   spill: number;
 }
 
+export interface ResolvedLevels {
+  inputBlack: number;
+  inputWhite: number;
+  gamma: number;
+  outputBlack: number;
+  outputWhite: number;
+}
+
 export function hasPixelEffects(effects: EffectInstance[] | undefined) {
-  return Boolean(effects?.some((effect) => effect.enabled && (effect.kind === 'sharpen' || effect.kind === 'chroma-key')));
+  return Boolean(effects?.some((effect) => effect.enabled && (effect.kind === 'sharpen' || effect.kind === 'chroma-key' || effect.kind === 'levels')));
 }
 
 export function resolveSharpen(effect: EffectInstance, timeSeconds: number): ResolvedSharpen {
@@ -29,6 +37,22 @@ export function resolveChromaKey(effect: EffectInstance, timeSeconds: number): R
   };
 }
 
+export function resolveLevels(effect: EffectInstance, timeSeconds: number): ResolvedLevels {
+  const inputBlack = clamp(effectNumber(effect, 'inputBlack', timeSeconds, 0), 0, 1);
+  const inputWhiteRaw = clamp(effectNumber(effect, 'inputWhite', timeSeconds, 1), 0, 1);
+  const inputWhite = Math.max(inputBlack + 1 / 255, inputWhiteRaw);
+  const outputBlack = clamp(effectNumber(effect, 'outputBlack', timeSeconds, 0), 0, 1);
+  const outputWhiteRaw = clamp(effectNumber(effect, 'outputWhite', timeSeconds, 1), 0, 1);
+  const outputWhite = Math.max(outputBlack, outputWhiteRaw);
+  return {
+    inputBlack,
+    inputWhite: Math.min(1, inputWhite),
+    gamma: clamp(effectNumber(effect, 'gamma', timeSeconds, 1), 0.1, 5),
+    outputBlack,
+    outputWhite,
+  };
+}
+
 export function applyPixelEffects(
   image: ImageData,
   effects: EffectInstance[] | undefined,
@@ -39,6 +63,7 @@ export function applyPixelEffects(
     if (!effect.enabled) continue;
     if (effect.kind === 'sharpen') applySharpen(image, resolveSharpen(effect, timeSeconds));
     else if (effect.kind === 'chroma-key') applyChromaKey(image, resolveChromaKey(effect, timeSeconds));
+    else if (effect.kind === 'levels') applyLevels(image, resolveLevels(effect, timeSeconds));
   }
   return image;
 }
@@ -68,6 +93,22 @@ export function applySharpen(image: ImageData, resolved: ResolvedSharpen) {
           );
         data[index + channel] = clampByte(value);
       }
+    }
+  }
+  return image;
+}
+
+export function applyLevels(image: ImageData, resolved: ResolvedLevels) {
+  const data = image.data;
+  const inputRange = Math.max(1 / 255, resolved.inputWhite - resolved.inputBlack);
+  const outputRange = Math.max(0, resolved.outputWhite - resolved.outputBlack);
+  const inverseGamma = 1 / Math.max(0.1, resolved.gamma);
+
+  for (let index = 0; index < data.length; index += 4) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      const normalized = clamp((data[index + channel] / 255 - resolved.inputBlack) / inputRange, 0, 1);
+      const corrected = normalized <= 0 ? 0 : normalized >= 1 ? 1 : normalized ** inverseGamma;
+      data[index + channel] = clampByte((resolved.outputBlack + corrected * outputRange) * 255);
     }
   }
   return image;
