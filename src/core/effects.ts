@@ -84,6 +84,11 @@ export const BUILTIN_EFFECTS: EffectDescriptor[] = [
     n('gamma', 'Gamma', 1, 0.1, 5, 0.01),
     n('gain', 'Gain', 1, 0, 4, 0.01),
   ]),
+  video('tonal-ranges', 'Shadows / Mids / Highlights', 'Color', [
+    n('shadows', 'Shadows', 0, -1, 1, 0.01),
+    n('midtones', 'Mids', 0, -1, 1, 0.01),
+    n('highlights', 'Highlights', 0, -1, 1, 0.01),
+  ]),
   video('temperature-tint', '色温度 / ティント', 'Color', [
     n('temperature', '色温度', 0, -1, 1),
     n('tint', 'ティント', 0, -1, 1),
