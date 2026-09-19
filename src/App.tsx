@@ -9,6 +9,7 @@ import { HistoryController } from './core/history';
 import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClips } from './core/groupOps';
 import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
 import { addPunchInVoiceover } from './core/punchInVoiceover';
+import { detectSilenceRanges, mergeSilenceMarkers, silenceMarkersForAsset } from './core/silenceDetection';
 import { loadShortcutOverrides, saveShortcutOverrides, shortcutMatches, type ShortcutOverrides } from './core/shortcuts';
 import { insertClipAt, overwriteClipAt } from './core/editModes';
 import { analyzeMouthCues, buildAssetMeta, mergeRelinkedAsset } from './core/media';
@@ -26,24 +27,30 @@ import {
 } from './core/project';
 import {
   deleteAssetFile,
+  deleteStoredProject,
   deleteWaveformCache,
   deleteThumbnailCachesForAsset,
   listRecoverySnapshots,
+  listStoredProjects,
   loadProject,
   loadRecoverySnapshot,
+  loadStoredProject,
   readAssetFile,
   requestPersistentStorage,
   saveAssetFile,
   saveProject,
   storageEstimate,
   type RecoverySnapshotInfo,
+  type StoredProjectInfo,
 } from './core/storage';
 import { beginEditorSession, markEditorSessionClean } from './core/session';
+import { beatMarkersForAsset, detectBeatCandidates, mergeBeatMarkers } from './core/beatDetection';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { exportProjectVideo } from './render/projectExporter';
+import { activeRenderQueueReferencesAsset, clearFinishedRenderJobs, createRenderQueueJob, nextQueuedRenderJob, updateRenderQueueJob, type RenderQueueJob } from './render/renderQueue';
 import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
-import { waveformCacheKey } from './render/waveform';
+import { getAssetWaveform, waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
 import { generateVideoProxy } from './render/proxyGenerator';
 import { Inspector } from './components/Inspector';
@@ -73,13 +80,18 @@ export default function App() {
   const [saveState, setSaveState] = useState('起動中…');
   const [zBusy, setZBusy] = useState(false);
   const [storageText, setStorageText] = useState('—');
+  const [storedProjects, setStoredProjects] = useState<StoredProjectInfo[]>([]);
+  const [projectLauncherBusy, setProjectLauncherBusy] = useState(false);
   const [recoverySnapshots, setRecoverySnapshots] = useState<RecoverySnapshotInfo[]>([]);
   const [showRecovery, setShowRecovery] = useState(false);
   const [suspectedCrash, setSuspectedCrash] = useState(false);
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState<number | null>(null);
+  const [renderQueue, setRenderQueue] = useState<RenderQueueJob[]>([]);
   const [proxyProgress, setProxyProgress] = useState<Record<string, number>>({});
+  const [silenceAnalysisAssetId, setSilenceAnalysisAssetId] = useState<string | null>(null);
+  const [beatAnalysisAssetId, setBeatAnalysisAssetId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mediaFocus, setMediaFocus] = useState<{ assetId?: string; binId?: string; token: number }>({ token: 0 });
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>(() => loadShortcutOverrides());
@@ -178,6 +190,11 @@ export default function App() {
             setRecoverySnapshots(snapshots);
             setShowRecovery(true);
           }
+        }
+
+        if (capabilities.opfs) {
+          const projects = await listStoredProjects();
+          if (!cancelled) setStoredProjects(projects);
         }
 
         const estimate = await storageEstimate();
@@ -328,6 +345,103 @@ export default function App() {
       setRecoveryBusy(false);
     }
   }, [project]);
+
+  const refreshStoredProjects = useCallback(async () => {
+    if (!capabilities.opfs) return;
+    try {
+      setStoredProjects(await listStoredProjects());
+    } catch (error) {
+      console.warn('Failed to refresh project catalog', error);
+    }
+  }, [capabilities.opfs]);
+
+  const prepareProjectSwitch = useCallback(() => {
+    setPlaying(false);
+    setTime(0);
+    clearClipSelection();
+    history.current.clear();
+    for (const controller of proxyAbort.current.values()) controller.abort('Project switched');
+    proxyAbort.current.clear();
+    setProxyProgress({});
+  }, [clearClipSelection]);
+
+  const openStoredProject = useCallback(async (projectId: string) => {
+    if (!capabilities.opfs || rendering || projectLauncherBusy || projectId === project.id) return;
+    setProjectLauncherBusy(true);
+    setSaveState('プロジェクトを切替中…');
+    try {
+      await saveProject(project);
+      const stored = await loadStoredProject(projectId);
+      if (!stored) throw new Error('プロジェクトを読み込めませんでした');
+      const hydratedProject = await hydrateProjectAssets(stored);
+      revokeProjectUrls(project);
+      prepareProjectSwitch();
+      setProject(hydratedProject);
+      setSaveState(`プロジェクトを開きました: ${hydratedProject.name}`);
+      await refreshStoredProjects();
+    } catch (error) {
+      console.error('Project switch failed', error);
+      setSaveState(error instanceof Error ? `切替エラー: ${error.message}` : 'プロジェクト切替エラー');
+    } finally {
+      setProjectLauncherBusy(false);
+    }
+  }, [
+    capabilities.opfs,
+    prepareProjectSwitch,
+    project,
+    projectLauncherBusy,
+    refreshStoredProjects,
+    rendering,
+  ]);
+
+  const createNewProject = useCallback(async () => {
+    if (!capabilities.opfs || rendering || projectLauncherBusy) return;
+    setProjectLauncherBusy(true);
+    setSaveState('新規プロジェクトを作成中…');
+    try {
+      await saveProject(project);
+      const next = createProject();
+      await saveProject(next);
+      revokeProjectUrls(project);
+      prepareProjectSwitch();
+      setProject(next);
+      setSaveState('新規プロジェクトを作成しました');
+      await refreshStoredProjects();
+    } catch (error) {
+      console.error('Project creation failed', error);
+      setSaveState('新規プロジェクトの作成に失敗しました');
+    } finally {
+      setProjectLauncherBusy(false);
+    }
+  }, [
+    capabilities.opfs,
+    prepareProjectSwitch,
+    project,
+    projectLauncherBusy,
+    refreshStoredProjects,
+    rendering,
+  ]);
+
+  const removeStoredProject = useCallback(async (projectId: string) => {
+    if (!capabilities.opfs || rendering || projectLauncherBusy || projectId === project.id) return;
+    setProjectLauncherBusy(true);
+    try {
+      await deleteStoredProject(projectId);
+      await refreshStoredProjects();
+      setSaveState('プロジェクト登録を削除しました');
+    } catch (error) {
+      console.error('Project deletion failed', error);
+      setSaveState('プロジェクト削除に失敗しました');
+    } finally {
+      setProjectLauncherBusy(false);
+    }
+  }, [
+    capabilities.opfs,
+    project.id,
+    projectLauncherBusy,
+    refreshStoredProjects,
+    rendering,
+  ]);
 
   const importFiles = async (files: File[]) => {
     if (rendering) return;
@@ -482,6 +596,73 @@ export default function App() {
     proxyAbort.current.get(assetId)?.abort('Proxy generation canceled');
   }, []);
 
+  const detectAssetSilence = useCallback(async (assetId: string) => {
+    if (rendering || silenceAnalysisAssetId) return;
+    const asset = project.assets.find((item) => item.id === assetId);
+    if (!asset || asset.kind === 'image') return;
+
+    setSilenceAnalysisAssetId(assetId);
+    setSaveState(`無音解析中: ${asset.name}`);
+    try {
+      const waveform = await getAssetWaveform(asset, {
+        samplesPerSecond: 80,
+        maxBins: 24_000,
+        chunkSeconds: 30,
+      });
+      if (!waveform) {
+        setSaveState(`音声トラックが見つかりません: ${asset.name}`);
+        return;
+      }
+
+      const ranges = detectSilenceRanges(waveform);
+      const generated = silenceMarkersForAsset(project, assetId, ranges);
+      updateProject((current) => ({
+        ...current,
+        markers: mergeSilenceMarkers(current.markers, assetId, generated),
+      }), { label: '無音区間を解析' });
+      setSaveState(`無音解析完了: ${ranges.length}区間 / ${generated.length}マーカー`);
+    } catch (error) {
+      console.error('Silence analysis failed', error);
+      setSaveState(error instanceof Error ? `無音解析エラー: ${error.message}` : '無音解析エラー');
+    } finally {
+      setSilenceAnalysisAssetId(null);
+    }
+  }, [project, rendering, silenceAnalysisAssetId, updateProject]);
+
+  const detectAssetBeats = useCallback(async (assetId: string) => {
+    if (rendering || beatAnalysisAssetId || silenceAnalysisAssetId) return;
+    const asset = project.assets.find((item) => item.id === assetId);
+    if (!asset || asset.kind === 'image') return;
+
+    setBeatAnalysisAssetId(assetId);
+    setSaveState(`ビート解析中: ${asset.name}`);
+    try {
+      const waveform = await getAssetWaveform(asset, {
+        samplesPerSecond: 100,
+        maxBins: 30_000,
+        chunkSeconds: 30,
+      });
+      if (!waveform) {
+        setSaveState(`音声トラックが見つかりません: ${asset.name}`);
+        return;
+      }
+
+      const result = detectBeatCandidates(waveform);
+      const generated = beatMarkersForAsset(project, assetId, result.candidates);
+      updateProject((current) => ({
+        ...current,
+        markers: mergeBeatMarkers(current.markers, assetId, generated),
+      }), { label: 'ビート候補を解析' });
+      const bpm = result.estimatedBpm ? ` / 約${result.estimatedBpm} BPM` : '';
+      setSaveState(`ビート解析完了: ${result.candidates.length}候補 / ${generated.length}マーカー${bpm}`);
+    } catch (error) {
+      console.error('Beat analysis failed', error);
+      setSaveState(error instanceof Error ? `ビート解析エラー: ${error.message}` : 'ビート解析エラー');
+    } finally {
+      setBeatAnalysisAssetId(null);
+    }
+  }, [beatAnalysisAssetId, project, rendering, silenceAnalysisAssetId, updateProject]);
+
   const removeAssetProxy = useCallback(async (assetId: string) => {
     proxyAbort.current.get(assetId)?.abort('Proxy removed');
     const asset = project.assets.find((item) => item.id === assetId);
@@ -619,6 +800,10 @@ export default function App() {
     if (rendering) return;
     const asset = project.assets.find((a) => a.id === assetId);
     if (!asset) return;
+    if (activeRenderQueueReferencesAsset(renderQueue, assetId)) {
+      setSaveState(`削除できません: 書き出しキューが ${asset.name} を使用中です`);
+      return;
+    }
     if (capabilities.opfs) {
       await deleteAssetFile(asset.storageName);
       if (asset.proxyStorageName) await deleteAssetFile(asset.proxyStorageName).catch(() => undefined);
@@ -876,42 +1061,91 @@ export default function App() {
     setSaveState('プロジェクトをバックアップしました');
   };
 
-  const renderVideo = useCallback(async () => {
-    if (rendering) return;
+  const queueCurrentRender = useCallback(() => {
+    const job = createRenderQueueJob(project, uid('render'));
+    setRenderQueue((current) => [...current, job]);
+    setSaveState(`書き出しキューに追加: ${job.projectName}`);
+  }, [project]);
+
+  const removeQueuedRender = useCallback((jobId: string) => {
+    setRenderQueue((current) => current.filter((job) => job.id !== jobId || job.status !== 'queued'));
+  }, []);
+
+  const clearFinishedRenders = useCallback(() => {
+    setRenderQueue((current) => clearFinishedRenderJobs(current));
+  }, []);
+
+  const runRenderJob = useCallback(async (job: RenderQueueJob) => {
     setPlaying(false);
 
     const controller = new AbortController();
     renderAbort.current = controller;
     setRendering(true);
     setRenderProgress(null);
-    setSaveState('動画書き出しを準備中…');
+    setRenderQueue((current) => updateRenderQueueJob(current, job.id, {
+      status: 'rendering',
+      progress: null,
+      error: undefined,
+    }));
+    setSaveState(`動画書き出しを準備中: ${job.projectName}`);
 
     try {
-      const result = await exportProjectVideo(project, {
+      const result = await exportProjectVideo(job.project, {
         signal: controller.signal,
         preferOpfs: true,
-        onProgress: (progress) => setRenderProgress(progress.fraction),
+        onProgress: (progress) => {
+          setRenderProgress(progress.fraction);
+          setRenderQueue((current) => updateRenderQueueJob(current, job.id, {
+            status: 'rendering',
+            progress: progress.fraction,
+          }));
+        },
       });
       if (controller.signal.aborted) return;
 
       const output = result.storage === 'opfs' ? result.file : result.blob;
       downloadBlob(output, result.fileName);
       setRenderProgress(1);
+      setRenderQueue((current) => updateRenderQueueJob(current, job.id, {
+        status: 'completed',
+        progress: 1,
+        error: undefined,
+      }));
       const format = result.container.toUpperCase();
-      setSaveState(result.hasAudio ? `${format} 書き出し完了（音声込み）` : `${format} 書き出し完了`);
+      setSaveState(result.hasAudio
+        ? `${format} 書き出し完了（音声込み）: ${job.projectName}`
+        : `${format} 書き出し完了: ${job.projectName}`);
     } catch (error) {
       if (controller.signal.aborted) {
-        setSaveState('動画書き出しを中止しました');
+        setRenderQueue((current) => updateRenderQueueJob(current, job.id, {
+          status: 'canceled',
+          progress: null,
+          error: undefined,
+        }));
+        setSaveState(`動画書き出しを中止: ${job.projectName}`);
       } else {
         console.error(error);
-        setSaveState(error instanceof Error ? `動画書き出しエラー: ${error.message}` : '動画書き出しエラー');
+        const message = error instanceof Error ? error.message : '不明なエラー';
+        setRenderQueue((current) => updateRenderQueueJob(current, job.id, {
+          status: 'failed',
+          progress: null,
+          error: message,
+        }));
+        setSaveState(`動画書き出しエラー: ${message}`);
       }
     } finally {
       if (renderAbort.current === controller) renderAbort.current = null;
       setRendering(false);
       setRenderProgress(null);
     }
-  }, [project, rendering]);
+  }, []);
+
+  useEffect(() => {
+    if (rendering) return;
+    const next = nextQueuedRenderJob(renderQueue);
+    if (!next) return;
+    void runRenderJob(next);
+  }, [renderQueue, rendering, runRenderJob]);
 
   const cancelRender = useCallback(() => {
     renderAbort.current?.abort('ユーザーが動画書き出しを中止しました');
@@ -1005,14 +1239,24 @@ export default function App() {
 
       <TopBar
         projectName={project.name}
+        projectId={project.id}
+        projects={storedProjects}
+        projectLauncherBusy={projectLauncherBusy}
         onProjectName={(name) => updateProject((p) => ({ ...p, name }), { label: 'プロジェクト名変更', key: 'project-name' })}
+        onNewProject={createNewProject}
+        onOpenProject={openStoredProject}
+        onDeleteProject={removeStoredProject}
         onSave={manualSave}
         onBackup={backupProject}
         onSearch={() => setSearchOpen(true)}
-        onRender={renderVideo}
+        onRender={queueCurrentRender}
         onCancelRender={cancelRender}
         rendering={rendering}
         renderProgress={renderProgress}
+        renderQueueJobs={renderQueue}
+        onQueueRender={queueCurrentRender}
+        onRemoveQueuedRender={removeQueuedRender}
+        onClearFinishedRenders={clearFinishedRenders}
         capabilities={capabilities}
         saveState={saveState}
       />
@@ -1046,6 +1290,10 @@ export default function App() {
           onGenerateProxy={generateAssetProxy}
           onCancelProxy={cancelAssetProxy}
           onRemoveProxy={removeAssetProxy}
+          silenceAnalysisAssetId={silenceAnalysisAssetId}
+          beatAnalysisAssetId={beatAnalysisAssetId}
+          onDetectSilence={detectAssetSilence}
+          onDetectBeats={detectAssetBeats}
           onCreateText={createText}
           onCreateLowerThird={createLowerThird}
           onCreateSubtitle={createSubtitle}

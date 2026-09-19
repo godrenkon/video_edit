@@ -3,7 +3,7 @@ import { uid } from './project';
 
 export type EffectDomain = 'video' | 'audio';
 export type EffectBackend = 'webgpu' | 'webgl2' | 'canvas2d' | 'webaudio' | 'audioworklet';
-export type ParameterControl = 'slider' | 'number' | 'color' | 'toggle' | 'select';
+export type ParameterControl = 'slider' | 'number' | 'color' | 'toggle' | 'select' | 'file';
 
 export interface EffectParameterDescriptor {
   id: string;
@@ -108,6 +108,10 @@ export const BUILTIN_EFFECTS: EffectDescriptor[] = [
     n('temperature', '色温度', 0, -1, 1),
     n('tint', 'ティント', 0, -1, 1),
   ]),
+  video('lut-3d', '3D LUT (.cube)', 'Color', [
+    { id: 'cubeData', label: 'LUTファイル', control: 'file', defaultValue: '', keyframeable: false },
+    n('intensity', '強度', 1, 0, 1, 0.01),
+  ]),
   video('blur', 'ブラー', 'Blur', [n('radius', '半径', 0, 0, 100, 0.25)]),
   video('sharpen', 'シャープ', 'Detail', [n('amount', '強度', 0, 0, 3)]),
   video('vignette', 'ビネット', 'Stylize', [
@@ -120,6 +124,21 @@ export const BUILTIN_EFFECTS: EffectDescriptor[] = [
     n('similarity', '類似度', 0.35, 0, 1),
     n('smoothness', '境界', 0.08, 0, 0.5),
     n('spill', '色かぶり除去', 0.5, 0, 1),
+  ]),
+  video('luma-key', 'ルミナンスキー', 'Keying', [
+    n('threshold', 'しきい値', 0.5, 0, 1, 0.005),
+    n('softness', '境界', 0.1, 0, 0.5, 0.005),
+    { id: 'invert', label: '反転', control: 'toggle', defaultValue: false, keyframeable: false },
+  ]),
+  video('hue-shift', '色相シフト', 'Color', [
+    n('degrees', '色相', 0, -180, 180, 1),
+  ]),
+  video('pixelate', 'ピクセレート', 'Stylize', [
+    n('size', 'ブロックサイズ', 1, 1, 128, 1),
+  ]),
+  video('grain', 'フィルムグレイン', 'Stylize', [
+    n('amount', '強度', 0, 0, 1, 0.01),
+    n('seed', 'シード', 1, 0, 10000, 1),
   ]),
   video('drop-shadow', 'ドロップシャドウ', 'Stylize', [
     { id: 'color', label: '色', control: 'color', defaultValue: '#000000', keyframeable: false },

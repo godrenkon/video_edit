@@ -175,10 +175,10 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
   return null;
 }
 
-function ZundamonLayer({ clip, assets, project, time }: { clip: Clip; assets: AssetMeta[]; project: Project; time: number }) {
+function ZundamonLayer({ clip, assetsById, project, time }: { clip: Clip; assetsById: ReadonlyMap<string, AssetMeta>; project: Project; time: number }) {
   const state = zundamonVisualState(clip, time);
   if (!state.assetId) return null;
-  const asset = assets.find((item) => item.id === state.assetId);
+  const asset = assetsById.get(state.assetId);
   if (!asset?.objectUrl) return null;
   const styles = assetLayerStyles(clip, asset, project, time, state.bobOffset);
   if (!styles) return null;
@@ -356,6 +356,7 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
   const [fullscreen, setFullscreen] = useState(false);
   const visuals = useMemo(() => visualTimelineItems(project, time), [project, time]);
   const audios = useMemo(() => audioTimelineItems(project, time), [project, time]);
+  const assetsById = useMemo(() => new Map(project.assets.map((asset) => [asset.id, asset] as const)), [project.assets]);
   const requiresProcessedPreview = useMemo(
     () => visuals.some(({ clip }) => hasPixelEffects(clip.effects)),
     [visuals],
@@ -397,11 +398,11 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
         <div className="stageOuter">
           <div className="stage" style={{ aspectRatio: aspect, background: project.background }}>
             {visuals.map(({ clip }) => {
-              if (clip.kind === 'zundamon') return <ZundamonLayer key={clip.id} clip={clip} assets={project.assets} project={project} time={time} />;
+              if (clip.kind === 'zundamon') return <ZundamonLayer key={clip.id} clip={clip} assetsById={assetsById} project={project} time={time} />;
               if (clip.kind === 'text' || clip.kind === 'subtitle' || clip.kind === 'generator') {
                 return <SyntheticLayer key={clip.id} clip={clip} project={project} time={time} />;
               }
-              return <VisualLayer key={clip.id} clip={clip} project={project} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} />;
+              return <VisualLayer key={clip.id} clip={clip} project={project} asset={clip.assetId ? assetsById.get(clip.assetId) : undefined} time={time} playing={playing} />;
             })}
             {visuals.length > 0 && (
               <>
@@ -424,7 +425,7 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
             trackMuted={track.muted}
             trackGain={track.gain ?? 1}
             trackPan={track.pan ?? 0}
-            asset={project.assets.find((asset) => asset.id === clip.assetId)}
+            asset={clip.assetId ? assetsById.get(clip.assetId) : undefined}
             time={time}
             playing={playing}
             fps={project.fps}
@@ -443,15 +444,27 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
   );
 }
 
+const PREVIEW_NOISE_CACHE_LIMIT = 96;
+const previewNoiseUrlCache = new Map<string, string>();
+
 function noiseDataUrl(clipId: string, timeSeconds: number, speed: number) {
   if (typeof document === 'undefined') return undefined;
+  const frame = Math.floor(timeSeconds * speed);
+  const cacheKey = `${clipId}:${frame}`;
+  const cached = previewNoiseUrlCache.get(cacheKey);
+  if (cached) {
+    previewNoiseUrlCache.delete(cacheKey);
+    previewNoiseUrlCache.set(cacheKey, cached);
+    return cached;
+  }
+
   const canvas = document.createElement('canvas');
   canvas.width = 32;
   canvas.height = 18;
   const context = canvas.getContext('2d');
   if (!context) return undefined;
   const image = context.createImageData(canvas.width, canvas.height);
-  const seed = hashString(`${clipId}:${Math.floor(timeSeconds * speed)}`);
+  const seed = hashString(cacheKey);
   for (let y = 0; y < canvas.height; y += 1) {
     for (let x = 0; x < canvas.width; x += 1) {
       const value = deterministicNoiseByte(seed, x, y);
