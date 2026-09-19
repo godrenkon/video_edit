@@ -26,17 +26,21 @@ import {
 } from './core/project';
 import {
   deleteAssetFile,
+  deleteStoredProject,
   deleteWaveformCache,
   deleteThumbnailCachesForAsset,
   listRecoverySnapshots,
+  listStoredProjects,
   loadProject,
   loadRecoverySnapshot,
+  loadStoredProject,
   readAssetFile,
   requestPersistentStorage,
   saveAssetFile,
   saveProject,
   storageEstimate,
   type RecoverySnapshotInfo,
+  type StoredProjectInfo,
 } from './core/storage';
 import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
@@ -74,6 +78,8 @@ export default function App() {
   const [saveState, setSaveState] = useState('起動中…');
   const [zBusy, setZBusy] = useState(false);
   const [storageText, setStorageText] = useState('—');
+  const [storedProjects, setStoredProjects] = useState<StoredProjectInfo[]>([]);
+  const [projectLauncherBusy, setProjectLauncherBusy] = useState(false);
   const [recoverySnapshots, setRecoverySnapshots] = useState<RecoverySnapshotInfo[]>([]);
   const [showRecovery, setShowRecovery] = useState(false);
   const [suspectedCrash, setSuspectedCrash] = useState(false);
@@ -180,6 +186,11 @@ export default function App() {
             setRecoverySnapshots(snapshots);
             setShowRecovery(true);
           }
+        }
+
+        if (capabilities.opfs) {
+          const projects = await listStoredProjects();
+          if (!cancelled) setStoredProjects(projects);
         }
 
         const estimate = await storageEstimate();
@@ -330,6 +341,103 @@ export default function App() {
       setRecoveryBusy(false);
     }
   }, [project]);
+
+  const refreshStoredProjects = useCallback(async () => {
+    if (!capabilities.opfs) return;
+    try {
+      setStoredProjects(await listStoredProjects());
+    } catch (error) {
+      console.warn('Failed to refresh project catalog', error);
+    }
+  }, [capabilities.opfs]);
+
+  const prepareProjectSwitch = useCallback(() => {
+    setPlaying(false);
+    setTime(0);
+    clearClipSelection();
+    history.current.clear();
+    for (const controller of proxyAbort.current.values()) controller.abort('Project switched');
+    proxyAbort.current.clear();
+    setProxyProgress({});
+  }, [clearClipSelection]);
+
+  const openStoredProject = useCallback(async (projectId: string) => {
+    if (!capabilities.opfs || rendering || projectLauncherBusy || projectId === project.id) return;
+    setProjectLauncherBusy(true);
+    setSaveState('プロジェクトを切替中…');
+    try {
+      await saveProject(project);
+      const stored = await loadStoredProject(projectId);
+      if (!stored) throw new Error('プロジェクトを読み込めませんでした');
+      const hydratedProject = await hydrateProjectAssets(stored);
+      revokeProjectUrls(project);
+      prepareProjectSwitch();
+      setProject(hydratedProject);
+      setSaveState(`プロジェクトを開きました: ${hydratedProject.name}`);
+      await refreshStoredProjects();
+    } catch (error) {
+      console.error('Project switch failed', error);
+      setSaveState(error instanceof Error ? `切替エラー: ${error.message}` : 'プロジェクト切替エラー');
+    } finally {
+      setProjectLauncherBusy(false);
+    }
+  }, [
+    capabilities.opfs,
+    prepareProjectSwitch,
+    project,
+    projectLauncherBusy,
+    refreshStoredProjects,
+    rendering,
+  ]);
+
+  const createNewProject = useCallback(async () => {
+    if (!capabilities.opfs || rendering || projectLauncherBusy) return;
+    setProjectLauncherBusy(true);
+    setSaveState('新規プロジェクトを作成中…');
+    try {
+      await saveProject(project);
+      const next = createProject();
+      await saveProject(next);
+      revokeProjectUrls(project);
+      prepareProjectSwitch();
+      setProject(next);
+      setSaveState('新規プロジェクトを作成しました');
+      await refreshStoredProjects();
+    } catch (error) {
+      console.error('Project creation failed', error);
+      setSaveState('新規プロジェクトの作成に失敗しました');
+    } finally {
+      setProjectLauncherBusy(false);
+    }
+  }, [
+    capabilities.opfs,
+    prepareProjectSwitch,
+    project,
+    projectLauncherBusy,
+    refreshStoredProjects,
+    rendering,
+  ]);
+
+  const removeStoredProject = useCallback(async (projectId: string) => {
+    if (!capabilities.opfs || rendering || projectLauncherBusy || projectId === project.id) return;
+    setProjectLauncherBusy(true);
+    try {
+      await deleteStoredProject(projectId);
+      await refreshStoredProjects();
+      setSaveState('プロジェクト登録を削除しました');
+    } catch (error) {
+      console.error('Project deletion failed', error);
+      setSaveState('プロジェクト削除に失敗しました');
+    } finally {
+      setProjectLauncherBusy(false);
+    }
+  }, [
+    capabilities.opfs,
+    project.id,
+    projectLauncherBusy,
+    refreshStoredProjects,
+    rendering,
+  ]);
 
   const importFiles = async (files: File[]) => {
     if (rendering) return;
@@ -1060,7 +1168,13 @@ export default function App() {
 
       <TopBar
         projectName={project.name}
+        projectId={project.id}
+        projects={storedProjects}
+        projectLauncherBusy={projectLauncherBusy}
         onProjectName={(name) => updateProject((p) => ({ ...p, name }), { label: 'プロジェクト名変更', key: 'project-name' })}
+        onNewProject={createNewProject}
+        onOpenProject={openStoredProject}
+        onDeleteProject={removeStoredProject}
         onSave={manualSave}
         onBackup={backupProject}
         onSearch={() => setSearchOpen(true)}
