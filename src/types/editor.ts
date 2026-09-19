@@ -129,6 +129,31 @@ export interface SubtitlePayload {
   highlightColor?: string;
 }
 
+export interface TranscriptWord {
+  text: string;
+  start: number;
+  end: number;
+  confidence?: number;
+}
+
+export interface TranscriptSegment {
+  id: string;
+  start: number;
+  end: number;
+  text: string;
+  speaker?: string;
+  sourceClipId?: string;
+  words?: TranscriptWord[];
+}
+
+export interface TranscriptDocument {
+  id: string;
+  source: 'subtitle' | 'voicevox' | 'stt' | 'manual';
+  language?: string;
+  updatedAt: string;
+  segments: TranscriptSegment[];
+}
+
 export interface GeneratorPayload {
   kind: 'color' | 'gradient' | 'noise' | 'bars' | 'custom';
   data?: Record<string, EffectParameterValue>;
@@ -231,4 +256,5 @@ export interface Project {
   exportSettings?: ProjectExportSettings;
   audioBuses?: AudioBusSettings[];
   audioDucking?: AudioDuckingSettings;
+  transcript?: TranscriptDocument;
 }
