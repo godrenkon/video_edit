@@ -166,7 +166,10 @@ function resetCanvas(context: RenderContext2D, project: Project) {
 function applyLayerTransform(context: RenderContext2D, project: Project, layer: VisualFrameLayerPlan) {
   context.globalAlpha = clamp(layer.transform.opacity, 0, 1);
   context.globalCompositeOperation = blendModeToCanvas(layer.blendMode);
-  context.filter = canvasFilterForEffects(layer.effects, layer.clipLocalTime);
+  context.filter = combineCanvasFilters(
+    canvasFilterForEffects(layer.effects, layer.clipLocalTime),
+    layer.transitionBrightness,
+  );
   context.translate(project.width / 2 + layer.transform.x, project.height / 2 + layer.transform.y);
   context.rotate(layer.transform.rotation * Math.PI / 180);
   context.scale(layer.transform.scale, layer.transform.scale);
@@ -477,4 +480,12 @@ function assertNotAborted(signal?: AbortSignal) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
+}
+
+
+function combineCanvasFilters(effectFilter: string, brightness: number) {
+  const safeBrightness = clamp(brightness, 0, 1);
+  if (safeBrightness >= 0.999999) return effectFilter;
+  const dip = `brightness(${safeBrightness})`;
+  return effectFilter && effectFilter !== 'none' ? `${effectFilter} ${dip}` : dip;
 }
