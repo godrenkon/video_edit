@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blendModeToCanvas, resolveCropRectangle } from './canvas2dRenderer';
+import { blendModeToCanvas, combineCanvasFilters, resolveCropRectangle } from './canvas2dRenderer';
 
 describe('canvas renderer helpers', () => {
   it('maps editor blend modes to Canvas 2D operations', () => {
@@ -7,6 +7,13 @@ describe('canvas renderer helpers', () => {
     expect(blendModeToCanvas('add')).toBe('lighter');
     expect(blendModeToCanvas('multiply')).toBe('multiply');
     expect(blendModeToCanvas('screen')).toBe('screen');
+  });
+
+  it('combines visual effects with dip-to-black brightness safely', () => {
+    expect(combineCanvasFilters('none', 1)).toBe('none');
+    expect(combineCanvasFilters('none', 0.5)).toBe('brightness(0.5)');
+    expect(combineCanvasFilters('blur(4px)', 0.25)).toBe('blur(4px) brightness(0.25)');
+    expect(combineCanvasFilters('contrast(1.2)', -5)).toBe('contrast(1.2) brightness(0)');
   });
 
   it('keeps the full source when no crop is set', () => {
