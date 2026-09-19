@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TranscriptDocument } from '../types/editor';
-import { detectTranscriptCleanupCandidates, transcriptCleanupSummary } from './transcriptCleanup';
+import { detectTranscriptCleanupCandidates, mergeTranscriptCleanupMarkers, transcriptCleanupSummary, TRANSCRIPT_CLEANUP_NOTE_PREFIX } from './transcriptCleanup';
 
 const source: TranscriptDocument = {
   id: 't',
@@ -56,6 +56,19 @@ describe('transcript cleanup candidates', () => {
       pauseThreshold: 120,
     });
     expect(result).toMatchObject([{ kind: 'filler', segmentId: 'b', matchedText: 'ほげ' }]);
+  });
+
+  it('replaces only cleanup markers and preserves chapters/manual markers', () => {
+    const candidates = detectTranscriptCleanupCandidates(source, { pauseThreshold: 2 });
+    const merged = mergeTranscriptCleanupMarkers([
+      { id: 'manual', time: 1, name: '手動', note: 'manual' },
+      { id: 'chapter', time: 2, name: '章', note: 'auto-chapter:transcript' },
+      { id: 'old-cleanup', time: 3, name: '古い候補', note: `${TRANSCRIPT_CLEANUP_NOTE_PREFIX}pause` },
+    ], candidates);
+    expect(merged.some((marker) => marker.id === 'manual')).toBe(true);
+    expect(merged.some((marker) => marker.id === 'chapter')).toBe(true);
+    expect(merged.some((marker) => marker.id === 'old-cleanup')).toBe(false);
+    expect(merged.filter((marker) => marker.note?.startsWith(TRANSCRIPT_CLEANUP_NOTE_PREFIX))).toHaveLength(candidates.length);
   });
 
   it('summarizes candidate counts and removable pause time', () => {
