@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { EffectInstance } from '../types/editor';
-import { applyChromaKey, applyLevels, applyPixelEffects, applySharpen, hasPixelEffects, resolveChromaKey, resolveLevels } from './pixelEffects';
+import {
+  applyChromaKey,
+  applyLevels,
+  applyLiftGammaGain,
+  applyPixelEffects,
+  applySharpen,
+  hasPixelEffects,
+  resolveChromaKey,
+  resolveLevels,
+  resolveLiftGammaGain,
+} from './pixelEffects';
 
 const parameter = (value: number | string) => ({ value });
 const effect = (kind: string, parameters: EffectInstance['parameters']): EffectInstance => ({
@@ -20,6 +30,9 @@ describe('pixel effects', () => {
     expect(hasPixelEffects([{ ...effect('chroma-key', { color: parameter('#00ff00') }), enabled: false }])).toBe(false);
     expect(hasPixelEffects([effect('levels', {
       inputBlack: parameter(0), inputWhite: parameter(1), gamma: parameter(1), outputBlack: parameter(0), outputWhite: parameter(1),
+    })])).toBe(true);
+    expect(hasPixelEffects([effect('lift-gamma-gain', {
+      lift: parameter(0), gamma: parameter(1), gain: parameter(1),
     })])).toBe(true);
     expect(hasPixelEffects([effect('blur', { radius: parameter(4) })])).toBe(false);
   });
@@ -89,6 +102,36 @@ describe('pixel effects', () => {
     expect(resolved.inputWhite).toBeGreaterThan(resolved.inputBlack);
     expect(resolved.gamma).toBe(0.1);
     expect(resolved.outputWhite).toBe(resolved.outputBlack);
+  });
+
+  it('applies lift gamma gain while preserving alpha and neutral settings', () => {
+    const neutral = makeImageData(new Uint8ClampedArray([32,128,224,77]), 1, 1);
+    applyLiftGammaGain(neutral, { lift: 0, gamma: 1, gain: 1 });
+    expect([...neutral.data]).toEqual([32,128,224,77]);
+
+    const adjusted = makeImageData(new Uint8ClampedArray([32,128,224,155]), 1, 1);
+    applyLiftGammaGain(adjusted, { lift: 0.1, gamma: 2, gain: 1.1 });
+    expect(adjusted.data[0]).toBeGreaterThan(32);
+    expect(adjusted.data[1]).toBeGreaterThan(128);
+    expect(adjusted.data[2]).toBeGreaterThanOrEqual(224);
+    expect(adjusted.data[3]).toBe(155);
+  });
+
+  it('resolves animated lift gamma gain values and clamps unsafe ranges', () => {
+    const resolved = resolveLiftGammaGain(effect('lift-gamma-gain', {
+      lift: {
+        value: 0,
+        keyframes: [
+          { id: 'a', time: 0, value: -0.5, interpolation: 'linear' },
+          { id: 'b', time: 2, value: 0.5, interpolation: 'linear' },
+        ],
+      },
+      gamma: parameter(99),
+      gain: parameter(-4),
+    }), 1);
+    expect(resolved.lift).toBeCloseTo(0, 8);
+    expect(resolved.gamma).toBe(5);
+    expect(resolved.gain).toBe(0);
   });
 
   it('keys an exact green pixel and preserves a distant red pixel', () => {
