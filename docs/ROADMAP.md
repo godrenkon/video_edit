@@ -227,7 +227,7 @@ Current implementation branch: `main`.
 - [ ] silence / filler detection
 - [x] transcript search in dedicated panel + global search palette
 - [ ] automatic captions
-- [ ] auto chapters
+- [x] local transcript-gap/max-duration auto chapters with marker generation + YouTube chapter text
 
 ## Phase 7 — Zundamon / YMM4 Replacement
 
@@ -276,7 +276,7 @@ Current implementation branch: `main`.
 - [ ] beat detection
 - [ ] scene-change detection
 - [ ] transcript search
-- [ ] automatic chapter candidates
+- [x] local transcript-gap/max-duration chapter candidates
 
 ### Advanced optional processing
 
