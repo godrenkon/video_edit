@@ -42,7 +42,7 @@ import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { exportProjectVideo } from './render/projectExporter';
-import { clearFinishedRenderJobs, createRenderQueueJob, nextQueuedRenderJob, updateRenderQueueJob, type RenderQueueJob } from './render/renderQueue';
+import { activeRenderQueueReferencesAsset, clearFinishedRenderJobs, createRenderQueueJob, nextQueuedRenderJob, updateRenderQueueJob, type RenderQueueJob } from './render/renderQueue';
 import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
 import { waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
@@ -621,6 +621,10 @@ export default function App() {
     if (rendering) return;
     const asset = project.assets.find((a) => a.id === assetId);
     if (!asset) return;
+    if (activeRenderQueueReferencesAsset(renderQueue, assetId)) {
+      setSaveState(`削除できません: 書き出しキューが ${asset.name} を使用中です`);
+      return;
+    }
     if (capabilities.opfs) {
       await deleteAssetFile(asset.storageName);
       if (asset.proxyStorageName) await deleteAssetFile(asset.proxyStorageName).catch(() => undefined);
