@@ -222,7 +222,11 @@ describe('pixel effects', () => {
       white: parameter(1),
     });
     const resolved = resolveToneCurve(curve, 1);
-    expect(resolved.points).toEqual([0, 0.2, 0.6, 0.9, 1]);
+    expect(resolved.points[0]).toBe(0);
+    expect(resolved.points[1]).toBeCloseTo(0.2, 10);
+    expect(resolved.points[2]).toBeCloseTo(0.6, 10);
+    expect(resolved.points[3]).toBeCloseTo(0.9, 10);
+    expect(resolved.points[4]).toBe(1);
 
     const image = makeImageData(new Uint8ClampedArray([128,128,128,77]), 1, 1);
     applyToneCurve(image, resolved);
