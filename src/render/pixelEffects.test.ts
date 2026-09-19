@@ -10,7 +10,7 @@ const effect = (kind: string, parameters: EffectInstance['parameters']): EffectI
   parameters,
 });
 
-function image(data: Uint8ClampedArray, width: number, height: number): ImageData {
+function makeImageData(data: Uint8ClampedArray, width: number, height: number): ImageData {
   return { data, width, height, colorSpace: 'srgb' } as ImageData;
 }
 
@@ -22,7 +22,7 @@ describe('pixel effects', () => {
   });
 
   it('sharpens a center pixel without changing alpha', () => {
-    const image = image(new Uint8ClampedArray([
+    const image = makeImageData(new Uint8ClampedArray([
       0,0,0,255, 0,0,0,255, 0,0,0,255,
       0,0,0,255, 100,100,100,200, 0,0,0,255,
       0,0,0,255, 0,0,0,255, 0,0,0,255,
@@ -34,7 +34,7 @@ describe('pixel effects', () => {
   });
 
   it('keys an exact green pixel and preserves a distant red pixel', () => {
-    const image = image(new Uint8ClampedArray([
+    const image = makeImageData(new Uint8ClampedArray([
       0,255,0,255,
       255,0,0,255,
     ]), 2, 1);
@@ -54,7 +54,7 @@ describe('pixel effects', () => {
   });
 
   it('applies pixel effects in effect-list order', () => {
-    const image = image(new Uint8ClampedArray([
+    const image = makeImageData(new Uint8ClampedArray([
       0,255,0,255, 0,255,0,255, 0,255,0,255,
       0,255,0,255, 0,255,0,255, 0,255,0,255,
       0,255,0,255, 0,255,0,255, 0,255,0,255,
