@@ -11,7 +11,7 @@ import { previewCropLayout } from '../render/cropGeometry';
 import { canvasFilterForEffects, resolveTemperatureTintEffects, resolveVignetteEffects, vignetteCssBackground } from '../render/effectEvaluation';
 import { PreviewAudioGraph } from '../render/previewAudioGraph';
 import { previewSyncTolerance } from '../render/previewClock';
-import { transitionMotionOffset, transitionOpacity, transitionRevealRect } from '../render/transitionEnvelope';
+import { transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect } from '../render/transitionEnvelope';
 import { activeSubtitleHighlight, normalizeSubtitleHighlightColor } from '../render/subtitleHighlight';
 import {
   deterministicNoiseByte,
@@ -53,6 +53,14 @@ function transitionClipPath(clip: Clip, clipLocalTime: number) {
   return `inset(${top}% ${right}% ${bottom}% ${left}%)`;
 }
 
+function previewVisualFilter(clip: Clip, clipLocalTime: number) {
+  const effectFilter = canvasFilterForEffects(clip.effects ?? [], clipLocalTime);
+  const brightness = transitionBrightness(clip, clipLocalTime);
+  if (brightness >= 0.999999) return effectFilter;
+  const dip = `brightness(${Math.max(0, Math.min(1, brightness))})`;
+  return effectFilter && effectFilter !== 'none' ? `${effectFilter} ${dip}` : dip;
+}
+
 function layerStyle(clip: Clip, project: Project, time: number, extraY = 0): CSSProperties {
   const clipLocal = Math.max(0, Math.min(clip.duration, time - clip.start));
   return {
@@ -60,7 +68,7 @@ function layerStyle(clip: Clip, project: Project, time: number, extraY = 0): CSS
     transformOrigin: `${(clip.transform.anchorX ?? 0.5) * 100}% ${(clip.transform.anchorY ?? 0.5) * 100}%`,
     opacity: Math.max(0, Math.min(1, clip.transform.opacity * transitionOpacity(clip, clipLocal))),
     mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
-    filter: canvasFilterForEffects(clip.effects ?? [], clipLocal),
+    filter: previewVisualFilter(clip, clipLocal),
     clipPath: transitionClipPath(clip, clipLocal),
   };
 }
@@ -100,7 +108,7 @@ function assetLayerStyles(
       transform: `rotate(${clip.transform.rotation}deg) scale(${clip.transform.scale}) translate(${-anchorX * 100}%, ${-anchorY * 100}%)`,
       opacity: Math.max(0, Math.min(1, clip.transform.opacity * transitionOpacity(clip, clipLocal))),
       mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
-      filter: canvasFilterForEffects(clip.effects ?? [], clipLocal),
+      filter: previewVisualFilter(clip, clipLocal),
       clipPath: transitionClipPath(clip, clipLocal),
       pointerEvents: 'none',
     },
