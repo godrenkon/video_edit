@@ -20,8 +20,19 @@ export interface ResolvedLevels {
   outputWhite: number;
 }
 
+export interface ResolvedLiftGammaGain {
+  lift: number;
+  gamma: number;
+  gain: number;
+}
+
 export function hasPixelEffects(effects: EffectInstance[] | undefined) {
-  return Boolean(effects?.some((effect) => effect.enabled && (effect.kind === 'sharpen' || effect.kind === 'chroma-key' || effect.kind === 'levels')));
+  return Boolean(effects?.some((effect) => effect.enabled && (
+    effect.kind === 'sharpen'
+    || effect.kind === 'chroma-key'
+    || effect.kind === 'levels'
+    || effect.kind === 'lift-gamma-gain'
+  )));
 }
 
 export function resolveSharpen(effect: EffectInstance, timeSeconds: number): ResolvedSharpen {
@@ -34,6 +45,14 @@ export function resolveChromaKey(effect: EffectInstance, timeSeconds: number): R
     similarity: clamp(effectNumber(effect, 'similarity', timeSeconds, 0.35), 0, 1),
     smoothness: clamp(effectNumber(effect, 'smoothness', timeSeconds, 0.08), 0, 0.5),
     spill: clamp(effectNumber(effect, 'spill', timeSeconds, 0.5), 0, 1),
+  };
+}
+
+export function resolveLiftGammaGain(effect: EffectInstance, timeSeconds: number): ResolvedLiftGammaGain {
+  return {
+    lift: clamp(effectNumber(effect, 'lift', timeSeconds, 0), -1, 1),
+    gamma: clamp(effectNumber(effect, 'gamma', timeSeconds, 1), 0.1, 5),
+    gain: clamp(effectNumber(effect, 'gain', timeSeconds, 1), 0, 4),
   };
 }
 
@@ -64,6 +83,7 @@ export function applyPixelEffects(
     if (effect.kind === 'sharpen') applySharpen(image, resolveSharpen(effect, timeSeconds));
     else if (effect.kind === 'chroma-key') applyChromaKey(image, resolveChromaKey(effect, timeSeconds));
     else if (effect.kind === 'levels') applyLevels(image, resolveLevels(effect, timeSeconds));
+    else if (effect.kind === 'lift-gamma-gain') applyLiftGammaGain(image, resolveLiftGammaGain(effect, timeSeconds));
   }
   return image;
 }
@@ -109,6 +129,21 @@ export function applyLevels(image: ImageData, resolved: ResolvedLevels) {
       const normalized = clamp((data[index + channel] / 255 - resolved.inputBlack) / inputRange, 0, 1);
       const corrected = normalized <= 0 ? 0 : normalized >= 1 ? 1 : normalized ** inverseGamma;
       data[index + channel] = clampByte((resolved.outputBlack + corrected * outputRange) * 255);
+    }
+  }
+  return image;
+}
+
+export function applyLiftGammaGain(image: ImageData, resolved: ResolvedLiftGammaGain) {
+  const data = image.data;
+  const inverseGamma = 1 / Math.max(0.1, resolved.gamma);
+
+  for (let index = 0; index < data.length; index += 4) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      const normalized = data[index + channel] / 255;
+      const lifted = clamp(normalized + resolved.lift * (1 - normalized), 0, 1);
+      const corrected = lifted <= 0 ? 0 : lifted >= 1 ? 1 : lifted ** inverseGamma;
+      data[index + channel] = clampByte(corrected * resolved.gain * 255);
     }
   }
   return image;
