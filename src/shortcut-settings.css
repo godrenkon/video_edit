@@ -1,0 +1,19 @@
+.shortcutSettings { margin: 9px 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #0b1115; display: grid; gap: 7px; }
+.shortcutSettingsHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.shortcutSettingsHeader > div { display: grid; gap: 2px; }
+.shortcutSettingsHeader strong { font-size: 10px; }
+.shortcutSettingsHeader span { color: var(--muted); font-size: 8px; }
+.shortcutSettingsHeader button, .shortcutReset { height: 26px; border: 1px solid var(--line); border-radius: 6px; background: #12191f; color: var(--text); display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 8px; cursor: pointer; }
+.shortcutSettingsHeader button { padding: 0 7px; }
+.shortcutSettings button:disabled { opacity: .4; cursor: default; }
+.shortcutRows { display: grid; gap: 4px; }
+.shortcutRow { display: grid; grid-template-columns: minmax(0,1fr) 106px 27px; gap: 5px; align-items: center; padding: 4px; border-radius: 6px; }
+.shortcutRow.conflict { background: rgba(255,104,104,.07); box-shadow: inset 0 0 0 1px rgba(255,104,104,.25); }
+.shortcutLabel { min-width: 0; display: grid; gap: 1px; }
+.shortcutLabel strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
+.shortcutLabel span { color: var(--muted); font-size: 7px; }
+.shortcutRow.conflict .shortcutLabel span { color: #ff9a9a; }
+.shortcutRow input { width: 100%; min-width: 0; height: 26px; border: 1px solid var(--line); border-radius: 5px; background: #080d10; color: var(--cyan); text-align: center; font: 700 8px ui-monospace, SFMono-Regular, Menlo, monospace; outline: none; cursor: pointer; }
+.shortcutRow input:focus { border-color: #3f849c; box-shadow: 0 0 0 1px rgba(95,216,255,.2); }
+.shortcutReset { width: 27px; min-width: 27px; padding: 0; }
+.shortcutConflictNote { color: #ff9a9a; font-size: 8px; line-height: 1.4; }
