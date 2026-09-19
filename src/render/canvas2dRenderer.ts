@@ -116,8 +116,11 @@ function drawPixelProcessedFrame(
   effects: VisualFrameLayerPlan['effects'],
   clipLocalTime: number,
 ) {
-  const width = Math.max(1, Math.round(crop.width));
-  const height = Math.max(1, Math.round(crop.height));
+  const outputWidth = Math.max(1, Math.round(Math.abs(drawWidth)));
+  const outputHeight = Math.max(1, Math.round(Math.abs(drawHeight)));
+  const sourceScale = Math.min(1, outputWidth / Math.max(1, crop.width), outputHeight / Math.max(1, crop.height));
+  const width = Math.max(1, Math.round(crop.width * sourceScale));
+  const height = Math.max(1, Math.round(crop.height * sourceScale));
   if (scratch.width !== width) scratch.width = width;
   if (scratch.height !== height) scratch.height = height;
 
