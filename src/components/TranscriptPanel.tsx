@@ -1,4 +1,4 @@
-import { Captions, Copy, FileText, ListTree, RefreshCcw, Search, Trash2, X } from 'lucide-react';
+import { Captions, Copy, FileText, Flag, ListTree, RefreshCcw, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   buildTranscriptFromSubtitleTracks,
@@ -8,6 +8,7 @@ import {
 } from '../core/transcript';
 import { buildTranscriptChapterCandidates, mergeAutoChapterMarkers, youtubeChapterText } from '../core/chapters';
 import { applyTranscriptAsSubtitles } from '../core/transcriptCaptions';
+import { detectTranscriptCleanupCandidates, mergeTranscriptCleanupMarkers, transcriptCleanupSummary } from '../core/transcriptCleanup';
 import type { Project, TranscriptSegment } from '../types/editor';
 import '../transcript-panel.css';
 
@@ -41,6 +42,14 @@ export function TranscriptPanel({
   const chapterCandidates = useMemo(
     () => buildTranscriptChapterCandidates(transcript),
     [transcript],
+  );
+  const cleanupCandidates = useMemo(
+    () => detectTranscriptCleanupCandidates(transcript),
+    [transcript],
+  );
+  const cleanupSummary = useMemo(
+    () => transcriptCleanupSummary(cleanupCandidates),
+    [cleanupCandidates],
   );
 
   useEffect(() => {
@@ -100,6 +109,13 @@ export function TranscriptPanel({
     setChapterStatus(`${result.clipCount}個の字幕クリップをTranscript字幕トラックへ生成しました`);
   };
 
+  const generateCleanupMarkers = () => {
+    onProject({ markers: mergeTranscriptCleanupMarkers(project.markers, cleanupCandidates) });
+    setChapterStatus(
+      `Transcript分析: 無言候補 ${cleanupSummary.pauses}件 / フィラー ${cleanupSummary.fillers}件をマーカーへ反映しました`,
+    );
+  };
+
   return (
     <section className="transcriptPanel">
       <div className="transcriptHeader">
@@ -134,6 +150,13 @@ export function TranscriptPanel({
               <Copy size={12} />YouTube章をコピー
             </button>
             <span>{chapterCandidates.length} chapters</span>
+          </div>
+          <div className="transcriptCleanupTools">
+            <button type="button" onClick={generateCleanupMarkers} disabled={cleanupCandidates.length === 0} title="Transcriptの時間ギャップとフィラーだけを分析します。音声VADではありません。">
+              <Flag size={12} />無言/フィラー候補
+            </button>
+            <span>無言 {cleanupSummary.pauses} · {cleanupSummary.pauseSeconds.toFixed(1)}s / フィラー {cleanupSummary.fillers}</span>
+            <em>Transcriptベース分析</em>
           </div>
           {chapterStatus && <div className="transcriptChapterStatus">{chapterStatus}</div>}
 
