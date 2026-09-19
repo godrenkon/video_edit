@@ -198,7 +198,8 @@ Current implementation branch: `main`.
 - [x] six-anchor Hue vs Sat curve with keyframes and Preview/export parity
 - [ ] LUT
 - [ ] scopes: histogram / waveform / vectorscope / RGB parade
-- [ ] masks: rectangle / ellipse / pen
+- [x] clip masks: rectangle / ellipse with Inspector controls and Preview/export parity
+- [ ] pen masks
 - [ ] mask feather / expand / invert
 - [ ] point tracker
 - [ ] planar tracker
