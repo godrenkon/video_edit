@@ -30,3 +30,9 @@
 .transcriptChapterTools button:disabled { opacity: .4; cursor: default; }
 .transcriptChapterTools span { color: var(--muted); font: 8px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
 .transcriptChapterStatus { color: #8ed8a8; font-size: 8px; line-height: 1.4; }
+
+.transcriptCleanupTools { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 6px; align-items: center; }
+.transcriptCleanupTools button { height: 27px; border: 1px solid var(--line); border-radius: 5px; background: #11181d; color: var(--text); font-size: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 7px; cursor: pointer; }
+.transcriptCleanupTools button:disabled { opacity: .4; cursor: default; }
+.transcriptCleanupTools span { color: var(--muted); font-size: 8px; min-width: 0; }
+.transcriptCleanupTools em { color: #f3b35f; font-size: 7px; font-style: normal; white-space: nowrap; }
