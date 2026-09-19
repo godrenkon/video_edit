@@ -253,6 +253,50 @@ describe('migrateProject', () => {
     expect(project.assets[1].binId).toBeUndefined();
   });
 
+  it('sanitizes persisted transcript documents during migration', () => {
+    const project = migrateProject({
+      version: 2,
+      assets: [],
+      tracks: [],
+      transcript: {
+        id: 'transcript',
+        source: 'stt',
+        language: ' ja-JP ',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        segments: [
+          {
+            id: 'segment',
+            start: -3,
+            end: 4,
+            text: '  speech text  ',
+            speaker: '  narrator ',
+            words: [
+              { text: 'speech', start: -2, end: 1, confidence: 9 },
+              { text: '', start: 1, end: 2 },
+            ],
+          },
+          { id: 'invalid', start: 5, end: 5, text: 'drop me' },
+        ],
+      },
+    });
+
+    expect(project.transcript).toMatchObject({
+      id: 'transcript',
+      source: 'stt',
+      language: 'ja-JP',
+      segments: [{
+        id: 'segment',
+        start: 0,
+        end: 4,
+        text: 'speech text',
+        speaker: 'narrator',
+      }],
+    });
+    expect(project.transcript?.segments[0].words).toEqual([
+      { text: 'speech', start: 0, end: 1, confidence: 1 },
+    ]);
+  });
+
   it('rejects unsupported future project versions instead of silently corrupting them', () => {
     expect(() => migrateProject({ version: 99 })).toThrow('Unsupported project version: 99');
   });
