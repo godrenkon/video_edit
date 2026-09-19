@@ -150,6 +150,7 @@ function migrateTransition(value: unknown, clipDuration: number): ClipTransition
   const kind = value.kind;
   if (
     kind !== 'dissolve'
+    && kind !== 'dip-black'
     && kind !== 'slide-left'
     && kind !== 'slide-right'
     && kind !== 'slide-up'
