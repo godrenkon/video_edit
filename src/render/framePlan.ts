@@ -10,7 +10,7 @@ import type {
   Transform,
 } from '../types/editor';
 import { visualTimelineItems, zundamonVisualState } from './timelineEvaluation';
-import { transitionMotionOffset, transitionOpacity, transitionRevealRect, type TransitionRevealRect } from './transitionEnvelope';
+import { transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect, type TransitionRevealRect } from './transitionEnvelope';
 
 export interface VisualFrameLayerPlan {
   clipId: string;
@@ -31,6 +31,7 @@ export interface VisualFrameLayerPlan {
   subtitle: SubtitlePayload | null;
   generator: GeneratorPayload | null;
   reveal: TransitionRevealRect;
+  transitionBrightness: number;
 }
 
 /**
@@ -70,6 +71,7 @@ export function buildVisualFramePlan(project: Project, timeSeconds: number): Vis
         words: clip.subtitle.words?.map((word) => ({ ...word })),
       } : null,
       reveal: transitionRevealRect(clip, clipLocalTime),
+      transitionBrightness: transitionBrightness(clip, clipLocalTime),
       generator: clip.generator ? {
         ...clip.generator,
         data: clip.generator.data ? { ...clip.generator.data } : undefined,
