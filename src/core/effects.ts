@@ -89,6 +89,13 @@ export const BUILTIN_EFFECTS: EffectDescriptor[] = [
     n('midtones', 'Mids', 0, -1, 1, 0.01),
     n('highlights', 'Highlights', 0, -1, 1, 0.01),
   ]),
+  video('tone-curve', 'トーンカーブ (5点)', 'Color', [
+    n('black', 'Black', 0, 0, 1, 0.005),
+    n('shadows', 'Shadows', 0.25, 0, 1, 0.005),
+    n('midtones', 'Midtones', 0.5, 0, 1, 0.005),
+    n('highlights', 'Highlights', 0.75, 0, 1, 0.005),
+    n('white', 'White', 1, 0, 1, 0.005),
+  ]),
   video('temperature-tint', '色温度 / ティント', 'Color', [
     n('temperature', '色温度', 0, -1, 1),
     n('tint', 'ティント', 0, -1, 1),
