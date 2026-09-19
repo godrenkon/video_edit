@@ -43,6 +43,14 @@ export function clearFinishedRenderJobs(queue: RenderQueueJob[]) {
   return queue.filter((job) => job.status === 'queued' || job.status === 'rendering');
 }
 
+export function activeRenderQueueReferencesAsset(queue: RenderQueueJob[], assetId: string) {
+  if (!assetId) return false;
+  return queue.some((job) =>
+    (job.status === 'queued' || job.status === 'rendering')
+    && job.project.assets.some((asset) => asset.id === assetId),
+  );
+}
+
 export function renderQueueCounts(queue: RenderQueueJob[]) {
   let queued = 0;
   let running = 0;
