@@ -13,6 +13,7 @@ export interface TransitionRevealRect {
 const FULL_REVEAL: TransitionRevealRect = { x: 0, y: 0, width: 1, height: 1 };
 const TRANSITION_KINDS = new Set<TransitionKind>([
   'dissolve',
+  'dip-black',
   'slide-left',
   'slide-right',
   'slide-up',
@@ -29,6 +30,17 @@ export function transitionOpacity(clip: Pick<Clip, 'duration' | 'transitionIn' |
   const inGain = transitionGainIn(clip.transitionIn, local, duration);
   const outGain = transitionGainOut(clip.transitionOut, local, duration);
   return clamp(Math.min(inGain, outGain), 0, 1);
+}
+
+export function transitionBrightness(
+  clip: Pick<Clip, 'duration' | 'transitionIn' | 'transitionOut'>,
+  clipLocalTime: number,
+) {
+  const duration = Math.max(0, finite(clip.duration, 0));
+  const local = clamp(finite(clipLocalTime, 0), 0, duration);
+  const inBrightness = dipBrightnessIn(clip.transitionIn, local, duration);
+  const outBrightness = dipBrightnessOut(clip.transitionOut, local, duration);
+  return clamp(Math.min(inBrightness, outBrightness), 0, 1);
 }
 
 export function transitionMotionOffset(
@@ -112,6 +124,18 @@ function transitionGainIn(transition: ClipTransition | undefined, local: number,
 function transitionGainOut(transition: ClipTransition | undefined, local: number, clipDuration: number) {
   const normalized = normalizeTransition(transition, clipDuration);
   if (!normalized || normalized.kind !== 'dissolve') return 1;
+  return clamp((clipDuration - local) / normalized.duration, 0, 1);
+}
+
+function dipBrightnessIn(transition: ClipTransition | undefined, local: number, clipDuration: number) {
+  const normalized = normalizeTransition(transition, clipDuration);
+  if (!normalized || normalized.kind !== 'dip-black') return 1;
+  return clamp(local / normalized.duration, 0, 1);
+}
+
+function dipBrightnessOut(transition: ClipTransition | undefined, local: number, clipDuration: number) {
+  const normalized = normalizeTransition(transition, clipDuration);
+  if (!normalized || normalized.kind !== 'dip-black') return 1;
   return clamp((clipDuration - local) / normalized.duration, 0, 1);
 }
 
