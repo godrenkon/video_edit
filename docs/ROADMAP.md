@@ -91,7 +91,7 @@ Current implementation branch: `main`.
 - [x] proxy auto-relink on load + manual original media relink
 - [x] bounded memory + OPFS timeline thumbnail cache
 - [x] OPFS + memory waveform cache
-- [ ] preview render cache
+- [x] bounded preview render cache with final-compositor playback fallback for pixel effects
 - [x] OffscreenCanvas-capable Canvas 2D compositor path
 - [ ] WebGPU compositor
 - [ ] WebGL2 fallback
@@ -189,9 +189,9 @@ Current implementation branch: `main`.
 - [x] initial keyframe controls in Inspector
 - [ ] graph editor
 - [x] temperature/tint rendering with shared Preview/export soft-light color washes + keyframes
-- [ ] sharpen rendering
+- [x] deterministic sharpen rendering with keyframes and Preview/export parity
 - [x] vignette rendering with shared Preview/export keyframe evaluation
-- [ ] chroma-key rendering
+- [x] chroma-key rendering with spill control, keyframes and Preview/export parity
 - [ ] curves / levels
 - [ ] lift / gamma / gain
 - [ ] shadows / mids / highlights
