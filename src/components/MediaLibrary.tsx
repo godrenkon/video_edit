@@ -1,4 +1,4 @@
-import { Captions, FileAudio, FileImage, Film, FolderOpen, FolderPlus, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
+import { Activity, Captions, FileAudio, FileImage, Film, FolderOpen, FolderPlus, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AssetBin, AssetMeta } from '../types/editor';
 import type { LowerThirdPreset } from '../core/project';
@@ -30,6 +30,8 @@ interface Props {
   onGenerateProxy: (assetId: string) => void;
   onCancelProxy: (assetId: string) => void;
   onRemoveProxy: (assetId: string) => void;
+  silenceAnalysisAssetId?: string | null;
+  onDetectSilence: (assetId: string) => void;
   onCreateText: () => void;
   onCreateLowerThird: (preset: LowerThirdPreset) => void;
   onCreateSubtitle: () => void;
@@ -71,6 +73,8 @@ export function MediaLibrary({
   onGenerateProxy,
   onCancelProxy,
   onRemoveProxy,
+  silenceAnalysisAssetId,
+  onDetectSilence,
   onCreateText,
   onCreateLowerThird,
   onCreateSubtitle,
@@ -273,6 +277,22 @@ export function MediaLibrary({
               }}
             />
           </div>
+          {selectedAsset.kind !== 'image' && (
+            <div className="assetAnalysis">
+              <div>
+                <span>ローカル音声解析</span>
+                <small>波形キャッシュから無音区間を検出し、タイムラインへマーカー化</small>
+              </div>
+              <button
+                type="button"
+                onClick={() => onDetectSilence(selectedAsset.id)}
+                disabled={silenceAnalysisAssetId === selectedAsset.id}
+              >
+                <Activity size={12} />
+                {silenceAnalysisAssetId === selectedAsset.id ? '解析中…' : '無音を検出'}
+              </button>
+            </div>
+          )}
           {selectedAsset.kind === 'video' && (
             <div className="proxyEditor">
               <div className="proxyStatus">
