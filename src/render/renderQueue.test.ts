@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createProject } from '../core/project';
 import {
+  activeRenderQueueReferencesAsset,
   clearFinishedRenderJobs,
   createRenderQueueJob,
   nextQueuedRenderJob,
@@ -41,6 +42,25 @@ describe('render queue', () => {
     expect(next[1]).not.toBe(queue[1]);
     expect(next[1].status).toBe('rendering');
     expect(next[1].progress).toBe(0.25);
+  });
+
+  it('protects assets referenced by queued or running snapshots', () => {
+    const project = createProject();
+    project.assets.push({
+      id: 'asset-a',
+      name: 'source.mp4',
+      kind: 'video',
+      mime: 'video/mp4',
+      size: 1,
+      duration: 1,
+      storageName: 'source.mp4',
+    });
+    const queued = createRenderQueueJob(project, 'q');
+    const completed = { ...createRenderQueueJob(project, 'd'), status: 'completed' as const };
+
+    expect(activeRenderQueueReferencesAsset([queued], 'asset-a')).toBe(true);
+    expect(activeRenderQueueReferencesAsset([completed], 'asset-a')).toBe(false);
+    expect(activeRenderQueueReferencesAsset([queued], 'missing')).toBe(false);
   });
 
   it('clears terminal jobs and summarizes states', () => {
