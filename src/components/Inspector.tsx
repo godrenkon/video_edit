@@ -30,6 +30,7 @@ const blendModes: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'dar
 const transitionKinds: Array<{ value: 'none' | TransitionKind; label: string }> = [
   { value: 'none', label: 'なし' },
   { value: 'dissolve', label: 'ディゾルブ' },
+  { value: 'dip-black', label: 'ディップ・トゥ・ブラック' },
   { value: 'slide-left', label: 'スライド ←' },
   { value: 'slide-right', label: 'スライド →' },
   { value: 'slide-up', label: 'スライド ↑' },
@@ -393,7 +394,7 @@ export function Inspector({
                       })}
                     />
                   </div>
-                  <div className="infoCard">ディゾルブはクロスフェード、スライドは位置移動、ワイプは選択方向の境界で表示領域を開閉します。Previewと最終書き出しは同じ進行計算を使います。</div>
+                  <div className="infoCard">ディゾルブはクロスフェード、ディップは黒へ落として復帰、スライドは位置移動、ワイプは選択方向の境界で表示領域を開閉します。Previewと最終書き出しは同じ進行計算を使います。</div>
                 </>
               )}
               <Field label="合成">
