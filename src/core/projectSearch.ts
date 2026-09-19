@@ -1,6 +1,6 @@
 import type { Project } from '../types/editor';
 
-export type ProjectSearchResultKind = 'asset' | 'clip' | 'track' | 'marker' | 'bin';
+export type ProjectSearchResultKind = 'asset' | 'clip' | 'track' | 'marker' | 'bin' | 'transcript';
 
 export interface ProjectSearchResult {
   id: string;
@@ -13,6 +13,7 @@ export interface ProjectSearchResult {
   trackId?: string;
   assetId?: string;
   binId?: string;
+  transcriptSegmentId?: string;
 }
 
 export function searchProject(project: Project, query: string, limit = 60): ProjectSearchResult[] {
@@ -97,6 +98,25 @@ export function searchProject(project: Project, query: string, limit = 60): Proj
     }, [marker.name, marker.note ?? '', 'marker マーカー']);
   }
 
+  for (const segment of project.transcript?.segments ?? []) {
+    const title = compactTranscriptTitle(segment.text);
+    pushMatch(results, tokens, {
+      id: `transcript:${segment.id}`,
+      kind: 'transcript',
+      title,
+      subtitle: [segment.speaker ?? '', formatTime(segment.start), segment.text !== title ? segment.text : '']
+        .filter(Boolean)
+        .join(' · '),
+      time: segment.start,
+      transcriptSegmentId: segment.id,
+    }, [
+      segment.text,
+      segment.speaker ?? '',
+      ...(segment.words ?? []).map((word) => word.text),
+      'transcript transcript トランスクリプト 書き起こし',
+    ]);
+  }
+
   return results
     .sort((a, b) => b.score - a.score || kindPriority(a.kind) - kindPriority(b.kind) || a.title.localeCompare(b.title, 'ja'))
     .slice(0, Math.max(1, Math.min(200, Math.round(limit))));
@@ -141,10 +161,16 @@ function normalize(value: string) {
 
 function kindPriority(kind: ProjectSearchResultKind) {
   if (kind === 'clip') return 0;
-  if (kind === 'marker') return 1;
-  if (kind === 'asset') return 2;
-  if (kind === 'track') return 3;
-  return 4;
+  if (kind === 'transcript') return 1;
+  if (kind === 'marker') return 2;
+  if (kind === 'asset') return 3;
+  if (kind === 'track') return 4;
+  return 5;
+}
+
+function compactTranscriptTitle(value: string) {
+  const singleLine = value.replace(/\s+/g, ' ').trim();
+  return singleLine.length > 72 ? `${singleLine.slice(0, 69)}…` : singleLine;
 }
 
 function formatTime(value: number) {
