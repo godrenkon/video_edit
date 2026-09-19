@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeTransition, transitionMotionOffset, transitionOpacity, transitionRevealRect } from './transitionEnvelope';
+import { normalizeTransition, transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect } from './transitionEnvelope';
 
 describe('visual transition envelope', () => {
   it('fades a dissolve in and out on clip-local time', () => {
@@ -22,6 +22,20 @@ describe('visual transition envelope', () => {
       transitionOut: { kind: 'dissolve' as const, duration: 2 },
     };
     expect(transitionOpacity(clip, 1)).toBeCloseTo(0.5);
+  });
+
+  it('dips to black at clip boundaries without changing opacity', () => {
+    const clip = {
+      duration: 6,
+      transitionIn: { kind: 'dip-black' as const, duration: 2 },
+      transitionOut: { kind: 'dip-black' as const, duration: 2 },
+    };
+    expect(transitionBrightness(clip, 0)).toBe(0);
+    expect(transitionBrightness(clip, 1)).toBeCloseTo(0.5);
+    expect(transitionBrightness(clip, 3)).toBe(1);
+    expect(transitionBrightness(clip, 5)).toBeCloseTo(0.5);
+    expect(transitionBrightness(clip, 6)).toBe(0);
+    expect(transitionOpacity(clip, 0)).toBe(1);
   });
 
   it('keeps slide transitions fully opaque', () => {
@@ -75,6 +89,7 @@ describe('visual transition envelope', () => {
 
   it('normalizes supported transition kinds and rejects invalid durations', () => {
     expect(normalizeTransition({ kind: 'dissolve', duration: 99 }, 4)).toEqual({ kind: 'dissolve', duration: 4 });
+    expect(normalizeTransition({ kind: 'dip-black', duration: 1 }, 4)).toEqual({ kind: 'dip-black', duration: 1 });
     expect(normalizeTransition({ kind: 'slide-right', duration: 1.5 }, 4)).toEqual({ kind: 'slide-right', duration: 1.5 });
     expect(normalizeTransition({ kind: 'wipe-left', duration: 1 }, 4)).toEqual({ kind: 'wipe-left', duration: 1 });
     expect(normalizeTransition({ kind: 'slide-up', duration: -1 }, 4)).toBeUndefined();
