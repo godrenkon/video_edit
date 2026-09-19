@@ -349,8 +349,8 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
   const visuals = useMemo(() => visualTimelineItems(project, time), [project, time]);
   const audios = useMemo(() => audioTimelineItems(project, time), [project, time]);
   const requiresProcessedPreview = useMemo(
-    () => project.tracks.some((track) => track.clips.some((clip) => hasPixelEffects(clip.effects))),
-    [project],
+    () => visuals.some(({ clip }) => hasPixelEffects(clip.effects)),
+    [visuals],
   );
   const aspect = `${project.width} / ${project.height}`;
 
