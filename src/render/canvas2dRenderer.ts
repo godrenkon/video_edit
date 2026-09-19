@@ -3,7 +3,8 @@ import { resolveCropRectangle } from './cropGeometry';
 import { canvasFilterForEffects, resolveTemperatureTintEffects, resolveVignetteEffects, type ResolvedColorWash, type ResolvedVignette } from './effectEvaluation';
 import { buildVisualFramePlan, type VisualFrameLayerPlan } from './framePlan';
 import { activeSubtitleHighlight, normalizeSubtitleHighlightColor, type SubtitleHighlightRange } from './subtitleHighlight';
-import { RenderAssetStore } from './renderAssetStore';
+import { RenderAssetStore, type RenderAssetFrame } from './renderAssetStore';
+import { applyPixelEffects, hasPixelEffects } from './pixelEffects';
 import {
   deterministicNoiseByte,
   generatorColor,
@@ -27,6 +28,8 @@ export class Canvas2DProjectRenderer {
   readonly canvas: RenderCanvas;
   readonly assets: RenderAssetStore;
   private readonly context: RenderContext2D;
+  private readonly pixelCanvas: RenderCanvas;
+  private readonly pixelContext: RenderContext2D;
 
   constructor(canvas: RenderCanvas, assets: RenderAssetStore) {
     const context = canvas.getContext('2d');
@@ -34,6 +37,10 @@ export class Canvas2DProjectRenderer {
     this.canvas = canvas;
     this.assets = assets;
     this.context = context as RenderContext2D;
+    this.pixelCanvas = createScratchCanvas(1, 1);
+    const pixelContext = this.pixelCanvas.getContext('2d');
+    if (!pixelContext || !('drawImage' in pixelContext)) throw new Error('Pixel effect canvas is unavailable');
+    this.pixelContext = pixelContext as RenderContext2D;
   }
 
   async render(project: Project, timeSeconds: number, signal?: AbortSignal) {
@@ -68,7 +75,21 @@ export class Canvas2DProjectRenderer {
         context.save();
         applyLayerTransform(context, project, layer);
         applyLayerReveal(context, layer, dx, dy, drawWidth, drawHeight);
-        if (frame.kind === 'video') {
+        if (hasPixelEffects(layer.effects)) {
+          drawPixelProcessedFrame(
+            context,
+            this.pixelCanvas,
+            this.pixelContext,
+            frame,
+            crop,
+            dx,
+            dy,
+            drawWidth,
+            drawHeight,
+            layer.effects,
+            layer.clipLocalTime,
+          );
+        } else if (frame.kind === 'video') {
           frame.sample.draw(context, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight);
         } else {
           context.drawImage(frame.bitmap, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight);
@@ -80,6 +101,52 @@ export class Canvas2DProjectRenderer {
       }
     }
   }
+}
+
+function drawPixelProcessedFrame(
+  context: RenderContext2D,
+  scratch: RenderCanvas,
+  scratchContext: RenderContext2D,
+  frame: RenderAssetFrame,
+  crop: ReturnType<typeof resolveCropRectangle>,
+  dx: number,
+  dy: number,
+  drawWidth: number,
+  drawHeight: number,
+  effects: VisualFrameLayerPlan['effects'],
+  clipLocalTime: number,
+) {
+  const width = Math.max(1, Math.round(crop.width));
+  const height = Math.max(1, Math.round(crop.height));
+  if (scratch.width !== width) scratch.width = width;
+  if (scratch.height !== height) scratch.height = height;
+
+  scratchContext.save();
+  scratchContext.resetTransform();
+  scratchContext.globalAlpha = 1;
+  scratchContext.globalCompositeOperation = 'source-over';
+  scratchContext.filter = 'none';
+  scratchContext.clearRect(0, 0, width, height);
+  if (frame.kind === 'video') {
+    frame.sample.draw(scratchContext, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
+  } else {
+    scratchContext.drawImage(frame.bitmap, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
+  }
+  const image = scratchContext.getImageData(0, 0, width, height);
+  applyPixelEffects(image, effects, clipLocalTime);
+  scratchContext.putImageData(image, 0, 0);
+  scratchContext.restore();
+
+  context.drawImage(scratch as CanvasImageSource, 0, 0, width, height, dx, dy, drawWidth, drawHeight);
+}
+
+function createScratchCanvas(width: number, height: number): RenderCanvas {
+  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(width, height);
+  if (typeof document === 'undefined') throw new Error('Canvas is unavailable');
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
 }
 
 function resetCanvas(context: RenderContext2D, project: Project) {
