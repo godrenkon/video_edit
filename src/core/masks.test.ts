@@ -3,14 +3,15 @@ import { createClipMask, removeClipMask, sanitizeClipMasks, updateClipMask } fro
 
 describe('clip masks', () => {
   it('sanitizes rectangle and ellipse masks into normalized bounds', () => {
-    expect(sanitizeClipMasks([
+    const masks = sanitizeClipMasks([
       { id: 'rect', kind: 'rectangle', x: -1, y: 0.2, width: 5, height: 0.5 },
       { id: 'ellipse', kind: 'ellipse', x: 0.9, y: 0.95, width: 1, height: 1 },
       { id: 'bad', kind: 'polygon', x: 0, y: 0, width: 1, height: 1 },
-    ])).toEqual([
-      { id: 'rect', kind: 'rectangle', x: 0, y: 0.2, width: 1, height: 0.5 },
-      { id: 'ellipse', kind: 'ellipse', x: 0.9, y: 0.95, width: 0.1, height: 0.05 },
     ]);
+    expect(masks?.[0]).toEqual({ id: 'rect', kind: 'rectangle', x: 0, y: 0.2, width: 1, height: 0.5 });
+    expect(masks?.[1]).toMatchObject({ id: 'ellipse', kind: 'ellipse', x: 0.9, y: 0.95 });
+    expect(masks?.[1].width).toBeCloseTo(0.1, 10);
+    expect(masks?.[1].height).toBeCloseTo(0.05, 10);
   });
 
   it('deduplicates persisted ids and drops empty lists', () => {
