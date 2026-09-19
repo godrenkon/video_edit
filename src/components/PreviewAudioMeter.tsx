@@ -22,12 +22,16 @@ export function PreviewAudioMeter({ playing }: { playing: boolean }) {
   const shortWindowRef = useRef<LoudnessHistoryPoint[]>([]);
   const integratedBlocksRef = useRef<number[]>([]);
   const lastIntegratedUpdateRef = useRef(0);
+  const lastIntegratedBlockRef = useRef(0);
+  const integratedValueRef = useRef(-120);
 
   useEffect(() => {
     if (!playing) {
       shortWindowRef.current = [];
       integratedBlocksRef.current = [];
       lastIntegratedUpdateRef.current = 0;
+      lastIntegratedBlockRef.current = 0;
+      integratedValueRef.current = -120;
       setMeter({
         peakDb: -120,
         rmsDb: -120,
@@ -46,12 +50,16 @@ export function PreviewAudioMeter({ playing }: { playing: boolean }) {
         const momentary = reading.lufsMomentary ?? -120;
         shortWindowRef.current.push({ timeMs: now, lufs: momentary });
         shortWindowRef.current = shortWindowRef.current.filter((point) => point.timeMs >= now - 3000);
-        integratedBlocksRef.current.push(momentary);
+        if (now - lastIntegratedBlockRef.current >= 400) {
+          integratedBlocksRef.current.push(momentary);
+          lastIntegratedBlockRef.current = now;
+        }
 
         const shortTerm = shortTermLoudness(shortWindowRef.current, now);
-        let integrated = meter.lufsIntegrated;
+        let integrated = integratedValueRef.current;
         if (now - lastIntegratedUpdateRef.current >= 1000) {
           integrated = integratedLoudness(integratedBlocksRef.current);
+          integratedValueRef.current = integrated;
           lastIntegratedUpdateRef.current = now;
         }
 
