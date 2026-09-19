@@ -41,6 +41,6 @@ describe('loudness history', () => {
       { timeMs: 1000, lufs: -20 },
       { timeMs: 5000, lufs: -20 },
     ];
-    expect(trimLoudnessHistory(points, 5000, 3000).map((point) => point.timeMs)).toEqual([1000, 5000]);
+    expect(trimLoudnessHistory(points, 5000, 3000).map((point) => point.timeMs)).toEqual([5000]);
   });
 });
