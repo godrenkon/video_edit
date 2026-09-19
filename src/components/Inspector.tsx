@@ -9,6 +9,7 @@ import { EffectsPanel } from './EffectsPanel';
 import { ProjectExportSettingsPanel } from './ProjectExportSettingsPanel';
 import { ProjectTemplatesPanel } from './ProjectTemplatesPanel';
 import { SubtitleExchangePanel } from './SubtitleExchangePanel';
+import { TranscriptPanel } from './TranscriptPanel';
 import { TrackMixerPanel } from './TrackMixerPanel';
 import { ShortcutSettingsPanel } from './ShortcutSettingsPanel';
 import type { ShortcutOverrides } from '../core/shortcuts';
@@ -22,6 +23,7 @@ interface Props {
   onClip: (patch: Partial<Clip>) => void;
   onTransform: (key: keyof Clip['transform'], value: number) => void;
   onDeleteClip: () => void;
+  onSeek: (time: number) => void;
   shortcutOverrides: ShortcutOverrides;
   onShortcutOverrides: (next: ShortcutOverrides) => void;
 }
@@ -49,6 +51,7 @@ export function Inspector({
   onClip,
   onTransform,
   onDeleteClip,
+  onSeek,
   shortcutOverrides,
   onShortcutOverrides,
 }: Props) {
@@ -425,6 +428,7 @@ export function Inspector({
           <ShortcutSettingsPanel overrides={shortcutOverrides} onChange={onShortcutOverrides} />
           <ProjectExportSettingsPanel project={project} timelineTime={timelineTime} onChange={(exportSettings) => onProject({ exportSettings })} />
           <SubtitleExchangePanel project={project} onProject={onProject} />
+          <TranscriptPanel project={project} onProject={onProject} onSeek={onSeek} />
 
           <h3 className="sectionTitleRow"><span>トラック</span><span className="trackCount">{project.tracks.length}</span></h3>
           <TrackMixerPanel project={project} onProject={onProject} />
