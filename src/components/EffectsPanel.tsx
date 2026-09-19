@@ -12,6 +12,7 @@ import {
   isVisualEffectSupported,
 } from '../render/effectEvaluation';
 import type { Clip, EffectInstance, EffectParameter, EffectParameterValue, Interpolation } from '../types/editor';
+import { KeyframeGraph } from './KeyframeGraph';
 import '../effects-panel.css';
 
 interface Props {
@@ -407,6 +408,17 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
                       <option value="linear">Linear</option>
                       <option value="bezier">Bezier</option>
                     </select>
+                  )}
+                  {current.keyframes?.some((keyframe) => typeof keyframe.value === 'number') && (
+                    <KeyframeGraph
+                      parameter={current}
+                      min={descriptorParameter.min ?? 0}
+                      max={descriptorParameter.max ?? 1}
+                      duration={clip.duration}
+                      fps={fps}
+                      currentTime={localTime}
+                      onChange={(parameter) => replaceParameter(effect, descriptorParameter.id, parameter)}
+                    />
                   )}
                 </div>
               );
