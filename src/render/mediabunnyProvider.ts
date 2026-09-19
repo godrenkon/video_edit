@@ -6,6 +6,7 @@ import {
   type VideoSample,
 } from 'mediabunny';
 import type { MediaFrameProvider, RenderFrameRequest } from './types';
+import { recordDecodeLatency } from './decodeDiagnostics';
 
 export interface MediabunnyVideoProviderOptions {
   maxCacheSize?: number;
@@ -71,7 +72,9 @@ export class MediabunnyVideoProvider implements MediaFrameProvider<VideoSample> 
     if (!this.opened || !this.sink) throw new Error('MediabunnyVideoProvider is not open');
     throwIfAborted(signal);
 
+    const startedAt = metricNow();
     const sample = await this.sink.getSample(Math.max(0, request.timeSeconds));
+    recordDecodeLatency(metricNow() - startedAt);
     if (signal?.aborted) {
       sample?.close();
       throwIfAborted(signal);
@@ -86,7 +89,9 @@ export class MediabunnyVideoProvider implements MediaFrameProvider<VideoSample> 
     if (!this.opened || !this.sink) throw new Error('MediabunnyVideoProvider is not open');
     throwIfAborted(signal);
 
+    const startedAt = metricNow();
     const sample = await this.sink.getSample(timeSeconds);
+    recordDecodeLatency(metricNow() - startedAt);
     if (signal?.aborted) {
       sample?.close();
       throwIfAborted(signal);
@@ -107,4 +112,8 @@ function throwIfAborted(signal?: AbortSignal): asserts signal is AbortSignal | u
   const reason = signal.reason;
   if (reason instanceof Error) throw reason;
   throw new DOMException(typeof reason === 'string' ? reason : 'Operation aborted', 'AbortError');
+}
+
+function metricNow() {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
