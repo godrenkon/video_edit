@@ -4,12 +4,14 @@ import {
   applyChromaKey,
   applyLevels,
   applyLiftGammaGain,
+  applyTonalRanges,
   applyPixelEffects,
   applySharpen,
   hasPixelEffects,
   resolveChromaKey,
   resolveLevels,
   resolveLiftGammaGain,
+  resolveTonalRanges,
 } from './pixelEffects';
 
 const parameter = (value: number | string) => ({ value });
@@ -33,6 +35,9 @@ describe('pixel effects', () => {
     })])).toBe(true);
     expect(hasPixelEffects([effect('lift-gamma-gain', {
       lift: parameter(0), gamma: parameter(1), gain: parameter(1),
+    })])).toBe(true);
+    expect(hasPixelEffects([effect('tonal-ranges', {
+      shadows: parameter(0), midtones: parameter(0), highlights: parameter(0),
     })])).toBe(true);
     expect(hasPixelEffects([effect('blur', { radius: parameter(4) })])).toBe(false);
   });
@@ -132,6 +137,58 @@ describe('pixel effects', () => {
     expect(resolved.lift).toBeCloseTo(0, 8);
     expect(resolved.gamma).toBe(5);
     expect(resolved.gain).toBe(0);
+  });
+
+  it('targets shadows mids and highlights by luminance while preserving alpha', () => {
+    const shadows = makeImageData(new Uint8ClampedArray([
+      32,32,32,101,
+      128,128,128,102,
+      224,224,224,103,
+    ]), 3, 1);
+    applyTonalRanges(shadows, { shadows: 0.5, midtones: 0, highlights: 0 });
+    const shadowDelta = shadows.data[0] - 32;
+    const midDelta = shadows.data[4] - 128;
+    const highlightDelta = shadows.data[8] - 224;
+    expect(shadowDelta).toBeGreaterThan(midDelta);
+    expect(midDelta).toBeGreaterThan(highlightDelta);
+    expect(shadows.data[3]).toBe(101);
+    expect(shadows.data[7]).toBe(102);
+    expect(shadows.data[11]).toBe(103);
+
+    const mids = makeImageData(new Uint8ClampedArray([
+      32,32,32,255,
+      128,128,128,255,
+      224,224,224,255,
+    ]), 3, 1);
+    applyTonalRanges(mids, { shadows: 0, midtones: 0.5, highlights: 0 });
+    expect(mids.data[4] - 128).toBeGreaterThan(mids.data[0] - 32);
+    expect(mids.data[4] - 128).toBeGreaterThan(mids.data[8] - 224);
+
+    const highlights = makeImageData(new Uint8ClampedArray([
+      32,32,32,255,
+      128,128,128,255,
+      224,224,224,255,
+    ]), 3, 1);
+    applyTonalRanges(highlights, { shadows: 0, midtones: 0, highlights: -0.5 });
+    expect(Math.abs(highlights.data[8] - 224)).toBeGreaterThan(Math.abs(highlights.data[4] - 128));
+    expect(Math.abs(highlights.data[4] - 128)).toBeGreaterThan(Math.abs(highlights.data[0] - 32));
+  });
+
+  it('resolves animated tonal-range controls and clamps them safely', () => {
+    const resolved = resolveTonalRanges(effect('tonal-ranges', {
+      shadows: {
+        value: 0,
+        keyframes: [
+          { id: 'a', time: 0, value: -1, interpolation: 'linear' },
+          { id: 'b', time: 2, value: 1, interpolation: 'linear' },
+        ],
+      },
+      midtones: parameter(5),
+      highlights: parameter(-5),
+    }), 1);
+    expect(resolved.shadows).toBeCloseTo(0, 8);
+    expect(resolved.midtones).toBe(1);
+    expect(resolved.highlights).toBe(-1);
   });
 
   it('keys an exact green pixel and preserves a distant red pixel', () => {
