@@ -26,12 +26,19 @@ export interface ResolvedLiftGammaGain {
   gain: number;
 }
 
+export interface ResolvedTonalRanges {
+  shadows: number;
+  midtones: number;
+  highlights: number;
+}
+
 export function hasPixelEffects(effects: EffectInstance[] | undefined) {
   return Boolean(effects?.some((effect) => effect.enabled && (
     effect.kind === 'sharpen'
     || effect.kind === 'chroma-key'
     || effect.kind === 'levels'
     || effect.kind === 'lift-gamma-gain'
+    || effect.kind === 'tonal-ranges'
   )));
 }
 
@@ -53,6 +60,14 @@ export function resolveLiftGammaGain(effect: EffectInstance, timeSeconds: number
     lift: clamp(effectNumber(effect, 'lift', timeSeconds, 0), -1, 1),
     gamma: clamp(effectNumber(effect, 'gamma', timeSeconds, 1), 0.1, 5),
     gain: clamp(effectNumber(effect, 'gain', timeSeconds, 1), 0, 4),
+  };
+}
+
+export function resolveTonalRanges(effect: EffectInstance, timeSeconds: number): ResolvedTonalRanges {
+  return {
+    shadows: clamp(effectNumber(effect, 'shadows', timeSeconds, 0), -1, 1),
+    midtones: clamp(effectNumber(effect, 'midtones', timeSeconds, 0), -1, 1),
+    highlights: clamp(effectNumber(effect, 'highlights', timeSeconds, 0), -1, 1),
   };
 }
 
@@ -84,6 +99,7 @@ export function applyPixelEffects(
     else if (effect.kind === 'chroma-key') applyChromaKey(image, resolveChromaKey(effect, timeSeconds));
     else if (effect.kind === 'levels') applyLevels(image, resolveLevels(effect, timeSeconds));
     else if (effect.kind === 'lift-gamma-gain') applyLiftGammaGain(image, resolveLiftGammaGain(effect, timeSeconds));
+    else if (effect.kind === 'tonal-ranges') applyTonalRanges(image, resolveTonalRanges(effect, timeSeconds));
   }
   return image;
 }
@@ -145,6 +161,30 @@ export function applyLiftGammaGain(image: ImageData, resolved: ResolvedLiftGamma
       const corrected = lifted <= 0 ? 0 : lifted >= 1 ? 1 : lifted ** inverseGamma;
       data[index + channel] = clampByte(corrected * resolved.gain * 255);
     }
+  }
+  return image;
+}
+
+export function applyTonalRanges(image: ImageData, resolved: ResolvedTonalRanges) {
+  const data = image.data;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const r = data[index] / 255;
+    const g = data[index + 1] / 255;
+    const b = data[index + 2] / 255;
+    const luma = clamp(r * 0.2126 + g * 0.7152 + b * 0.0722, 0, 1);
+    const shadowWeight = (1 - luma) ** 2;
+    const highlightWeight = luma ** 2;
+    const midWeight = 4 * luma * (1 - luma);
+    const delta = (
+      resolved.shadows * shadowWeight * 0.45
+      + resolved.midtones * midWeight * 0.28
+      + resolved.highlights * highlightWeight * 0.45
+    );
+
+    data[index] = clampByte((r + delta) * 255);
+    data[index + 1] = clampByte((g + delta) * 255);
+    data[index + 2] = clampByte((b + delta) * 255);
   }
   return image;
 }
