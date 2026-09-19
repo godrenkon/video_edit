@@ -11,6 +11,7 @@ const CANVAS_FILTER_EFFECTS = new Set([
   'drop-shadow',
 ]);
 const VISUAL_OVERLAY_EFFECTS = new Set(['vignette', 'temperature-tint']);
+const PIXEL_EFFECTS = new Set(['sharpen', 'chroma-key']);
 
 export interface ResolvedVignette {
   amount: number;
@@ -48,7 +49,7 @@ export function isCanvasFilterEffectSupported(kind: string) {
 }
 
 export function isVisualEffectSupported(kind: string) {
-  return CANVAS_FILTER_EFFECTS.has(kind) || VISUAL_OVERLAY_EFFECTS.has(kind);
+  return CANVAS_FILTER_EFFECTS.has(kind) || VISUAL_OVERLAY_EFFECTS.has(kind) || PIXEL_EFFECTS.has(kind);
 }
 
 export function resolveTemperatureTintEffects(effects: EffectInstance[], clipLocalTime: number): ResolvedColorWash[] {
