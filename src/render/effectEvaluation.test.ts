@@ -95,6 +95,8 @@ describe('effect evaluation', () => {
     expect(isCanvasFilterEffectSupported('tonal-ranges')).toBe(false);
     expect(isVisualEffectSupported('tone-curve')).toBe(true);
     expect(isCanvasFilterEffectSupported('tone-curve')).toBe(false);
+    expect(isVisualEffectSupported('hue-vs-sat')).toBe(true);
+    expect(isCanvasFilterEffectSupported('hue-vs-sat')).toBe(false);
   });
 
   it('resolves temperature and tint into deterministic shared color washes', () => {

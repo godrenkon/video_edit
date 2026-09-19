@@ -96,6 +96,14 @@ export const BUILTIN_EFFECTS: EffectDescriptor[] = [
     n('highlights', 'Highlights', 0.75, 0, 1, 0.005),
     n('white', 'White', 1, 0, 1, 0.005),
   ]),
+  video('hue-vs-sat', 'Hue vs Sat (6点)', 'Color', [
+    n('red', '赤', 0, -1, 1, 0.01),
+    n('yellow', '黄', 0, -1, 1, 0.01),
+    n('green', '緑', 0, -1, 1, 0.01),
+    n('cyan', 'シアン', 0, -1, 1, 0.01),
+    n('blue', '青', 0, -1, 1, 0.01),
+    n('magenta', 'マゼンタ', 0, -1, 1, 0.01),
+  ]),
   video('temperature-tint', '色温度 / ティント', 'Color', [
     n('temperature', '色温度', 0, -1, 1),
     n('tint', 'ティント', 0, -1, 1),

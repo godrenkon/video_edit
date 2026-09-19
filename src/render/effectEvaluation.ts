@@ -11,7 +11,7 @@ const CANVAS_FILTER_EFFECTS = new Set([
   'drop-shadow',
 ]);
 const VISUAL_OVERLAY_EFFECTS = new Set(['vignette', 'temperature-tint']);
-const PIXEL_EFFECTS = new Set(['sharpen', 'chroma-key', 'levels', 'lift-gamma-gain', 'tonal-ranges', 'tone-curve']);
+const PIXEL_EFFECTS = new Set(['sharpen', 'chroma-key', 'levels', 'lift-gamma-gain', 'tonal-ranges', 'tone-curve', 'hue-vs-sat']);
 
 export interface ResolvedVignette {
   amount: number;

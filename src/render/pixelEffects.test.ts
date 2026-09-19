@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { EffectInstance } from '../types/editor';
 import {
   applyChromaKey,
+  applyHueVsSat,
   applyLevels,
   applyLiftGammaGain,
   applyTonalRanges,
@@ -10,6 +11,7 @@ import {
   applySharpen,
   hasPixelEffects,
   resolveChromaKey,
+  resolveHueVsSat,
   resolveLevels,
   resolveLiftGammaGain,
   resolveTonalRanges,
@@ -43,6 +45,9 @@ describe('pixel effects', () => {
     })])).toBe(true);
     expect(hasPixelEffects([effect('tone-curve', {
       black: parameter(0), shadows: parameter(0.25), midtones: parameter(0.5), highlights: parameter(0.75), white: parameter(1),
+    })])).toBe(true);
+    expect(hasPixelEffects([effect('hue-vs-sat', {
+      red: parameter(0), yellow: parameter(0), green: parameter(0), cyan: parameter(0), blue: parameter(0), magenta: parameter(0),
     })])).toBe(true);
     expect(hasPixelEffects([effect('blur', { radius: parameter(4) })])).toBe(false);
   });
@@ -249,6 +254,61 @@ describe('pixel effects', () => {
     const image = makeImageData(new Uint8ClampedArray([16,96,176,255]), 1, 1);
     applyToneCurve(image, resolved);
     expect([...image.data.slice(0, 3)].every((value) => value >= 0 && value <= 255)).toBe(true);
+  });
+
+  it('keeps neutral Hue vs Sat settings bit-identical and preserves alpha', () => {
+    const image = makeImageData(new Uint8ClampedArray([
+      200,100,100,31,
+      100,200,100,63,
+      100,100,200,127,
+    ]), 3, 1);
+    const before = [...image.data];
+    applyHueVsSat(image, { adjustments: [0,0,0,0,0,0] });
+    expect([...image.data]).toEqual(before);
+  });
+
+  it('targets the selected hue while keeping other anchor hues unchanged', () => {
+    const image = makeImageData(new Uint8ClampedArray([
+      200,100,100,77,
+      100,200,100,88,
+    ]), 2, 1);
+    applyHueVsSat(image, { adjustments: [1,0,0,0,0,0] });
+
+    expect([...image.data.slice(0, 4)]).toEqual([200,0,0,77]);
+    expect([...image.data.slice(4, 8)]).toEqual([100,200,100,88]);
+  });
+
+  it('can fully desaturate a hue and resolves animated six-anchor controls safely', () => {
+    const curve = effect('hue-vs-sat', {
+      red: {
+        value: 0,
+        keyframes: [
+          { id: 'a', time: 0, value: -1, interpolation: 'linear' },
+          { id: 'b', time: 2, value: 1, interpolation: 'linear' },
+        ],
+      },
+      yellow: parameter(9),
+      green: parameter(-9),
+      cyan: parameter(0.25),
+      blue: parameter(-0.25),
+      magenta: parameter(0.5),
+    });
+    const resolved = resolveHueVsSat(curve, 1);
+    expect(resolved.adjustments).toEqual([0,1,-1,0.25,-0.25,0.5]);
+
+    const image = makeImageData(new Uint8ClampedArray([200,100,100,155]), 1, 1);
+    applyHueVsSat(image, { adjustments: [-1,0,0,0,0,0] });
+    expect([...image.data]).toEqual([200,200,200,155]);
+  });
+
+  it('interpolates Hue vs Sat adjustments continuously across the magenta/red wrap', () => {
+    const image = makeImageData(new Uint8ClampedArray([200,100,150,199]), 1, 1);
+    const before = [...image.data];
+    applyHueVsSat(image, { adjustments: [1,0,0,0,0,-1] });
+    expect(Math.abs(image.data[0] - before[0])).toBeLessThanOrEqual(1);
+    expect(Math.abs(image.data[1] - before[1])).toBeLessThanOrEqual(1);
+    expect(Math.abs(image.data[2] - before[2])).toBeLessThanOrEqual(1);
+    expect(image.data[3]).toBe(199);
   });
 
   it('keys an exact green pixel and preserves a distant red pixel', () => {

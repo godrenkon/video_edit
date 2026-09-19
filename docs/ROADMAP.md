@@ -195,7 +195,7 @@ Current implementation branch: `main`.
 - [x] levels + fixed five-point tone curve with Preview/export parity
 - [x] initial scalar lift / gamma / gain with keyframes and Preview/export parity
 - [x] luminance-weighted shadows / mids / highlights with keyframes and Preview/export parity
-- [ ] hue curves
+- [x] six-anchor Hue vs Sat curve with keyframes and Preview/export parity
 - [ ] LUT
 - [ ] scopes: histogram / waveform / vectorscope / RGB parade
 - [ ] masks: rectangle / ellipse / pen

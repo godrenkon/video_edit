@@ -36,6 +36,10 @@ export interface ResolvedToneCurve {
   points: [number, number, number, number, number];
 }
 
+export interface ResolvedHueVsSat {
+  adjustments: [number, number, number, number, number, number];
+}
+
 export function hasPixelEffects(effects: EffectInstance[] | undefined) {
   return Boolean(effects?.some((effect) => effect.enabled && (
     effect.kind === 'sharpen'
@@ -44,6 +48,7 @@ export function hasPixelEffects(effects: EffectInstance[] | undefined) {
     || effect.kind === 'lift-gamma-gain'
     || effect.kind === 'tonal-ranges'
     || effect.kind === 'tone-curve'
+    || effect.kind === 'hue-vs-sat'
   )));
 }
 
@@ -88,6 +93,19 @@ export function resolveToneCurve(effect: EffectInstance, timeSeconds: number): R
   };
 }
 
+export function resolveHueVsSat(effect: EffectInstance, timeSeconds: number): ResolvedHueVsSat {
+  return {
+    adjustments: [
+      clamp(effectNumber(effect, 'red', timeSeconds, 0), -1, 1),
+      clamp(effectNumber(effect, 'yellow', timeSeconds, 0), -1, 1),
+      clamp(effectNumber(effect, 'green', timeSeconds, 0), -1, 1),
+      clamp(effectNumber(effect, 'cyan', timeSeconds, 0), -1, 1),
+      clamp(effectNumber(effect, 'blue', timeSeconds, 0), -1, 1),
+      clamp(effectNumber(effect, 'magenta', timeSeconds, 0), -1, 1),
+    ],
+  };
+}
+
 export function resolveLevels(effect: EffectInstance, timeSeconds: number): ResolvedLevels {
   const inputBlack = clamp(effectNumber(effect, 'inputBlack', timeSeconds, 0), 0, 1);
   const inputWhiteRaw = clamp(effectNumber(effect, 'inputWhite', timeSeconds, 1), 0, 1);
@@ -118,6 +136,7 @@ export function applyPixelEffects(
     else if (effect.kind === 'lift-gamma-gain') applyLiftGammaGain(image, resolveLiftGammaGain(effect, timeSeconds));
     else if (effect.kind === 'tonal-ranges') applyTonalRanges(image, resolveTonalRanges(effect, timeSeconds));
     else if (effect.kind === 'tone-curve') applyToneCurve(image, resolveToneCurve(effect, timeSeconds));
+    else if (effect.kind === 'hue-vs-sat') applyHueVsSat(image, resolveHueVsSat(effect, timeSeconds));
   }
   return image;
 }
@@ -225,6 +244,36 @@ export function applyToneCurve(image: ImageData, resolved: ResolvedToneCurve) {
   return image;
 }
 
+export function applyHueVsSat(image: ImageData, resolved: ResolvedHueVsSat) {
+  const adjustments = resolved.adjustments;
+  if (adjustments.every((value) => Math.abs(value) <= 1e-9)) return image;
+
+  const data = image.data;
+  for (let index = 0; index < data.length; index += 4) {
+    const r = data[index] / 255;
+    const g = data[index + 1] / 255;
+    const b = data[index + 2] / 255;
+    const hsv = rgbToHsv(r, g, b);
+    if (hsv.s <= 1e-9 || hsv.v <= 1e-9) continue;
+
+    const scaledHue = hsv.h * adjustments.length;
+    const lowerIndex = Math.floor(scaledHue) % adjustments.length;
+    const upperIndex = (lowerIndex + 1) % adjustments.length;
+    const fraction = scaledHue - Math.floor(scaledHue);
+    const eased = fraction * fraction * (3 - 2 * fraction);
+    const adjustment = adjustments[lowerIndex]
+      + (adjustments[upperIndex] - adjustments[lowerIndex]) * eased;
+    const saturation = clamp(hsv.s * (1 + adjustment), 0, 1);
+    if (Math.abs(saturation - hsv.s) <= 1e-9) continue;
+
+    const [nextR, nextG, nextB] = hsvToRgb(hsv.h, saturation, hsv.v);
+    data[index] = clampByte(nextR * 255);
+    data[index + 1] = clampByte(nextG * 255);
+    data[index + 2] = clampByte(nextB * 255);
+  }
+  return image;
+}
+
 export function applyChromaKey(image: ImageData, resolved: ResolvedChromaKey) {
   const data = image.data;
   const [keyR, keyG, keyB] = resolved.color;
@@ -255,6 +304,42 @@ export function applyChromaKey(image: ImageData, resolved: ResolvedChromaKey) {
     data[index + 3] = clampByte(data[index + 3] * keep);
   }
   return image;
+}
+
+function rgbToHsv(r: number, g: number, b: number) {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  if (delta <= 1e-12) return { h: 0, s: 0, v: max };
+
+  let sector: number;
+  if (max === r) sector = ((g - b) / delta) % 6;
+  else if (max === g) sector = (b - r) / delta + 2;
+  else sector = (r - g) / delta + 4;
+
+  const h = ((sector / 6) % 1 + 1) % 1;
+  const s = max <= 1e-12 ? 0 : delta / max;
+  return { h, s, v: max };
+}
+
+function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
+  const hue = ((h % 1) + 1) % 1;
+  const chroma = v * clamp(s, 0, 1);
+  const sector = hue * 6;
+  const x = chroma * (1 - Math.abs((sector % 2) - 1));
+  let r = 0;
+  let g = 0;
+  let b = 0;
+
+  if (sector < 1) [r, g, b] = [chroma, x, 0];
+  else if (sector < 2) [r, g, b] = [x, chroma, 0];
+  else if (sector < 3) [r, g, b] = [0, chroma, x];
+  else if (sector < 4) [r, g, b] = [0, x, chroma];
+  else if (sector < 5) [r, g, b] = [x, 0, chroma];
+  else [r, g, b] = [chroma, 0, x];
+
+  const match = v - chroma;
+  return [r + match, g + match, b + match];
 }
 
 function parseHexColor(value: string): [number, number, number] {
