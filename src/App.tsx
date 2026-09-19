@@ -732,10 +732,10 @@ export default function App() {
       return;
     }
 
-    if (result.kind === 'marker' && typeof result.time === 'number') {
+    if ((result.kind === 'marker' || result.kind === 'transcript') && typeof result.time === 'number') {
       clearClipSelection();
       setTime(Math.max(0, Math.min(project.duration, result.time)));
-      setSaveState(`マーカーへ移動: ${result.title}`);
+      setSaveState(result.kind === 'transcript' ? `トランスクリプトへ移動: ${result.title}` : `マーカーへ移動: ${result.title}`);
       return;
     }
 
