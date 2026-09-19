@@ -93,6 +93,8 @@ describe('effect evaluation', () => {
     expect(isCanvasFilterEffectSupported('lift-gamma-gain')).toBe(false);
     expect(isVisualEffectSupported('tonal-ranges')).toBe(true);
     expect(isCanvasFilterEffectSupported('tonal-ranges')).toBe(false);
+    expect(isVisualEffectSupported('tone-curve')).toBe(true);
+    expect(isCanvasFilterEffectSupported('tone-curve')).toBe(false);
   });
 
   it('resolves temperature and tint into deterministic shared color washes', () => {
