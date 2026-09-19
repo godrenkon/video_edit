@@ -4,11 +4,13 @@ import {
   applyGrain,
   applyHueShift,
   applyLumaKey,
+  applyLut3d,
   applyPixelate,
   hasPixelEffects,
   resolveGrain,
   resolveHueShift,
   resolveLumaKey,
+  resolveLut3d,
   resolvePixelate,
 } from './pixelEffects';
 
@@ -108,6 +110,35 @@ describe('advanced pixel effects', () => {
     expect(Array.from(first.data)).toEqual(Array.from(second.data));
     expect([first.data[3], first.data[7], first.data[11]]).toEqual([10, 20, 30]);
     expect(Array.from(first.data)).not.toEqual(Array.from(source));
+  });
+
+  it('applies a .cube LUT at adjustable intensity and preserves alpha', () => {
+    const invert = `
+LUT_3D_SIZE 2
+1 1 1
+0 1 1
+1 0 1
+0 0 1
+1 1 0
+0 1 0
+1 0 0
+0 0 0
+`;
+    const image = makeImageData(new Uint8ClampedArray([255, 0, 0, 77]), 1, 1);
+    applyLut3d(image, { source: invert, intensity: 0.5 });
+    expect(image.data[0]).toBe(128);
+    expect(image.data[1]).toBe(128);
+    expect(image.data[2]).toBe(128);
+    expect(image.data[3]).toBe(77);
+  });
+
+  it('resolves LUT source and clamps intensity', () => {
+    const resolved = resolveLut3d(effect('lut-3d', {
+      cubeData: parameter('LUT_3D_SIZE 2'),
+      intensity: parameter(3),
+    }), 0);
+    expect(resolved.source).toBe('LUT_3D_SIZE 2');
+    expect(resolved.intensity).toBe(1);
   });
 
   it('zero grain and one-pixel pixelation are exact no-ops', () => {
