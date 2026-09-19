@@ -98,7 +98,7 @@ Current implementation branch: `main`.
 - [x] deterministic frame-aligned preview timeline clock
 - [ ] frame-accurate decoded-frame playback engine
 - [x] preview FPS / dropped-frame / frame-delay diagnostics
-- [ ] decode-latency diagnostics
+- [x] decode-latency diagnostics
 - [x] timeline clip virtualization for long projects
 
 ## Phase 3 — Export / Deliver
@@ -224,7 +224,8 @@ Current implementation branch: `main`.
 - [ ] speech-to-text adapter
 - [ ] speaker detection
 - [ ] text-based timeline editing
-- [ ] silence / filler detection
+- [x] transcript cleanup candidates can ripple-cut matching timeline time ranges across unlocked tracks
+- [x] transcript-gap / filler-only cleanup detection + marker generation + safe ripple-cut workflow
 - [x] transcript search in dedicated panel + global search palette
 - [ ] automatic captions
 - [x] local transcript-gap/max-duration auto chapters with marker generation + YouTube chapter text
@@ -275,7 +276,7 @@ Current implementation branch: `main`.
 - [ ] silence / VAD
 - [ ] beat detection
 - [ ] scene-change detection
-- [ ] transcript search
+- [x] transcript search
 - [x] local transcript-gap/max-duration chapter candidates
 
 ### Advanced optional processing

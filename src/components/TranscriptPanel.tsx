@@ -1,4 +1,4 @@
-import { Captions, Copy, FileText, Flag, ListTree, RefreshCcw, Search, Trash2, X } from 'lucide-react';
+import { Captions, Copy, FileText, Flag, ListTree, RefreshCcw, Scissors, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   buildTranscriptFromSubtitleTracks,
@@ -9,6 +9,7 @@ import {
 import { buildTranscriptChapterCandidates, mergeAutoChapterMarkers, youtubeChapterText } from '../core/chapters';
 import { applyTranscriptAsSubtitles } from '../core/transcriptCaptions';
 import { detectTranscriptCleanupCandidates, mergeTranscriptCleanupMarkers, transcriptCleanupSummary } from '../core/transcriptCleanup';
+import { rippleDeleteTimeRanges } from '../core/timeRangeEdit';
 import type { Project, TranscriptSegment } from '../types/editor';
 import '../transcript-panel.css';
 
@@ -116,6 +117,52 @@ export function TranscriptPanel({
     );
   };
 
+
+  const applyCleanupCuts = () => {
+    if (!cleanupCandidates.length) return;
+    const result = rippleDeleteTimeRanges(
+      project,
+      cleanupCandidates.map((candidate) => ({ start: candidate.start, end: candidate.end })),
+    );
+
+    if (result.blockedTrackIds.length) {
+      const lockedNames = project.tracks
+        .filter((track) => result.blockedTrackIds.includes(track.id))
+        .map((track) => track.name)
+        .join('、');
+      setChapterStatus('一括カットを中止しました。時間を詰める必要があるロック中トラックを解除してください: ' + lockedNames);
+      return;
+    }
+
+    if (!result.removedRanges.length || result.removedSeconds <= 0) {
+      setChapterStatus('カットできる無言・フィラー範囲がありません');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      '無言・フィラー候補 ' + cleanupCandidates.length + '件を基に、タイムラインから約'
+      + result.removedSeconds.toFixed(2)
+      + '秒を全トラックでリップル削除します。元に戻すことはできますが、実行しますか？',
+    );
+    if (!confirmed) return;
+
+    onProject({
+      tracks: result.project.tracks,
+      markers: result.project.markers,
+      transcript: result.project.transcript,
+      inPoint: result.project.inPoint,
+      outPoint: result.project.outPoint,
+      duration: result.project.duration,
+    });
+    setChapterStatus(
+      '無言・フィラー候補を一括カットしました: '
+      + result.removedRanges.length
+      + '範囲 / 約'
+      + result.removedSeconds.toFixed(2)
+      + '秒',
+    );
+  };
+
   return (
     <section className="transcriptPanel">
       <div className="transcriptHeader">
@@ -154,6 +201,9 @@ export function TranscriptPanel({
           <div className="transcriptCleanupTools">
             <button type="button" onClick={generateCleanupMarkers} disabled={cleanupCandidates.length === 0} title="Transcriptの時間ギャップとフィラーだけを分析します。音声VADではありません。">
               <Flag size={12} />無言/フィラー候補
+            </button>
+            <button type="button" className="dangerCut" onClick={applyCleanupCuts} disabled={cleanupCandidates.length === 0} title="候補範囲を全トラックから安全にリップル削除します。ロック中トラックがある場合は実行しません。">
+              <Scissors size={12} />候補を一括カット
             </button>
             <span>無言 {cleanupSummary.pauses} · {cleanupSummary.pauseSeconds.toFixed(1)}s / フィラー {cleanupSummary.fillers}</span>
             <em>Transcriptベース分析</em>
