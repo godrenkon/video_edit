@@ -3,7 +3,7 @@ import { uid } from './project';
 
 export type EffectDomain = 'video' | 'audio';
 export type EffectBackend = 'webgpu' | 'webgl2' | 'canvas2d' | 'webaudio' | 'audioworklet';
-export type ParameterControl = 'slider' | 'number' | 'color' | 'toggle' | 'select';
+export type ParameterControl = 'slider' | 'number' | 'color' | 'toggle' | 'select' | 'file';
 
 export interface EffectParameterDescriptor {
   id: string;
@@ -107,6 +107,10 @@ export const BUILTIN_EFFECTS: EffectDescriptor[] = [
   video('temperature-tint', '色温度 / ティント', 'Color', [
     n('temperature', '色温度', 0, -1, 1),
     n('tint', 'ティント', 0, -1, 1),
+  ]),
+  video('lut-3d', '3D LUT (.cube)', 'Color', [
+    { id: 'cubeData', label: 'LUTファイル', control: 'file', defaultValue: '', keyframeable: false },
+    n('intensity', '強度', 1, 0, 1, 0.01),
   ]),
   video('blur', 'ブラー', 'Blur', [n('radius', '半径', 0, 0, 100, 0.25)]),
   video('sharpen', 'シャープ', 'Detail', [n('amount', '強度', 0, 0, 3)]),
