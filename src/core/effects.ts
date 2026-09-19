@@ -72,6 +72,13 @@ export const BUILTIN_EFFECTS: EffectDescriptor[] = [
     n('offset', 'オフセット', 0, -1, 1),
   ]),
   video('saturation', '彩度', 'Color', [n('saturation', '彩度', 1, 0, 3)]),
+  video('levels', 'レベル補正', 'Color', [
+    n('inputBlack', '入力 黒', 0, 0, 1, 0.005),
+    n('inputWhite', '入力 白', 1, 0, 1, 0.005),
+    n('gamma', 'ガンマ', 1, 0.1, 5, 0.01),
+    n('outputBlack', '出力 黒', 0, 0, 1, 0.005),
+    n('outputWhite', '出力 白', 1, 0, 1, 0.005),
+  ]),
   video('temperature-tint', '色温度 / ティント', 'Color', [
     n('temperature', '色温度', 0, -1, 1),
     n('tint', 'ティント', 0, -1, 1),
