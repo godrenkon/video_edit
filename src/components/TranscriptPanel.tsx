@@ -1,0 +1,143 @@
+import { FileText, RefreshCcw, Search, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  buildTranscriptFromSubtitleTracks,
+  removeTranscriptSegment,
+  searchTranscript,
+  updateTranscriptSegment,
+} from '../core/transcript';
+import type { Project, TranscriptSegment } from '../types/editor';
+import '../transcript-panel.css';
+
+export function TranscriptPanel({
+  project,
+  onProject,
+  onSeek,
+}: {
+  project: Project;
+  onProject: (patch: Partial<Project>) => void;
+  onSeek: (time: number) => void;
+}) {
+  const transcript = project.transcript;
+  const [query, setQuery] = useState('');
+  const [selectedId, setSelectedId] = useState('');
+
+  const visibleSegments = useMemo(() => {
+    if (!transcript) return [];
+    if (!query.trim()) return transcript.segments.slice(0, 120);
+    const byId = new Map(transcript.segments.map((segment) => [segment.id, segment]));
+    return searchTranscript(transcript, query, 120)
+      .map((hit) => byId.get(hit.segmentId))
+      .filter((segment): segment is TranscriptSegment => Boolean(segment));
+  }, [query, transcript]);
+
+  const selected = transcript?.segments.find((segment) => segment.id === selectedId)
+    ?? visibleSegments[0]
+    ?? transcript?.segments[0]
+    ?? null;
+
+  useEffect(() => {
+    if (!selectedId && selected) setSelectedId(selected.id);
+    if (selectedId && transcript && !transcript.segments.some((segment) => segment.id === selectedId)) {
+      setSelectedId(transcript.segments[0]?.id ?? '');
+    }
+  }, [selected, selectedId, transcript]);
+
+  const rebuild = () => {
+    const next = buildTranscriptFromSubtitleTracks(project);
+    onProject({ transcript: next });
+    setSelectedId(next.segments[0]?.id ?? '');
+    setQuery('');
+  };
+
+  const patchSelected = (patch: Partial<Pick<TranscriptSegment, 'text' | 'speaker' | 'start' | 'end'>>) => {
+    if (!transcript || !selected) return;
+    onProject({ transcript: updateTranscriptSegment(transcript, selected.id, patch) });
+  };
+
+  const removeSelected = () => {
+    if (!transcript || !selected) return;
+    const next = removeTranscriptSegment(transcript, selected.id);
+    onProject({ transcript: next });
+    setSelectedId(next.segments[0]?.id ?? '');
+  };
+
+  return (
+    <section className="transcriptPanel">
+      <div className="transcriptHeader">
+        <div>
+          <strong><FileText size={13} />トランスクリプト</strong>
+          <span>{transcript?.segments.length ?? 0} segments</span>
+        </div>
+        <div className="transcriptHeaderActions">
+          <button type="button" onClick={rebuild} title="字幕トラックから再生成"><RefreshCcw size={12} />字幕から生成</button>
+          <button type="button" onClick={() => { onProject({ transcript: undefined }); setSelectedId(''); }} disabled={!transcript} title="トランスクリプトを削除"><X size={12} /></button>
+        </div>
+      </div>
+
+      {!transcript ? (
+        <div className="transcriptEmpty">字幕トラックからタイムコード付きトランスクリプトを生成できます。</div>
+      ) : (
+        <>
+          <div className="transcriptSearch">
+            <Search size={12} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="本文・話者・単語を検索" />
+            <span>{visibleSegments.length}</span>
+          </div>
+
+          <div className="transcriptList">
+            {visibleSegments.length === 0 && <div className="transcriptEmpty">一致するsegmentはありません。</div>}
+            {visibleSegments.map((segment) => (
+              <button
+                type="button"
+                key={segment.id}
+                className={segment.id === selected?.id ? 'active' : ''}
+                onClick={() => {
+                  setSelectedId(segment.id);
+                  onSeek(segment.start);
+                }}
+              >
+                <time>{formatTime(segment.start)}</time>
+                <span>
+                  {segment.speaker && <b>{segment.speaker}</b>}
+                  <em>{compact(segment.text)}</em>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {selected && (
+            <div className="transcriptEditor">
+              <div className="transcriptEditorTimes">
+                <label><span>Start</span><input type="number" min={0} step={1 / Math.max(1, project.fps)} value={round(selected.start)} onChange={(event) => patchSelected({ start: Number(event.target.value) })} /></label>
+                <label><span>End</span><input type="number" min={0} step={1 / Math.max(1, project.fps)} value={round(selected.end)} onChange={(event) => patchSelected({ end: Number(event.target.value) })} /></label>
+              </div>
+              <label><span>話者</span><input value={selected.speaker ?? ''} onChange={(event) => patchSelected({ speaker: event.target.value })} placeholder="話者名" /></label>
+              <label><span>本文</span><textarea rows={4} value={selected.text} onChange={(event) => patchSelected({ text: event.target.value })} /></label>
+              <div className="transcriptEditorFooter">
+                <span>{selected.words?.length ? `${selected.words.length} timed words` : 'word timingなし'}</span>
+                <button type="button" className="danger" onClick={removeSelected}><Trash2 size={12} />segment削除</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function compact(value: string) {
+  const clean = value.replace(/\s+/g, ' ').trim();
+  return clean.length > 72 ? `${clean.slice(0, 69)}…` : clean;
+}
+
+function round(value: number) {
+  return Number(Math.max(0, value).toFixed(3));
+}
+
+function formatTime(value: number) {
+  const safe = Math.max(0, Number.isFinite(value) ? value : 0);
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe - minutes * 60;
+  return `${String(minutes).padStart(2, '0')}:${seconds.toFixed(2).padStart(5, '0')}`;
+}
