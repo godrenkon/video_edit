@@ -87,6 +87,8 @@ describe('effect evaluation', () => {
     expect(isVisualEffectSupported('temperature-tint')).toBe(true);
     expect(isVisualEffectSupported('sharpen')).toBe(true);
     expect(isVisualEffectSupported('chroma-key')).toBe(true);
+    expect(isVisualEffectSupported('levels')).toBe(true);
+    expect(isCanvasFilterEffectSupported('levels')).toBe(false);
   });
 
   it('resolves temperature and tint into deterministic shared color washes', () => {
