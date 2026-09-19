@@ -192,9 +192,9 @@ Current implementation branch: `main`.
 - [x] deterministic sharpen rendering with keyframes and Preview/export parity
 - [x] vignette rendering with shared Preview/export keyframe evaluation
 - [x] chroma-key rendering with spill control, keyframes and Preview/export parity
-- [ ] curves / levels
-- [ ] lift / gamma / gain
-- [ ] shadows / mids / highlights
+- [x] levels + fixed five-point tone curve with Preview/export parity
+- [x] initial scalar lift / gamma / gain with keyframes and Preview/export parity
+- [x] luminance-weighted shadows / mids / highlights with keyframes and Preview/export parity
 - [ ] hue curves
 - [ ] LUT
 - [ ] scopes: histogram / waveform / vectorscope / RGB parade
@@ -220,12 +220,12 @@ Current implementation branch: `main`.
 - [x] VTT import/export
 - [x] ASS Dialogue import/export subset
 - [x] timed word/character subtitle highlight with Preview/export parity
-- [ ] transcript document model
+- [x] transcript document model + sanitize/update/remove helpers
 - [ ] speech-to-text adapter
 - [ ] speaker detection
 - [ ] text-based timeline editing
 - [ ] silence / filler detection
-- [ ] transcript search
+- [x] transcript search in dedicated panel + global search palette
 - [ ] automatic captions
 - [ ] auto chapters
 
