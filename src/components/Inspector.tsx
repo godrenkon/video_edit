@@ -10,6 +10,8 @@ import { ProjectExportSettingsPanel } from './ProjectExportSettingsPanel';
 import { ProjectTemplatesPanel } from './ProjectTemplatesPanel';
 import { SubtitleExchangePanel } from './SubtitleExchangePanel';
 import { TrackMixerPanel } from './TrackMixerPanel';
+import { ShortcutSettingsPanel } from './ShortcutSettingsPanel';
+import type { ShortcutOverrides } from '../core/shortcuts';
 import '../creation-tools.css';
 
 interface Props {
@@ -20,6 +22,8 @@ interface Props {
   onClip: (patch: Partial<Clip>) => void;
   onTransform: (key: keyof Clip['transform'], value: number) => void;
   onDeleteClip: () => void;
+  shortcutOverrides: ShortcutOverrides;
+  onShortcutOverrides: (next: ShortcutOverrides) => void;
 }
 
 const blendModes: BlendMode[] = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'difference', 'add'];
@@ -36,7 +40,17 @@ const transitionKinds: Array<{ value: 'none' | TransitionKind; label: string }> 
   { value: 'wipe-down', label: 'ワイプ ↓' },
 ];
 
-export function Inspector({ project, selectedClip, timelineTime, onProject, onClip, onTransform, onDeleteClip }: Props) {
+export function Inspector({
+  project,
+  selectedClip,
+  timelineTime,
+  onProject,
+  onClip,
+  onTransform,
+  onDeleteClip,
+  shortcutOverrides,
+  onShortcutOverrides,
+}: Props) {
   const selectedAsset = selectedClip?.assetId ? project.assets.find((asset) => asset.id === selectedClip.assetId) : undefined;
   const crop = selectedClip && selectedAsset && selectedAsset.kind !== 'audio'
     ? cropToNormalized(selectedClip.crop, selectedAsset.width ?? project.width, selectedAsset.height ?? project.height)
@@ -407,6 +421,7 @@ export function Inspector({ project, selectedClip, timelineTime, onProject, onCl
           <Field label="背景"><input type="color" value={project.background} onChange={(e) => onProject({ background: e.target.value })} /></Field>
 
           <ProjectTemplatesPanel project={project} onApply={onProject} />
+          <ShortcutSettingsPanel overrides={shortcutOverrides} onChange={onShortcutOverrides} />
           <ProjectExportSettingsPanel project={project} timelineTime={timelineTime} onChange={(exportSettings) => onProject({ exportSettings })} />
           <SubtitleExchangePanel project={project} onProject={onProject} />
 
