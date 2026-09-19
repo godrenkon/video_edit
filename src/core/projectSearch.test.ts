@@ -82,6 +82,19 @@ function project(): Project {
       },
     ],
     markers: [{ id: 'marker', time: 7, name: '重要ポイント', note: '比較開始' }],
+    transcript: {
+      id: 'transcript',
+      source: 'subtitle',
+      updatedAt: '',
+      segments: [{
+        id: 'segment-1',
+        start: 11,
+        end: 13,
+        text: 'バッテリー技術が大きさに影響しました',
+        speaker: 'ナレーター',
+        words: [{ text: 'バッテリー', start: 11, end: 11.5 }],
+      }],
+    },
   };
 }
 
@@ -98,6 +111,15 @@ describe('project-wide search', () => {
     expect(searchProject(project(), '携帯電話').some((result) => result.clipId === 'clip-s')).toBe(true);
     expect(searchProject(project(), 'ずんだもん').some((result) => result.clipId === 'clip-s')).toBe(true);
     expect(searchProject(project(), 'blur').some((result) => result.clipId === 'clip-v')).toBe(true);
+  });
+
+  it('finds transcript text and speakers with timeline navigation metadata', () => {
+    expect(searchProject(project(), 'バッテリー')[0]).toMatchObject({
+      kind: 'transcript',
+      transcriptSegmentId: 'segment-1',
+      time: 11,
+    });
+    expect(searchProject(project(), 'ナレーター').some((result) => result.kind === 'transcript')).toBe(true);
   });
 
   it('finds tracks, markers and bins', () => {
