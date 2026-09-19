@@ -6,13 +6,21 @@ import {
   type CapabilityReport,
   type CapabilityState,
 } from '../core/capabilities';
+import { ProjectLauncherPanel } from './ProjectLauncherPanel';
 import { RenderQueuePanel } from './RenderQueuePanel';
+import type { StoredProjectInfo } from '../core/storage';
 import type { RenderQueueJob } from '../render/renderQueue';
 import '../capabilities.css';
 
 interface Props {
   projectName: string;
+  projectId: string;
+  projects: StoredProjectInfo[];
+  projectLauncherBusy: boolean;
   onProjectName: (name: string) => void;
+  onNewProject: () => void;
+  onOpenProject: (projectId: string) => void;
+  onDeleteProject: (projectId: string) => void;
   onSave: () => void;
   onBackup: () => void;
   onSearch: () => void;
@@ -30,7 +38,13 @@ interface Props {
 
 export function TopBar({
   projectName,
+  projectId,
+  projects,
+  projectLauncherBusy,
   onProjectName,
+  onNewProject,
+  onOpenProject,
+  onDeleteProject,
   onSave,
   onBackup,
   onSearch,
@@ -49,6 +63,7 @@ export function TopBar({
   const total = Object.keys(capabilities).length;
   const [diagnostics, setDiagnostics] = useState<BrowserCapabilityReport | null>(null);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [projectLauncherOpen, setProjectLauncherOpen] = useState(false);
   const [renderQueueOpen, setRenderQueueOpen] = useState(false);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(true);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -125,6 +140,29 @@ export function TopBar({
         <span className="saveState">{saveState}</span>
       </div>
       <div className="topActions">
+        <div className="capWrap">
+          <button
+            type="button"
+            className="capPill capButton"
+            onClick={() => setProjectLauncherOpen((value) => !value)}
+            aria-expanded={projectLauncherOpen}
+            aria-label="プロジェクト一覧を表示"
+          >
+            <FolderOpen size={13} />
+            projects
+            <span>{projects.length}</span>
+          </button>
+          {projectLauncherOpen && (
+            <ProjectLauncherPanel
+              projects={projects}
+              currentProjectId={projectId}
+              busy={projectLauncherBusy}
+              onCreate={onNewProject}
+              onOpen={onOpenProject}
+              onDelete={onDeleteProject}
+            />
+          )}
+        </div>
         <div className="capWrap">
           <button
             type="button"
