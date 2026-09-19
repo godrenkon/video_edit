@@ -79,6 +79,11 @@ export const BUILTIN_EFFECTS: EffectDescriptor[] = [
     n('outputBlack', '出力 黒', 0, 0, 1, 0.005),
     n('outputWhite', '出力 白', 1, 0, 1, 0.005),
   ]),
+  video('lift-gamma-gain', 'Lift / Gamma / Gain', 'Color', [
+    n('lift', 'Lift', 0, -1, 1, 0.005),
+    n('gamma', 'Gamma', 1, 0.1, 5, 0.01),
+    n('gain', 'Gain', 1, 0, 4, 0.01),
+  ]),
   video('temperature-tint', '色温度 / ティント', 'Color', [
     n('temperature', '色温度', 0, -1, 1),
     n('tint', 'ティント', 0, -1, 1),
