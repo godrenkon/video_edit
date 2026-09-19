@@ -305,4 +305,36 @@ describe('migrateProject', () => {
     expect(() => migrateProject(null)).toThrow('Project is not an object');
     expect(() => migrateProject([])).toThrow('Project is not an object');
   });
+  it('sanitizes persisted clip masks during migration', () => {
+    const project = migrateProject({
+      version: 2,
+      assets: [],
+      tracks: [{
+        kind: 'video',
+        clips: [{
+          id: 'clip',
+          kind: 'asset',
+          name: 'masked',
+          start: 0,
+          duration: 5,
+          inPoint: 0,
+          volume: 1,
+          muted: false,
+          transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
+          masks: [
+            { id: 'r', kind: 'rectangle', x: -2, y: 0.25, width: 5, height: 0.5 },
+            { id: 'e', kind: 'ellipse', x: 0.8, y: 0.9, width: 1, height: 1 },
+            { id: 'bad', kind: 'polygon', x: 0, y: 0, width: 1, height: 1 },
+          ],
+        }],
+      }],
+    });
+
+    const masks = project.tracks[0].clips[0].masks;
+    expect(masks?.[0]).toEqual({ id: 'r', kind: 'rectangle', x: 0, y: 0.25, width: 1, height: 0.5 });
+    expect(masks?.[1]).toMatchObject({ id: 'e', kind: 'ellipse', x: 0.8, y: 0.9 });
+    expect(masks?.[1].width).toBeCloseTo(0.2, 10);
+    expect(masks?.[1].height).toBeCloseTo(0.1, 10);
+  });
+
 });

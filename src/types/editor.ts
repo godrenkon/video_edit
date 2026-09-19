@@ -74,6 +74,15 @@ export interface Crop {
   left: number;
 }
 
+export interface ClipMask {
+  id: string;
+  kind: 'rectangle' | 'ellipse';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface Keyframe {
   id: string;
   time: number;
@@ -194,6 +203,7 @@ export interface Clip {
   transform: Transform;
   zundamon?: ZundamonPayload;
   crop?: Crop;
+  masks?: ClipMask[];
   blendMode?: BlendMode;
   speed?: number;
   reverse?: boolean;
