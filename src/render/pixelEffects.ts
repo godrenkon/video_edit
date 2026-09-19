@@ -32,6 +32,10 @@ export interface ResolvedTonalRanges {
   highlights: number;
 }
 
+export interface ResolvedToneCurve {
+  points: [number, number, number, number, number];
+}
+
 export function hasPixelEffects(effects: EffectInstance[] | undefined) {
   return Boolean(effects?.some((effect) => effect.enabled && (
     effect.kind === 'sharpen'
@@ -39,6 +43,7 @@ export function hasPixelEffects(effects: EffectInstance[] | undefined) {
     || effect.kind === 'levels'
     || effect.kind === 'lift-gamma-gain'
     || effect.kind === 'tonal-ranges'
+    || effect.kind === 'tone-curve'
   )));
 }
 
@@ -71,6 +76,18 @@ export function resolveTonalRanges(effect: EffectInstance, timeSeconds: number):
   };
 }
 
+export function resolveToneCurve(effect: EffectInstance, timeSeconds: number): ResolvedToneCurve {
+  return {
+    points: [
+      clamp(effectNumber(effect, 'black', timeSeconds, 0), 0, 1),
+      clamp(effectNumber(effect, 'shadows', timeSeconds, 0.25), 0, 1),
+      clamp(effectNumber(effect, 'midtones', timeSeconds, 0.5), 0, 1),
+      clamp(effectNumber(effect, 'highlights', timeSeconds, 0.75), 0, 1),
+      clamp(effectNumber(effect, 'white', timeSeconds, 1), 0, 1),
+    ],
+  };
+}
+
 export function resolveLevels(effect: EffectInstance, timeSeconds: number): ResolvedLevels {
   const inputBlack = clamp(effectNumber(effect, 'inputBlack', timeSeconds, 0), 0, 1);
   const inputWhiteRaw = clamp(effectNumber(effect, 'inputWhite', timeSeconds, 1), 0, 1);
@@ -100,6 +117,7 @@ export function applyPixelEffects(
     else if (effect.kind === 'levels') applyLevels(image, resolveLevels(effect, timeSeconds));
     else if (effect.kind === 'lift-gamma-gain') applyLiftGammaGain(image, resolveLiftGammaGain(effect, timeSeconds));
     else if (effect.kind === 'tonal-ranges') applyTonalRanges(image, resolveTonalRanges(effect, timeSeconds));
+    else if (effect.kind === 'tone-curve') applyToneCurve(image, resolveToneCurve(effect, timeSeconds));
   }
   return image;
 }
@@ -185,6 +203,24 @@ export function applyTonalRanges(image: ImageData, resolved: ResolvedTonalRanges
     data[index] = clampByte((r + delta) * 255);
     data[index + 1] = clampByte((g + delta) * 255);
     data[index + 2] = clampByte((b + delta) * 255);
+  }
+  return image;
+}
+
+export function applyToneCurve(image: ImageData, resolved: ResolvedToneCurve) {
+  const data = image.data;
+  const points = resolved.points;
+  const segmentCount = points.length - 1;
+
+  for (let index = 0; index < data.length; index += 4) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      const value = clamp(data[index + channel] / 255, 0, 1);
+      const scaled = value * segmentCount;
+      const segment = Math.min(segmentCount - 1, Math.max(0, Math.floor(scaled)));
+      const local = scaled - segment;
+      const output = points[segment] + (points[segment + 1] - points[segment]) * local;
+      data[index + channel] = clampByte(output * 255);
+    }
   }
   return image;
 }
