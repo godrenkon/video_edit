@@ -1,4 +1,5 @@
 import type { AssetBin, AudioBusId, AudioBusSettings, AudioDuckingSettings, Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
+import { sanitizeTranscriptDocument } from './transcript';
 
 const CURRENT_PROJECT_VERSION = 2 as const;
 
@@ -64,6 +65,7 @@ export function migrateProject(input: unknown): Project {
     exportSettings: migrateExportSettings(input.exportSettings),
     audioBuses: migrateAudioBuses(input.audioBuses),
     audioDucking: migrateAudioDucking(input.audioDucking),
+    transcript: sanitizeTranscriptDocument(input.transcript),
   };
 
   return project;
