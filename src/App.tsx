@@ -9,6 +9,7 @@ import { HistoryController } from './core/history';
 import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClips } from './core/groupOps';
 import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
 import { addPunchInVoiceover } from './core/punchInVoiceover';
+import { detectSilenceRanges, mergeSilenceMarkers, silenceMarkersForAsset } from './core/silenceDetection';
 import { loadShortcutOverrides, saveShortcutOverrides, shortcutMatches, type ShortcutOverrides } from './core/shortcuts';
 import { insertClipAt, overwriteClipAt } from './core/editModes';
 import { analyzeMouthCues, buildAssetMeta, mergeRelinkedAsset } from './core/media';
@@ -48,7 +49,7 @@ import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSe
 import { exportProjectVideo } from './render/projectExporter';
 import { activeRenderQueueReferencesAsset, clearFinishedRenderJobs, createRenderQueueJob, nextQueuedRenderJob, updateRenderQueueJob, type RenderQueueJob } from './render/renderQueue';
 import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
-import { waveformCacheKey } from './render/waveform';
+import { getAssetWaveform, waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
 import { generateVideoProxy } from './render/proxyGenerator';
 import { Inspector } from './components/Inspector';
@@ -88,6 +89,7 @@ export default function App() {
   const [renderProgress, setRenderProgress] = useState<number | null>(null);
   const [renderQueue, setRenderQueue] = useState<RenderQueueJob[]>([]);
   const [proxyProgress, setProxyProgress] = useState<Record<string, number>>({});
+  const [silenceAnalysisAssetId, setSilenceAnalysisAssetId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mediaFocus, setMediaFocus] = useState<{ assetId?: string; binId?: string; token: number }>({ token: 0 });
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>(() => loadShortcutOverrides());
@@ -591,6 +593,39 @@ export default function App() {
   const cancelAssetProxy = useCallback((assetId: string) => {
     proxyAbort.current.get(assetId)?.abort('Proxy generation canceled');
   }, []);
+
+  const detectAssetSilence = useCallback(async (assetId: string) => {
+    if (rendering || silenceAnalysisAssetId) return;
+    const asset = project.assets.find((item) => item.id === assetId);
+    if (!asset || asset.kind === 'image') return;
+
+    setSilenceAnalysisAssetId(assetId);
+    setSaveState(`無音解析中: ${asset.name}`);
+    try {
+      const waveform = await getAssetWaveform(asset, {
+        samplesPerSecond: 80,
+        maxBins: 24_000,
+        chunkSeconds: 30,
+      });
+      if (!waveform) {
+        setSaveState(`音声トラックが見つかりません: ${asset.name}`);
+        return;
+      }
+
+      const ranges = detectSilenceRanges(waveform);
+      const generated = silenceMarkersForAsset(project, assetId, ranges);
+      updateProject((current) => ({
+        ...current,
+        markers: mergeSilenceMarkers(current.markers, assetId, generated),
+      }), { label: '無音区間を解析' });
+      setSaveState(`無音解析完了: ${ranges.length}区間 / ${generated.length}マーカー`);
+    } catch (error) {
+      console.error('Silence analysis failed', error);
+      setSaveState(error instanceof Error ? `無音解析エラー: ${error.message}` : '無音解析エラー');
+    } finally {
+      setSilenceAnalysisAssetId(null);
+    }
+  }, [project, rendering, silenceAnalysisAssetId, updateProject]);
 
   const removeAssetProxy = useCallback(async (assetId: string) => {
     proxyAbort.current.get(assetId)?.abort('Proxy removed');
@@ -1219,6 +1254,8 @@ export default function App() {
           onGenerateProxy={generateAssetProxy}
           onCancelProxy={cancelAssetProxy}
           onRemoveProxy={removeAssetProxy}
+          silenceAnalysisAssetId={silenceAnalysisAssetId}
+          onDetectSilence={detectAssetSilence}
           onCreateText={createText}
           onCreateLowerThird={createLowerThird}
           onCreateSubtitle={createSubtitle}
