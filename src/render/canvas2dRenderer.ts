@@ -483,7 +483,7 @@ function clamp(value: number, min: number, max: number) {
 }
 
 
-function combineCanvasFilters(effectFilter: string, brightness: number) {
+export function combineCanvasFilters(effectFilter: string, brightness: number) {
   const safeBrightness = clamp(brightness, 0, 1);
   if (safeBrightness >= 0.999999) return effectFilter;
   const dip = `brightness(${safeBrightness})`;
