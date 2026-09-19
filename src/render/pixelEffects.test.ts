@@ -5,6 +5,7 @@ import {
   applyLevels,
   applyLiftGammaGain,
   applyTonalRanges,
+  applyToneCurve,
   applyPixelEffects,
   applySharpen,
   hasPixelEffects,
@@ -12,6 +13,7 @@ import {
   resolveLevels,
   resolveLiftGammaGain,
   resolveTonalRanges,
+  resolveToneCurve,
 } from './pixelEffects';
 
 const parameter = (value: number | string) => ({ value });
@@ -38,6 +40,9 @@ describe('pixel effects', () => {
     })])).toBe(true);
     expect(hasPixelEffects([effect('tonal-ranges', {
       shadows: parameter(0), midtones: parameter(0), highlights: parameter(0),
+    })])).toBe(true);
+    expect(hasPixelEffects([effect('tone-curve', {
+      black: parameter(0), shadows: parameter(0.25), midtones: parameter(0.5), highlights: parameter(0.75), white: parameter(1),
     })])).toBe(true);
     expect(hasPixelEffects([effect('blur', { radius: parameter(4) })])).toBe(false);
   });
@@ -189,6 +194,57 @@ describe('pixel effects', () => {
     expect(resolved.shadows).toBeCloseTo(0, 8);
     expect(resolved.midtones).toBe(1);
     expect(resolved.highlights).toBe(-1);
+  });
+
+  it('applies an identity five-point tone curve without changing alpha', () => {
+    const image = makeImageData(new Uint8ClampedArray([
+      0,32,64,40,
+      96,128,160,80,
+      192,224,255,120,
+    ]), 3, 1);
+    const before = [...image.data];
+    applyToneCurve(image, { points: [0, 0.25, 0.5, 0.75, 1] });
+    expect([...image.data]).toEqual(before);
+  });
+
+  it('interpolates tone curve points and supports animated control values', () => {
+    const curve = effect('tone-curve', {
+      black: parameter(0),
+      shadows: parameter(0.2),
+      midtones: {
+        value: 0.5,
+        keyframes: [
+          { id: 'a', time: 0, value: 0.4, interpolation: 'linear' },
+          { id: 'b', time: 2, value: 0.8, interpolation: 'linear' },
+        ],
+      },
+      highlights: parameter(0.9),
+      white: parameter(1),
+    });
+    const resolved = resolveToneCurve(curve, 1);
+    expect(resolved.points).toEqual([0, 0.2, 0.6, 0.9, 1]);
+
+    const image = makeImageData(new Uint8ClampedArray([128,128,128,77]), 1, 1);
+    applyToneCurve(image, resolved);
+    expect(image.data[0]).toBeGreaterThan(128);
+    expect(image.data[1]).toBe(image.data[0]);
+    expect(image.data[2]).toBe(image.data[0]);
+    expect(image.data[3]).toBe(77);
+  });
+
+  it('keeps non-monotonic tone curves finite and clamped', () => {
+    const resolved = resolveToneCurve(effect('tone-curve', {
+      black: parameter(-5),
+      shadows: parameter(2),
+      midtones: parameter(-2),
+      highlights: parameter(9),
+      white: parameter(3),
+    }), 0);
+    expect(resolved.points).toEqual([0, 1, 0, 1, 1]);
+
+    const image = makeImageData(new Uint8ClampedArray([16,96,176,255]), 1, 1);
+    applyToneCurve(image, resolved);
+    expect([...image.data.slice(0, 3)].every((value) => value >= 0 && value <= 255)).toBe(true);
   });
 
   it('keys an exact green pixel and preserves a distant red pixel', () => {
