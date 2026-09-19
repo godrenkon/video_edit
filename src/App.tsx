@@ -1069,6 +1069,10 @@ export default function App() {
             '変形',
           )}
           onDeleteClip={removeSelectedClip}
+          onSeek={(value) => {
+            setPlaying(false);
+            setTime(Math.max(0, Math.min(project.duration, value)));
+          }}
           shortcutOverrides={shortcutOverrides}
           onShortcutOverrides={updateShortcutOverrides}
         />
