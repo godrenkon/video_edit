@@ -44,6 +44,13 @@ export function effectString(effect: EffectInstance, parameterId: string, timeSe
   return typeof value === 'string' ? value : fallback;
 }
 
+export function effectBoolean(effect: EffectInstance, parameterId: string, timeSeconds: number, fallback: boolean) {
+  const parameter = effect.parameters[parameterId];
+  if (!parameter) return fallback;
+  const value = evaluateEffectParameter(parameter, timeSeconds);
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 export function isCanvasFilterEffectSupported(kind: string) {
   return CANVAS_FILTER_EFFECTS.has(kind);
 }
