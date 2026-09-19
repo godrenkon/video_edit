@@ -1,4 +1,4 @@
-import { effectNumber, effectString } from './effectEvaluation';
+import { effectBoolean, effectNumber, effectString } from './effectEvaluation';
 import type { EffectInstance } from '../types/editor';
 
 export interface ResolvedSharpen {
@@ -40,6 +40,25 @@ export interface ResolvedHueVsSat {
   adjustments: [number, number, number, number, number, number];
 }
 
+export interface ResolvedLumaKey {
+  threshold: number;
+  softness: number;
+  invert: boolean;
+}
+
+export interface ResolvedHueShift {
+  degrees: number;
+}
+
+export interface ResolvedPixelate {
+  size: number;
+}
+
+export interface ResolvedGrain {
+  amount: number;
+  seed: number;
+}
+
 export function hasPixelEffects(effects: EffectInstance[] | undefined) {
   return Boolean(effects?.some((effect) => effect.enabled && (
     effect.kind === 'sharpen'
@@ -49,6 +68,10 @@ export function hasPixelEffects(effects: EffectInstance[] | undefined) {
     || effect.kind === 'tonal-ranges'
     || effect.kind === 'tone-curve'
     || effect.kind === 'hue-vs-sat'
+    || effect.kind === 'luma-key'
+    || effect.kind === 'hue-shift'
+    || effect.kind === 'pixelate'
+    || effect.kind === 'grain'
   )));
 }
 
@@ -106,6 +129,33 @@ export function resolveHueVsSat(effect: EffectInstance, timeSeconds: number): Re
   };
 }
 
+export function resolveLumaKey(effect: EffectInstance, timeSeconds: number): ResolvedLumaKey {
+  return {
+    threshold: clamp(effectNumber(effect, 'threshold', timeSeconds, 0.5), 0, 1),
+    softness: clamp(effectNumber(effect, 'softness', timeSeconds, 0.1), 0, 0.5),
+    invert: effectBoolean(effect, 'invert', timeSeconds, false),
+  };
+}
+
+export function resolveHueShift(effect: EffectInstance, timeSeconds: number): ResolvedHueShift {
+  return {
+    degrees: clamp(effectNumber(effect, 'degrees', timeSeconds, 0), -180, 180),
+  };
+}
+
+export function resolvePixelate(effect: EffectInstance, timeSeconds: number): ResolvedPixelate {
+  return {
+    size: Math.max(1, Math.round(clamp(effectNumber(effect, 'size', timeSeconds, 1), 1, 128))),
+  };
+}
+
+export function resolveGrain(effect: EffectInstance, timeSeconds: number): ResolvedGrain {
+  return {
+    amount: clamp(effectNumber(effect, 'amount', timeSeconds, 0), 0, 1),
+    seed: Math.round(clamp(effectNumber(effect, 'seed', timeSeconds, 1), 0, 10000)),
+  };
+}
+
 export function resolveLevels(effect: EffectInstance, timeSeconds: number): ResolvedLevels {
   const inputBlack = clamp(effectNumber(effect, 'inputBlack', timeSeconds, 0), 0, 1);
   const inputWhiteRaw = clamp(effectNumber(effect, 'inputWhite', timeSeconds, 1), 0, 1);
@@ -137,6 +187,10 @@ export function applyPixelEffects(
     else if (effect.kind === 'tonal-ranges') applyTonalRanges(image, resolveTonalRanges(effect, timeSeconds));
     else if (effect.kind === 'tone-curve') applyToneCurve(image, resolveToneCurve(effect, timeSeconds));
     else if (effect.kind === 'hue-vs-sat') applyHueVsSat(image, resolveHueVsSat(effect, timeSeconds));
+    else if (effect.kind === 'luma-key') applyLumaKey(image, resolveLumaKey(effect, timeSeconds));
+    else if (effect.kind === 'hue-shift') applyHueShift(image, resolveHueShift(effect, timeSeconds));
+    else if (effect.kind === 'pixelate') applyPixelate(image, resolvePixelate(effect, timeSeconds));
+    else if (effect.kind === 'grain') applyGrain(image, resolveGrain(effect, timeSeconds));
   }
   return image;
 }
@@ -304,6 +358,108 @@ export function applyChromaKey(image: ImageData, resolved: ResolvedChromaKey) {
     data[index + 3] = clampByte(data[index + 3] * keep);
   }
   return image;
+}
+
+export function applyLumaKey(image: ImageData, resolved: ResolvedLumaKey) {
+  const data = image.data;
+  const halfSoftness = resolved.softness * 0.5;
+  const low = resolved.threshold - halfSoftness;
+  const high = resolved.threshold + halfSoftness;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const luma = (data[index] * 0.2126 + data[index + 1] * 0.7152 + data[index + 2] * 0.0722) / 255;
+    let keep = resolved.softness <= 1e-9
+      ? (luma >= resolved.threshold ? 1 : 0)
+      : smoothstep(low, high, luma);
+    if (resolved.invert) keep = 1 - keep;
+    data[index + 3] = clampByte(data[index + 3] * keep);
+  }
+  return image;
+}
+
+export function applyHueShift(image: ImageData, resolved: ResolvedHueShift) {
+  if (Math.abs(resolved.degrees) <= 1e-9) return image;
+  const shift = resolved.degrees / 360;
+  const data = image.data;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const hsv = rgbToHsv(data[index] / 255, data[index + 1] / 255, data[index + 2] / 255);
+    if (hsv.s <= 1e-9) continue;
+    const [r, g, b] = hsvToRgb(hsv.h + shift, hsv.s, hsv.v);
+    data[index] = clampByte(r * 255);
+    data[index + 1] = clampByte(g * 255);
+    data[index + 2] = clampByte(b * 255);
+  }
+  return image;
+}
+
+export function applyPixelate(image: ImageData, resolved: ResolvedPixelate) {
+  const block = Math.max(1, Math.round(resolved.size));
+  if (block <= 1 || image.width <= 1 || image.height <= 1) return image;
+  const { width, height, data } = image;
+
+  for (let y = 0; y < height; y += block) {
+    const yEnd = Math.min(height, y + block);
+    for (let x = 0; x < width; x += block) {
+      const xEnd = Math.min(width, x + block);
+      let red = 0;
+      let green = 0;
+      let blue = 0;
+      let alpha = 0;
+      let count = 0;
+
+      for (let sampleY = y; sampleY < yEnd; sampleY += 1) {
+        for (let sampleX = x; sampleX < xEnd; sampleX += 1) {
+          const sampleIndex = (sampleY * width + sampleX) * 4;
+          red += data[sampleIndex];
+          green += data[sampleIndex + 1];
+          blue += data[sampleIndex + 2];
+          alpha += data[sampleIndex + 3];
+          count += 1;
+        }
+      }
+
+      const averageRed = clampByte(red / Math.max(1, count));
+      const averageGreen = clampByte(green / Math.max(1, count));
+      const averageBlue = clampByte(blue / Math.max(1, count));
+      const averageAlpha = clampByte(alpha / Math.max(1, count));
+
+      for (let fillY = y; fillY < yEnd; fillY += 1) {
+        for (let fillX = x; fillX < xEnd; fillX += 1) {
+          const fillIndex = (fillY * width + fillX) * 4;
+          data[fillIndex] = averageRed;
+          data[fillIndex + 1] = averageGreen;
+          data[fillIndex + 2] = averageBlue;
+          data[fillIndex + 3] = averageAlpha;
+        }
+      }
+    }
+  }
+  return image;
+}
+
+export function applyGrain(image: ImageData, resolved: ResolvedGrain) {
+  if (resolved.amount <= 1e-9) return image;
+  const data = image.data;
+  const amplitude = resolved.amount * 64;
+
+  for (let index = 0, pixel = 0; index < data.length; index += 4, pixel += 1) {
+    const noise = deterministicSignedNoise(pixel, resolved.seed) * amplitude;
+    data[index] = clampByte(data[index] + noise);
+    data[index + 1] = clampByte(data[index + 1] + noise);
+    data[index + 2] = clampByte(data[index + 2] + noise);
+  }
+  return image;
+}
+
+function deterministicSignedNoise(index: number, seed: number) {
+  let value = (index + 1) ^ Math.imul(seed + 1, 0x9e3779b1);
+  value ^= value >>> 16;
+  value = Math.imul(value, 0x7feb352d);
+  value ^= value >>> 15;
+  value = Math.imul(value, 0x846ca68b);
+  value ^= value >>> 16;
+  return ((value >>> 0) / 0xffffffff) * 2 - 1;
 }
 
 function rgbToHsv(r: number, g: number, b: number) {
