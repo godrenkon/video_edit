@@ -1,5 +1,6 @@
 import { effectBoolean, effectNumber, effectString } from './effectEvaluation';
 import type { EffectInstance } from '../types/editor';
+import { parseCubeLut, sampleCubeLut, type CubeLut } from './lut3d';
 
 export interface ResolvedSharpen {
   amount: number;
@@ -59,6 +60,11 @@ export interface ResolvedGrain {
   seed: number;
 }
 
+export interface ResolvedLut3d {
+  source: string;
+  intensity: number;
+}
+
 export function hasPixelEffects(effects: EffectInstance[] | undefined) {
   return Boolean(effects?.some((effect) => effect.enabled && (
     effect.kind === 'sharpen'
@@ -72,6 +78,7 @@ export function hasPixelEffects(effects: EffectInstance[] | undefined) {
     || effect.kind === 'hue-shift'
     || effect.kind === 'pixelate'
     || effect.kind === 'grain'
+    || effect.kind === 'lut-3d'
   )));
 }
 
@@ -156,6 +163,13 @@ export function resolveGrain(effect: EffectInstance, timeSeconds: number): Resol
   };
 }
 
+export function resolveLut3d(effect: EffectInstance, timeSeconds: number): ResolvedLut3d {
+  return {
+    source: effectString(effect, 'cubeData', timeSeconds, ''),
+    intensity: clamp(effectNumber(effect, 'intensity', timeSeconds, 1), 0, 1),
+  };
+}
+
 export function resolveLevels(effect: EffectInstance, timeSeconds: number): ResolvedLevels {
   const inputBlack = clamp(effectNumber(effect, 'inputBlack', timeSeconds, 0), 0, 1);
   const inputWhiteRaw = clamp(effectNumber(effect, 'inputWhite', timeSeconds, 1), 0, 1);
@@ -191,6 +205,7 @@ export function applyPixelEffects(
     else if (effect.kind === 'hue-shift') applyHueShift(image, resolveHueShift(effect, timeSeconds));
     else if (effect.kind === 'pixelate') applyPixelate(image, resolvePixelate(effect, timeSeconds));
     else if (effect.kind === 'grain') applyGrain(image, resolveGrain(effect, timeSeconds));
+    else if (effect.kind === 'lut-3d') applyLut3d(image, resolveLut3d(effect, timeSeconds));
   }
   return image;
 }
@@ -450,6 +465,55 @@ export function applyGrain(image: ImageData, resolved: ResolvedGrain) {
     data[index + 2] = clampByte(data[index + 2] + noise);
   }
   return image;
+}
+
+const LUT_CACHE_LIMIT = 8;
+const lutCache = new Map<string, CubeLut | null>();
+
+export function applyLut3d(image: ImageData, resolved: ResolvedLut3d) {
+  if (!resolved.source.trim() || resolved.intensity <= 1e-9) return image;
+  const lut = cachedLut(resolved.source);
+  if (!lut) return image;
+
+  const amount = clamp(resolved.intensity, 0, 1);
+  const data = image.data;
+  for (let index = 0; index < data.length; index += 4) {
+    const sourceR = data[index] / 255;
+    const sourceG = data[index + 1] / 255;
+    const sourceB = data[index + 2] / 255;
+    const [mappedR, mappedG, mappedB] = sampleCubeLut(lut, sourceR, sourceG, sourceB);
+    data[index] = clampByte((sourceR + (clamp(mappedR, 0, 1) - sourceR) * amount) * 255);
+    data[index + 1] = clampByte((sourceG + (clamp(mappedG, 0, 1) - sourceG) * amount) * 255);
+    data[index + 2] = clampByte((sourceB + (clamp(mappedB, 0, 1) - sourceB) * amount) * 255);
+  }
+  return image;
+}
+
+function cachedLut(source: string) {
+  if (lutCache.has(source)) {
+    const cached = lutCache.get(source) ?? null;
+    lutCache.delete(source);
+    lutCache.set(source, cached);
+    return cached;
+  }
+
+  let parsed: CubeLut | null = null;
+  try {
+    parsed = parseCubeLut(source);
+  } catch {
+    parsed = null;
+  }
+  lutCache.set(source, parsed);
+  while (lutCache.size > LUT_CACHE_LIMIT) {
+    const oldest = lutCache.keys().next().value as string | undefined;
+    if (!oldest) break;
+    lutCache.delete(oldest);
+  }
+  return parsed;
+}
+
+export function clearLutCache() {
+  lutCache.clear();
 }
 
 function deterministicSignedNoise(index: number, seed: number) {
