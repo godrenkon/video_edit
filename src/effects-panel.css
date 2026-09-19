@@ -39,3 +39,12 @@
 .voicePresetRow { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; }
 .voicePresetRow select { min-width: 0; height: 28px; border: 1px solid var(--line); border-radius: 6px; background: #080d10; color: var(--text); padding: 0 7px; font-size: 9px; }
 .voicePresetRow button { height: 28px; border: 1px solid #3e6f41; border-radius: 6px; background: #1e3820; color: #dfffd7; font-size: 8px; padding: 0 9px; cursor: pointer; }
+
+
+.effectFileParameter { display: grid; gap: 6px; }
+.effectFileControls { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; align-items: center; }
+.effectFilePicker { min-width: 0; height: 29px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 5px; background: #10171c; color: var(--text); font-size: 9px; cursor: pointer; }
+.effectFilePicker input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.effectFileControls > button { height: 29px; padding: 0 9px; border: 1px solid var(--line); border-radius: 5px; background: #10171c; color: var(--text); font-size: 9px; cursor: pointer; }
+.effectFileControls > button:disabled { opacity: .4; cursor: default; }
+.effectFileError { color: #ff9292; font-size: 8px; line-height: 1.35; }
