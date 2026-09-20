@@ -1,6 +1,6 @@
 import { gzipSync } from 'node:zlib';
 import { readFileSync, readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const html = readFileSync(resolve(root, 'dist/index.html'), 'utf8');
@@ -11,16 +11,17 @@ if (!entryMatch) {
 }
 
 const relativeEntry = entryMatch[1].replace(/^\//, '');
-const source = readFileSync(resolve(root, 'dist', relativeEntry));
-const rawBytes = source.byteLength;
-const gzipBytes = gzipSync(source, { level: 9 }).byteLength;
+const distRoot = resolve(root, 'dist');
+const initialFiles = collectStaticJavaScript(resolve(distRoot, relativeEntry));
+const rawBytes = initialFiles.reduce((total, file) => total + readFileSync(file).byteLength, 0);
+const gzipBytes = initialFiles.reduce((total, file) => total + gzipSync(readFileSync(file), { level: 9 }).byteLength, 0);
 const limits = {
   rawBytes: 520 * 1024,
   gzipBytes: 160 * 1024,
 };
 
 const format = (bytes) => `${(bytes / 1024).toFixed(2)} KiB`;
-console.log(`Initial editor entry: ${format(rawBytes)} raw / ${format(gzipBytes)} gzip`);
+console.log(`Initial editor graph (${initialFiles.length} chunks): ${format(rawBytes)} raw / ${format(gzipBytes)} gzip`);
 
 const failures = [];
 if (rawBytes > limits.rawBytes) failures.push(`raw ${format(rawBytes)} > ${format(limits.rawBytes)}`);
@@ -47,4 +48,32 @@ if (!mediaAnalysisWorkerName) {
   if (workerFailures.length) {
     throw new Error(`Media analysis worker budget exceeded: ${workerFailures.join(', ')}`);
   }
+}
+
+function collectStaticJavaScript(entryPath) {
+  const queue = [entryPath];
+  const files = new Set();
+  const importPatterns = [
+    /(?:^|[;\n])\s*import\s*(?:[^"'()]*?\s*from\s*)?["']([^"']+\.js)["']/g,
+    /(?:^|[;\n])\s*export\s+[^"'()]*?\s*from\s*["']([^"']+\.js)["']/g,
+  ];
+
+  while (queue.length) {
+    const file = queue.pop();
+    if (!file || files.has(file)) continue;
+    const outsideDist = relative(distRoot, file).startsWith('..');
+    if (outsideDist) throw new Error(`Initial bundle import escaped dist: ${file}`);
+    files.add(file);
+
+    const source = readFileSync(file, 'utf8');
+    for (const pattern of importPatterns) {
+      pattern.lastIndex = 0;
+      for (const match of source.matchAll(pattern)) {
+        const specifier = match[1];
+        if (!specifier.startsWith('.')) continue;
+        queue.push(resolve(dirname(file), specifier));
+      }
+    }
+  }
+  return [...files];
 }
