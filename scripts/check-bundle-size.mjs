@@ -30,21 +30,21 @@ if (failures.length) {
   throw new Error(`Initial bundle budget exceeded: ${failures.join(', ')}. Keep media/export engines demand-loaded.`);
 }
 
-const thumbnailWorkerName = readdirSync(resolve(root, 'dist/assets'))
-  .find((name) => /^thumbnailWorker-.*\.js$/.test(name));
-if (!thumbnailWorkerName) {
-  throw new Error('Timeline thumbnail worker bundle is missing from the production build');
+const mediaAnalysisWorkerName = readdirSync(resolve(root, 'dist/assets'))
+  .find((name) => /^mediaAnalysisWorker-.*\.js$/.test(name));
+if (!mediaAnalysisWorkerName) {
+  throw new Error('Media analysis worker bundle is missing from the production build');
 } else {
-  const workerSource = readFileSync(resolve(root, 'dist/assets', thumbnailWorkerName));
+  const workerSource = readFileSync(resolve(root, 'dist/assets', mediaAnalysisWorkerName));
   const workerRawBytes = workerSource.byteLength;
   const workerGzipBytes = gzipSync(workerSource, { level: 9 }).byteLength;
   const workerLimits = { rawBytes: 720 * 1024, gzipBytes: 180 * 1024 };
-  console.log(`Thumbnail worker: ${format(workerRawBytes)} raw / ${format(workerGzipBytes)} gzip`);
+  console.log(`Media analysis worker: ${format(workerRawBytes)} raw / ${format(workerGzipBytes)} gzip`);
 
   const workerFailures = [];
   if (workerRawBytes > workerLimits.rawBytes) workerFailures.push(`raw ${format(workerRawBytes)} > ${format(workerLimits.rawBytes)}`);
   if (workerGzipBytes > workerLimits.gzipBytes) workerFailures.push(`gzip ${format(workerGzipBytes)} > ${format(workerLimits.gzipBytes)}`);
   if (workerFailures.length) {
-    throw new Error(`Thumbnail worker budget exceeded: ${workerFailures.join(', ')}`);
+    throw new Error(`Media analysis worker budget exceeded: ${workerFailures.join(', ')}`);
   }
 }

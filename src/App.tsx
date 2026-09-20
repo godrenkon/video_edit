@@ -42,7 +42,7 @@ import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
-import { waveformCacheKey } from './render/waveform';
+import { clearWaveformMemoryCache, waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
@@ -528,6 +528,7 @@ export default function App() {
       if (current.objectUrl) URL.revokeObjectURL(current.objectUrl);
       if (current.proxyObjectUrl) URL.revokeObjectURL(current.proxyObjectUrl);
       clearTimelineThumbnailCache(assetId);
+      clearWaveformMemoryCache(assetId);
 
       const merged = mergeRelinkedAsset(current, replacement);
       history.current.clear();
@@ -629,6 +630,7 @@ export default function App() {
     proxyAbort.current.get(assetId)?.abort('Asset deleted');
     proxyAbort.current.delete(assetId);
     clearTimelineThumbnailCache(assetId);
+    clearWaveformMemoryCache(assetId);
     if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
     if (asset.proxyObjectUrl) URL.revokeObjectURL(asset.proxyObjectUrl);
     history.current.clear();

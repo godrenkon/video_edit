@@ -23,7 +23,7 @@
 - EditorCommand基盤
 - 重量級decode / proxy / export runtimeのオンデマンド読み込み
 - production buildの初期bundle容量budget検査
-- 動画thumbnail decode / WebP生成を専用Workerへ分離（自動fallback付き）
+- 動画thumbnail decode / WebP生成と音声waveform解析を共有Media Analysis Workerへ分離（自動fallback付き）
 - PWA / offline app shell
 - Vitest回帰テスト
 - GitHub Actions CI: `npm test` → TypeScript check → production build

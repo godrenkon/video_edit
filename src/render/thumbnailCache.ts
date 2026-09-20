@@ -2,10 +2,10 @@ import { readAssetFile, readThumbnailCache, saveThumbnailCache } from '../core/s
 import type { AssetMeta } from '../types/editor';
 import { MediabunnyVideoProvider } from './mediabunnyProvider';
 import {
-  canRenderTimelineThumbnailInWorker,
-  clearTimelineThumbnailWorker,
+  canUseMediaAnalysisWorker,
+  clearMediaAnalysisWorker,
   renderTimelineThumbnailInWorker,
-} from './thumbnailWorkerClient';
+} from './mediaAnalysisWorkerClient';
 
 const MAX_THUMBNAILS = 96;
 const MAX_PROVIDERS = 4;
@@ -89,19 +89,19 @@ export function clearTimelineThumbnailCache(assetId?: string) {
     }
   }
   if (assetId) {
-    clearTimelineThumbnailWorker(assetId);
+    clearMediaAnalysisWorker(assetId);
     const entry = providers.get(assetId);
     entry?.provider.close();
     providers.delete(assetId);
   } else {
-    clearTimelineThumbnailWorker();
+    clearMediaAnalysisWorker();
     for (const entry of providers.values()) entry.provider.close();
     providers.clear();
   }
 }
 
 async function decodeThumbnail(asset: AssetMeta, sourceTime: number) {
-  if (canRenderTimelineThumbnailInWorker()) {
+  if (canUseMediaAnalysisWorker()) {
     try {
       const file = await readAssetFile(asset.proxyStorageName ?? asset.storageName);
       return await renderTimelineThumbnailInWorker(videoThumbnailFingerprint(asset), file, sourceTime);
