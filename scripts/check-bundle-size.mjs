@@ -31,23 +31,23 @@ if (failures.length) {
   throw new Error(`Initial bundle budget exceeded: ${failures.join(', ')}. Keep media/export engines demand-loaded.`);
 }
 
-const mediaAnalysisWorkerName = readdirSync(resolve(root, 'dist/assets'))
-  .find((name) => /^mediaAnalysisWorker-.*\.js$/.test(name));
-if (!mediaAnalysisWorkerName) {
-  throw new Error('Media analysis worker bundle is missing from the production build');
-} else {
-  const workerSource = readFileSync(resolve(root, 'dist/assets', mediaAnalysisWorkerName));
+checkWorkerBundle('mediaAnalysisWorker', 'Media analysis worker', { rawBytes: 720 * 1024, gzipBytes: 180 * 1024 });
+checkWorkerBundle('previewRenderWorker', 'Preview render worker', { rawBytes: 720 * 1024, gzipBytes: 180 * 1024 });
+
+function checkWorkerBundle(filePrefix, label, workerLimits) {
+  const workerName = readdirSync(resolve(root, 'dist/assets'))
+    .find((name) => new RegExp(`^${filePrefix}-.*\\.js$`).test(name));
+  if (!workerName) throw new Error(`${label} bundle is missing from the production build`);
+
+  const workerSource = readFileSync(resolve(root, 'dist/assets', workerName));
   const workerRawBytes = workerSource.byteLength;
   const workerGzipBytes = gzipSync(workerSource, { level: 9 }).byteLength;
-  const workerLimits = { rawBytes: 720 * 1024, gzipBytes: 180 * 1024 };
-  console.log(`Media analysis worker: ${format(workerRawBytes)} raw / ${format(workerGzipBytes)} gzip`);
+  console.log(`${label}: ${format(workerRawBytes)} raw / ${format(workerGzipBytes)} gzip`);
 
   const workerFailures = [];
   if (workerRawBytes > workerLimits.rawBytes) workerFailures.push(`raw ${format(workerRawBytes)} > ${format(workerLimits.rawBytes)}`);
   if (workerGzipBytes > workerLimits.gzipBytes) workerFailures.push(`gzip ${format(workerGzipBytes)} > ${format(workerLimits.gzipBytes)}`);
-  if (workerFailures.length) {
-    throw new Error(`Media analysis worker budget exceeded: ${workerFailures.join(', ')}`);
-  }
+  if (workerFailures.length) throw new Error(`${label} budget exceeded: ${workerFailures.join(', ')}`);
 }
 
 function collectStaticJavaScript(entryPath) {

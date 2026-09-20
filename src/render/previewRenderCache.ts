@@ -1,9 +1,10 @@
 import type { Project } from '../types/editor';
 import { Canvas2DProjectRenderer, type RenderCanvas } from './canvas2dRenderer';
 import { RenderAssetStore } from './renderAssetStore';
+import { positivePreviewInt, previewCacheDimensions, previewCacheFrameIndex } from './previewRenderPlanning';
 
-const DEFAULT_MAX_WIDTH = 960;
-const DEFAULT_MAX_HEIGHT = 540;
+export { previewCacheDimensions, previewCacheFrameIndex } from './previewRenderPlanning';
+
 const DEFAULT_MAX_BYTES = 32 * 1024 * 1024;
 
 interface CacheEntry {
@@ -43,9 +44,9 @@ export class PreviewRenderCache {
   private closed = false;
 
   constructor(project: Pick<Project, 'assets'>, options: PreviewRenderCacheOptions = {}) {
-    this.maxWidth = positiveInt(options.maxWidth, DEFAULT_MAX_WIDTH);
-    this.maxHeight = positiveInt(options.maxHeight, DEFAULT_MAX_HEIGHT);
-    this.maxBytes = positiveInt(options.maxBytes, DEFAULT_MAX_BYTES);
+    this.maxWidth = positivePreviewInt(options.maxWidth, 960);
+    this.maxHeight = positivePreviewInt(options.maxHeight, 540);
+    this.maxBytes = positivePreviewInt(options.maxBytes, DEFAULT_MAX_BYTES);
     this.assets = new RenderAssetStore(project.assets, {
       preferProxy: true,
       videoCacheBytes: options.videoCacheBytes ?? 18 * 1024 * 1024,
@@ -167,30 +168,6 @@ export class PreviewRenderCache {
   }
 }
 
-export function previewCacheFrameIndex(timeSeconds: number, fps: number, duration: number) {
-  const rate = Math.max(1, Math.min(240, Math.round(Number.isFinite(fps) ? fps : 30)));
-  const safeDuration = Math.max(0, Number.isFinite(duration) ? duration : 0);
-  const safeTime = Math.max(0, Math.min(safeDuration, Number.isFinite(timeSeconds) ? timeSeconds : 0));
-  return Math.max(0, Math.round(safeTime * rate));
-}
-
-export function previewCacheDimensions(
-  width: number,
-  height: number,
-  maxWidth = DEFAULT_MAX_WIDTH,
-  maxHeight = DEFAULT_MAX_HEIGHT,
-) {
-  const sourceWidth = Math.max(1, Math.round(Number.isFinite(width) ? width : 1));
-  const sourceHeight = Math.max(1, Math.round(Number.isFinite(height) ? height : 1));
-  const boundWidth = positiveInt(maxWidth, DEFAULT_MAX_WIDTH);
-  const boundHeight = positiveInt(maxHeight, DEFAULT_MAX_HEIGHT);
-  const scale = Math.min(1, boundWidth / sourceWidth, boundHeight / sourceHeight);
-  return {
-    width: Math.max(1, Math.round(sourceWidth * scale)),
-    height: Math.max(1, Math.round(sourceHeight * scale)),
-  };
-}
-
 function createRenderCanvas(width: number, height: number): RenderCanvas {
   if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(width, height);
   if (typeof document === 'undefined') throw new Error('Canvas is unavailable');
@@ -206,10 +183,6 @@ async function canvasToImageBitmap(canvas: RenderCanvas) {
   }
   if (typeof createImageBitmap !== 'function') throw new Error('ImageBitmap is unavailable');
   return createImageBitmap(canvas as HTMLCanvasElement);
-}
-
-function positiveInt(value: number | undefined, fallback: number) {
-  return Math.max(1, Math.round(Number.isFinite(value) ? Number(value) : fallback));
 }
 
 function now() {

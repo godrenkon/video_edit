@@ -150,6 +150,7 @@ CIではunit test / typecheck / production buildまで検証しています。�
 - decode / render Worker化
 - WebGPU compositor + WebGL fallback
 - frame-accurate decoded-frame preview engine
+- dedicated paused/effect-preview render worker with automatic main-thread fallback
 - LUT / scope / mask / tracking / graph editor
 - noise suppression / automation lane UI
 - speech-to-text / automatic captions / text-based timeline editing

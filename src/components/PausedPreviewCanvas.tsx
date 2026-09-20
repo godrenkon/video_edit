@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { PreviewRenderCache } from '../render/previewRenderCache';
+import { PreviewRenderEngine } from '../render/previewRenderEngine';
 import type { Project } from '../types/editor';
 import '../preview-cache.css';
 
@@ -15,7 +15,7 @@ export function PausedPreviewCanvas({
   enabled: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const cacheRef = useRef<PreviewRenderCache | null>(null);
+  const cacheRef = useRef<PreviewRenderEngine | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -27,7 +27,7 @@ export function PausedPreviewCanvas({
     if (previous) void previous.close();
 
     try {
-      cacheRef.current = new PreviewRenderCache(project);
+      cacheRef.current = new PreviewRenderEngine(project);
     } catch (error) {
       console.warn('Paused preview render cache is unavailable', error);
     }

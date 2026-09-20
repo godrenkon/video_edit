@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { previewCacheDimensions, previewCacheFrameIndex } from './previewRenderCache';
+import { previewCacheDimensions, previewCacheFrameIndex } from './previewRenderPlanning';
 
 describe('preview render cache planning', () => {
   it('quantizes requested preview time to the nearest bounded project frame', () => {

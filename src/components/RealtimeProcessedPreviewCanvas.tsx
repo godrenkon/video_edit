@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { PreviewRenderCache, previewCacheFrameIndex } from '../render/previewRenderCache';
+import { PreviewRenderEngine } from '../render/previewRenderEngine';
+import { previewCacheFrameIndex } from '../render/previewRenderPlanning';
 import type { Project } from '../types/editor';
 import '../processed-preview.css';
 
@@ -15,7 +16,7 @@ export function RealtimeProcessedPreviewCanvas({
   enabled: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const cacheRef = useRef<PreviewRenderCache | null>(null);
+  const cacheRef = useRef<PreviewRenderEngine | null>(null);
   const timeRef = useRef(time);
   const [visible, setVisible] = useState(false);
 
@@ -29,7 +30,7 @@ export function RealtimeProcessedPreviewCanvas({
     if (previous) void previous.close();
 
     try {
-      cacheRef.current = new PreviewRenderCache(project, {
+      cacheRef.current = new PreviewRenderEngine(project, {
         maxWidth: 960,
         maxHeight: 540,
         maxBytes: 24 * 1024 * 1024,
