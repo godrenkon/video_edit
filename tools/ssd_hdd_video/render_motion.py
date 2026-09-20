@@ -231,6 +231,19 @@ def durwav(p):
 
 def run(cmd): print("+"," ".join(map(str,cmd)),flush=True); subprocess.run(list(map(str,cmd)),check=True)
 
+def read_voice_48k(path, pad=0.10):
+    y, sr = sf.read(path, dtype="float32")
+    if y.ndim > 1:
+        y = y.mean(axis=1)
+    if sr != 48000:
+        old = np.arange(len(y), dtype=np.float64) / sr
+        new_len = int(round(len(y) * 48000 / sr))
+        new = np.arange(new_len, dtype=np.float64) / 48000
+        y = np.interp(new, old, y).astype(np.float32)
+    if pad > 0:
+        y = np.concatenate([y, np.zeros(int(round(pad*48000)), dtype=np.float32)])
+    return y
+
 def render_segment(title,s,kind,wav,dur,idx):
     base=save(make_base(title,s,kind),f"base_{idx:04d}.png")
     out=WORK/f"seg_{idx:04d}.mp4"
@@ -250,13 +263,13 @@ def render_segment(title,s,kind,wav,dur,idx):
         inputs += ["-loop","1","-i",str(SPR["scan"])]
         fc += [f"[{n}:v]format=rgba,colorchannelmixer=aa=0.34[sc]", f"{last}[sc]overlay=x='-120+mod(t*260,{W+240})':y=260:shortest=1[v4]"]; last="[v4]"; n+=1
     fc += [f"{last}fade=t=in:st=0:d=0.18,fade=t=out:st={max(0,dur-0.18):.3f}:d=0.18,format=yuv420p[v]"]
-    cmd=["ffmpeg","-y","-loglevel","error",*inputs,"-i",str(wav),"-filter_complex",";".join(fc),"-map","[v]","-map",f"{n}:a","-af","apad=pad_dur=0.10","-t",f"{dur:.3f}","-r",str(FPS),"-c:v","libx264","-preset","veryfast","-crf","16","-c:a","aac","-b:a","192k",str(out)]
+    cmd=["ffmpeg","-y","-loglevel","error",*inputs,"-filter_complex",";".join(fc),"-map","[v]","-t",f"{dur:.3f}","-r",str(FPS),"-an","-c:v","libx264","-preset","veryfast","-crf","16",str(out)]
     run(cmd); return out
 
 def title_segment(title,secidx):
     im=bg_image("",""); d=ImageDraw.Draw(im,"RGBA"); txt(d,(960,430),title,72,WHITE,"mm"); txt(d,(960,540),"SSD / HDD",34,CYAN,"mm"); d.line((620,610,1300,610),fill=CYAN,width=5)
     p=save(im,f"title_{secidx:02d}.png"); out=WORK/f"title_{secidx:02d}.mp4"
-    run(["ffmpeg","-y","-loglevel","error","-loop","1","-i",p,"-loop","1","-i",SPR["scan"],"-f","lavfi","-i","anullsrc=r=48000:cl=stereo","-filter_complex",f"[1:v]format=rgba,colorchannelmixer=aa=0.42[s];[0:v][s]overlay=x='-120+mod(t*420,{W+240})':y=300,fade=t=in:st=0:d=0.25,fade=t=out:st=1.05:d=0.25,format=yuv420p[v]","-map","[v]","-map","2:a","-t","1.3","-r",str(FPS),"-c:v","libx264","-preset","veryfast","-crf","17","-c:a","aac","-b:a","160k","-shortest",out])
+    run(["ffmpeg","-y","-loglevel","error","-loop","1","-i",p,"-loop","1","-i",SPR["scan"],"-filter_complex",f"[1:v]format=rgba,colorchannelmixer=aa=0.42[s];[0:v][s]overlay=x='-120+mod(t*420,{W+240})':y=300,fade=t=in:st=0:d=0.25,fade=t=out:st=1.05:d=0.25,format=yuv420p[v]","-map","[v]","-t","1.3","-r",str(FPS),"-an","-c:v","libx264","-preset","veryfast","-crf","17",out])
     return out
 
 def bgm_with_sfx(duration,chapter_times,accent_times,path):
@@ -280,27 +293,29 @@ def bgm_with_sfx(duration,chapter_times,accent_times,path):
 def stamp(t):
     h=int(t//3600); m=int((t%3600)//60); s=t%60; return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".",",")
 
-clips=[]; subs=[]; chapter_lines=[]; chapter_times=[]; accent_times=[]; current=0.0; idx=0
+clips=[]; subs=[]; chapter_lines=[]; chapter_times=[]; accent_times=[]; audio_parts=[]; current=0.0; idx=0
 for sec_i,(title,sents) in enumerate(SECTIONS):
     if sec_i>0:
-        chapter_times.append(current); clips.append(title_segment(title,sec_i)); current+=1.3
+        chapter_times.append(current); clips.append(title_segment(title,sec_i)); audio_parts.append(np.zeros(int(round(1.3*48000)),dtype=np.float32)); current+=1.3
     chapter_lines.append(f"{int(current//60):02d}:{int(current%60):02d} {title}")
     for s in sents:
-        wav=WORK/f"voice_{idx:04d}.wav"; tts(s,wav); duration=durwav(wav)+.10
-        kind=scene_kind(title,s); seg=render_segment(title,s,kind,wav,duration,idx); clips.append(seg)
+        wav=WORK/f"voice_{idx:04d}.wav"; tts(s,wav); voice48=read_voice_48k(wav,.10); duration=len(voice48)/48000.0
+        kind=scene_kind(title,s); seg=render_segment(title,s,kind,wav,duration,idx); clips.append(seg); audio_parts.append(voice48)
         st=current; en=current+duration; subs.append((idx+1,st,en,s)); current=en
         if any(k in s for k in ["M.2","TBW","FPS","3-2-1","使い分け"]): accent_times.append(st+.15)
         idx+=1
 im=bg_image("",""); d=ImageDraw.Draw(im,"RGBA"); txt(d,(1440,870),'次回「SSDとHDDの歴史」',48,WHITE,"mm"); txt(d,(960,990),"VOICEVOX:ずんだもん",24,MUTED,"mm")
 p=save(im,"next.png"); outro=WORK/"outro.mp4"
-run(["ffmpeg","-y","-loglevel","error","-loop","1","-i",p,"-f","lavfi","-i","anullsrc=r=48000:cl=stereo","-t","8","-vf",f"scale={W}:{H},fade=t=in:st=4:d=1,format=yuv420p","-r",str(FPS),"-c:v","libx264","-preset","veryfast","-crf","17","-c:a","aac","-b:a","160k","-shortest",outro]); clips.append(outro); current+=8
+run(["ffmpeg","-y","-loglevel","error","-loop","1","-i",p,"-t","8","-vf",f"scale={W}:{H},fade=t=in:st=4:d=1,format=yuv420p","-r",str(FPS),"-an","-c:v","libx264","-preset","veryfast","-crf","17",outro]); clips.append(outro); audio_parts.append(np.zeros(int(8*48000),dtype=np.float32)); current+=8
 concat=WORK/"concat.txt"; concat.write_text("\n".join(f"file '{x.resolve()}'" for x in clips),encoding="utf-8")
 base=WORK/"base.mp4"; run(["ffmpeg","-y","-loglevel","error","-f","concat","-safe","0","-i",concat,"-c","copy",base])
+narration = np.concatenate(audio_parts) if audio_parts else np.zeros(1,dtype=np.float32)
+narr = WORK/"narration_master.wav"; sf.write(narr,narration,48000)
 bg=WORK/"bgm_sfx.wav"; bgm_with_sfx(current,chapter_times,accent_times,bg)
 final=OUT/"ssd_hdd_motion_complete.mp4"
-run(["ffmpeg","-y","-loglevel","error","-i",base,"-i",bg,"-filter_complex","[1:a]volume=0.20[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[a]","-map","0:v","-map","[a]","-c:v","libx264","-preset","medium","-b:v","8M","-minrate","8M","-maxrate","8M","-bufsize","16M","-x264-params","nal-hrd=cbr:force-cfr=1","-pix_fmt","yuv420p","-c:a","aac","-b:a","256k","-movflags","+faststart",final])
+run(["ffmpeg","-y","-loglevel","error","-i",base,"-i",narr,"-i",bg,"-filter_complex","[1:a]volume=1.0[n];[2:a]volume=0.20[bg];[n][bg]amix=inputs=2:duration=first:dropout_transition=2[a]","-map","0:v","-map","[a]","-t",f"{current:.3f}","-c:v","libx264","-preset","medium","-b:v","8M","-minrate","8M","-maxrate","8M","-bufsize","16M","-x264-params","nal-hrd=cbr:force-cfr=1","-pix_fmt","yuv420p","-c:a","aac","-b:a","256k","-movflags","+faststart",final])
 run(["ffmpeg","-y","-loglevel","error","-i",final,"-vf","scale=1280:720","-c:v","libx264","-preset","veryfast","-crf","21","-c:a","aac","-b:a","160k",OUT/"ssd_hdd_motion_preview.mp4"])
-run(["ffmpeg","-y","-loglevel","error","-i",base,"-vn","-c:a","pcm_s16le",OUT/"narration.wav"])
+sf.write(OUT/"narration.wav",narration,48000)
 with open(OUT/"subtitles.srt","w",encoding="utf-8") as f:
     for n,st,en,s in subs: f.write(f"{n}\n{stamp(st)} --> {stamp(en)}\n{s}\n\n")
 (OUT/"chapters.txt").write_text("\n".join(chapter_lines),encoding="utf-8")
