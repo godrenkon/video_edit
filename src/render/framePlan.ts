@@ -12,7 +12,7 @@ import type {
   Transform,
 } from '../types/editor';
 import { visualTimelineItems, zundamonVisualState } from './timelineEvaluation';
-import { transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect, type TransitionRevealRect } from './transitionEnvelope';
+import { transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect, transitionScale, type TransitionRevealRect } from './transitionEnvelope';
 
 export interface VisualFrameLayerPlan {
   clipId: string;
@@ -60,7 +60,7 @@ export function buildVisualFramePlan(project: Project, timeSeconds: number): Vis
       transform: {
         x: clip.transform.x + transitionOffset.x,
         y: clip.transform.y + transitionOffset.y + (zundamon?.bobOffset ?? 0),
-        scale: clip.transform.scale,
+        scale: clip.transform.scale * transitionScale(clip, clipLocalTime),
         rotation: clip.transform.rotation,
         opacity: clip.transform.opacity * transitionOpacity(clip, clipLocalTime),
         anchorX: clip.transform.anchorX ?? 0.5,
