@@ -42,6 +42,8 @@ const transitionKinds: Array<{ value: 'none' | TransitionKind; label: string }> 
   { value: 'wipe-right', label: 'ワイプ →' },
   { value: 'wipe-up', label: 'ワイプ ↑' },
   { value: 'wipe-down', label: 'ワイプ ↓' },
+  { value: 'zoom-in', label: 'ズームイン' },
+  { value: 'zoom-out', label: 'ズームアウト' },
 ];
 
 export function Inspector({
@@ -451,7 +453,7 @@ export function Inspector({
                       })}
                     />
                   </div>
-                  <div className="infoCard">ディゾルブはクロスフェード、ディップは黒へ落として復帰、スライドは位置移動、ワイプは選択方向の境界で表示領域を開閉します。Previewと最終書き出しは同じ進行計算を使います。</div>
+                  <div className="infoCard">ディゾルブはクロスフェード、ディップは黒へ落として復帰、スライドは位置移動、ワイプは表示領域、ズームはスケール＋フェードを制御します。Previewと最終書き出しは同じ進行計算を使います。</div>
                 </>
               )}
               <Field label="合成">
