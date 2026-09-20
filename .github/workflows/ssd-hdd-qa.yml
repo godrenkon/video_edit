@@ -1,0 +1,46 @@
+name: QA Existing SSD HDD Video
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download completed video artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-motion-video
+          path: src
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35508551715
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Inspect and extract QA assets
+        run: |
+          mkdir -p qa/frames
+          ffprobe -v error -show_streams -show_format -of json src/ssd_hdd_motion_complete.mp4 > qa/ffprobe.json
+          cp src/ssd_hdd_motion_preview.mp4 qa/preview.mp4
+          cp src/subtitles.srt qa/subtitles.srt
+          cp src/chapters.txt qa/chapters.txt
+          for T in 20 120 240 360 480 600 720 840 960 1080 1200; do
+            ffmpeg -y -loglevel error -ss "$T" -i src/ssd_hdd_motion_complete.mp4 -frames:v 1 "qa/frames/frame_${T}.png"
+          done
+          ffmpeg -y -loglevel error -ss 230 -i src/ssd_hdd_motion_complete.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k qa/sample_hdd.mp4
+          ffmpeg -y -loglevel error -ss 510 -i src/ssd_hdd_motion_complete.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k qa/sample_types.mp4
+          ffmpeg -y -loglevel error -ss 930 -i src/ssd_hdd_motion_complete.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k qa/sample_backup.mp4
+          ls -lah qa qa/frames
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-motion-qa
+          path: qa
+          compression-level: 0
+          retention-days: 7
