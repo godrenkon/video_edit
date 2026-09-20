@@ -40,16 +40,68 @@ _grad = np.repeat(_grad, W, axis=1).astype(np.uint8)
 BASE_BG = Image.fromarray(_grad, "RGB")
 
 def bg_image(title, caption=""):
-    im=BASE_BG.copy()
-    d=ImageDraw.Draw(im,"RGBA")
-    for x in range(90,W,120): d.line((x,210,x,H-110),fill=(255,255,255,7),width=1)
-    for y in range(240,H-110,120): d.line((70,y,W-70,y),fill=(255,255,255,7),width=1)
-    txt(d,(100,76),title,36,MUTED,"la")
-    d.line((100,132,430,132),fill=CYAN,width=3)
-    if caption:
-        rr(d,(370,884,1550,978),24,(4,8,18,215),outline=(255,255,255,20),width=2)
-        txt(d,(960,931),caption,40,WHITE,"mm",True)
+    # Layered dark-tech background: soft glows, sparse particles, circuit lines,
+    # and a compact chapter badge. No baked narration text lives here.
+    if "バックアップ" in title:
+        accent = GREEN
+    elif "寿命" in title:
+        accent = RED
+    elif "HDD" in title and "SSD" not in title:
+        accent = HDD
+    elif "SSD" in title and "HDD" not in title:
+        accent = SSD
+    else:
+        accent = CYAN
+
+    im = BASE_BG.copy().convert("RGBA")
+
+    glow = Image.new("RGBA",(W,H),(0,0,0,0))
+    gd = ImageDraw.Draw(glow,"RGBA")
+    gd.ellipse((-380,130,760,1270), fill=(*accent,38))
+    gd.ellipse((1180,-380,2320,760), fill=(*SSD,22))
+    gd.ellipse((760,580,1500,1320), fill=(*HDD,12))
+    glow = glow.filter(ImageFilter.GaussianBlur(170))
+    im = Image.alpha_composite(im, glow)
+
+    d = ImageDraw.Draw(im,"RGBA")
+
+    # Fine technical grid/circuit traces.
+    for x in range(80,W,160):
+        d.line((x,205,x,H-90),fill=(255,255,255,8),width=1)
+    for y in range(225,H-90,120):
+        d.line((65,y,W-65,y),fill=(255,255,255,8),width=1)
+    for x in range(160,W-220,330):
+        y = 270 + ((x//330)%3)*120
+        d.line((x,y,x+155,y),fill=(*accent,22),width=2)
+        d.ellipse((x+151,y-4,x+159,y+4),fill=(*accent,55))
+
+    # Sparse particles; deterministic per title.
+    seed = sum((i+1)*ord(ch) for i,ch in enumerate(title)) & 0xffffffff
+    rng = np.random.default_rng(seed)
+    for _ in range(58):
+        px=int(rng.integers(70,W-70)); py=int(rng.integers(170,H-100))
+        r=int(rng.integers(1,3)); a=int(rng.integers(18,48))
+        d.ellipse((px-r,py-r,px+r,py+r),fill=(220,235,255,a))
+
+    # Top chrome.
+    chap = re.search(r"第(\d+)章", title)
+    badge = f"CHAPTER {int(chap.group(1)):02d}" if chap else ("INTRO" if "オープニング" in title else "STORAGE GUIDE")
+    rr(d,(86,56,300,108),16,(*accent,34),outline=(*accent,120),width=2)
+    txt(d,(193,82),badge,22,accent,"mm",True)
+    shown_title = title.split("　",1)[-1] if "　" in title else title
+    txt(d,(330,82),shown_title,31,WHITE,"lm",True)
+    txt(d,(1810,82),"SSD / HDD",22,MUTED,"rm",True)
+
+    # Lower progress rail and vignette.
+    d.rounded_rectangle((86,1017,1834,1023),radius=3,fill=(255,255,255,18))
+    vig = Image.new("RGBA",(W,H),(0,0,0,0))
+    vd = ImageDraw.Draw(vig,"RGBA")
+    for k,a in [(0,90),(22,52),(45,24)]:
+        vd.rectangle((k,k,W-k,H-k),outline=(0,0,0,a),width=28)
+    vig = vig.filter(ImageFilter.GaussianBlur(18))
+    im = Image.alpha_composite(im, vig)
     return im
+
 
 def short_caption(s):
     pairs=[
@@ -115,7 +167,7 @@ def save(im,name):
     p=WORK/name; im.save(p); return p
 
 def make_base(title,s,kind):
-    im=bg_image(title,short_caption(s)); d=ImageDraw.Draw(im,"RGBA")
+    im=bg_image(title,""); d=ImageDraw.Draw(im,"RGBA")
     if kind=="storage":
         rr(d,(260,300,790,700),34,(20,34,58,235),outline=CYAN,width=4)
         rr(d,(1130,300,1660,700),34,(20,34,58,235),outline=SSD,width=4)
@@ -272,51 +324,246 @@ def title_segment(title,secidx):
     run(["ffmpeg","-y","-loglevel","error","-loop","1","-i",p,"-loop","1","-i",SPR["scan"],"-filter_complex",f"[1:v]format=rgba,colorchannelmixer=aa=0.42[s];[0:v][s]overlay=x='-120+mod(t*420,{W+240})':y=300,fade=t=in:st=0:d=0.25,fade=t=out:st=1.05:d=0.25,format=yuv420p[v]","-map","[v]","-t","1.3","-r",str(FPS),"-an","-c:v","libx264","-preset","veryfast","-crf","17",out])
     return out
 
-def bgm_with_sfx(duration,chapter_times,accent_times,path):
-    sr=48000; n=int(duration*sr); t=np.arange(n)/sr; y=np.zeros(n,dtype=np.float32)
-    chords=[(110,164.81,220),(98,146.83,196),(130.81,196,261.63),(87.31,130.81,174.61)]; block=8
-    for i in range(int(duration//block)+1):
-        a=int(i*block*sr); b=min(n,int((i+1)*block*sr)); tt=t[a:b]; c=chords[i%len(chords)]
-        pad=sum(np.sin(2*np.pi*f*tt+j*.55) for j,f in enumerate(c))/3
-        y[a:b]+=0.032*pad*(0.78+0.22*np.sin(2*np.pi*tt/block))
-    for beat in np.arange(0,duration,2.0):
-        a=int(beat*sr); L=min(n-a,int(.07*sr)); tt=np.arange(max(0,L))/sr
-        if L>0: y[a:a+L]+=0.007*np.sin(2*np.pi*95*tt)*np.exp(-tt*35)
-    def add_chime(at,freq=880,amp=.06,L=.28):
-        a=int(at*sr); m=min(n-a,int(L*sr))
-        if m<=0:return
-        tt=np.arange(m)/sr; y[a:a+m]+=amp*np.sin(2*np.pi*freq*tt)*np.exp(-tt*8)
-    for at in chapter_times: add_chime(at,700,.045,.35)
-    for at in accent_times: add_chime(at,1040,.035,.20)
-    sf.write(path,y,sr)
+def bgm_with_sfx(duration, chapter_times, accent_times, bg_path, se_path):
+    """Create original stereo music and a separate SFX stem.
+    The bed changes energy by chapter so it never feels like one endless loop.
+    """
+    sr=48000
+    n=int(round(duration*sr))
+    music=np.zeros((n,2),dtype=np.float32)
+    sfx=np.zeros((n,2),dtype=np.float32)
+    rng=np.random.default_rng(20260920)
+
+    bounds=[0.0]+list(chapter_times)+[duration]
+
+    def add_sig(arr, at, sig, pan=0.5):
+        a=max(0,int(round(at*sr)))
+        if a>=n: return
+        m=min(len(sig),n-a)
+        if m<=0: return
+        pan=max(0.0,min(1.0,pan))
+        l=math.cos(pan*math.pi/2)
+        r=math.sin(pan*math.pi/2)
+        arr[a:a+m,0]+=sig[:m]*l
+        arr[a:a+m,1]+=sig[:m]*r
+
+    def tone(freq,length,amp=.03,decay=2.5,kind="sine"):
+        m=max(1,int(length*sr)); tt=np.arange(m,dtype=np.float32)/sr
+        if kind=="tri":
+            sig=(2/np.pi)*np.arcsin(np.sin(2*np.pi*freq*tt))
+        elif kind=="softsquare":
+            sig=np.tanh(1.8*np.sin(2*np.pi*freq*tt))
+        else:
+            sig=np.sin(2*np.pi*freq*tt)
+        env=np.exp(-tt*decay)
+        return (sig*env*amp).astype(np.float32)
+
+    def pad(chord,length,amp=.018):
+        m=max(1,int(length*sr)); tt=np.arange(m,dtype=np.float32)/sr
+        sig=np.zeros(m,dtype=np.float32)
+        for j,f in enumerate(chord):
+            sig += np.sin(2*np.pi*f*tt + j*.65).astype(np.float32)
+            sig += .22*np.sin(2*np.pi*(f*2.0)*tt + j*.33).astype(np.float32)
+        sig /= max(1,len(chord))
+        attack=np.clip(tt/.75,0,1)
+        release=np.clip((length-tt)/1.1,0,1)
+        env=np.minimum(attack,release)
+        return (sig*env*amp).astype(np.float32)
+
+    def noise_hit(length=.12,amp=.02,bright=True):
+        m=max(1,int(length*sr)); tt=np.arange(m,dtype=np.float32)/sr
+        z=rng.standard_normal(m).astype(np.float32)
+        if bright:
+            z=np.concatenate([[0],np.diff(z)]).astype(np.float32)
+        env=np.exp(-tt*(35 if bright else 16))
+        return (z*env*amp).astype(np.float32)
+
+    progressions=[
+        [(110.00,138.59,164.81),(98.00,123.47,146.83),(130.81,164.81,196.00),(87.31,110.00,130.81)],
+        [(130.81,164.81,196.00),(110.00,146.83,174.61),(146.83,185.00,220.00),(98.00,130.81,164.81)],
+    ]
+
+    for sec in range(len(bounds)-1):
+        st,en=bounds[sec],bounds[sec+1]
+        if en<=st: continue
+        serious = sec in (8,9)
+        tech = sec in (4,5,6)
+        finalish = sec >= 10
+        bpm = 82 if serious else (108 if tech else (102 if finalish else 96))
+        beat=60.0/bpm
+        chord_len=beat*8
+        prog=progressions[1 if tech else 0]
+
+        # pads
+        ci=0; t0=st
+        while t0<en:
+            L=min(chord_len,en-t0)
+            ps=pad(prog[ci%len(prog)],L,amp=.013 if serious else .017)
+            add_sig(music,t0,ps,pan=.32 if ci%2==0 else .68)
+            t0+=L; ci+=1
+
+        # rhythm + bass + arpeggio
+        b=0; t0=st
+        notes=[0,2,1,2,0,1,2,1]
+        while t0<en:
+            chord=prog[(b//8)%len(prog)]
+            # warm bass on quarter notes
+            if b%2==0:
+                add_sig(music,t0,tone(chord[0]/2,.55,.018 if serious else .025,4.2,"sine"),.50)
+            # kick/snare/hats; lighter in serious chapters
+            if b%4 in (0,):
+                k=tone(64,.20,.035 if not serious else .020,14.0,"sine")
+                add_sig(music,t0,k,.50)
+            if b%4==2 and not serious:
+                add_sig(music,t0,noise_hit(.16,.012,False),.50)
+            if not serious or b%2==0:
+                add_sig(music,t0+beat*.5,noise_hit(.055,.006 if serious else .009,True),.78 if b%4<2 else .22)
+            # short pluck arpeggio; more present in tech chapters
+            nf=chord[notes[b%len(notes)]%len(chord)]*2
+            amp=.010 if serious else (.021 if tech else .014)
+            add_sig(music,t0+beat*.25,tone(nf,.28,amp,8.0,"tri"),.28 if b%2==0 else .72)
+            t0+=beat; b+=1
+
+    # chapter transition whooshes + chimes
+    for at in chapter_times:
+        L=.70; m=int(L*sr); tt=np.arange(m,dtype=np.float32)/sr
+        z=rng.standard_normal(m).astype(np.float32)
+        env=(np.clip(tt/.35,0,1)*np.clip((L-tt)/.22,0,1))
+        whoosh=z*env*.018
+        add_sig(sfx,max(0,at-.35),whoosh,.5)
+        add_sig(sfx,at,tone(880,.45,.060,6.5,"sine"),.42)
+        add_sig(sfx,at+.03,tone(1320,.33,.035,8.0,"sine"),.62)
+
+    for i,at in enumerate(accent_times):
+        add_sig(sfx,at,tone(1040,.24,.045,10.0,"tri"),.35 if i%2==0 else .65)
+
+    # Gentle master normalization, preserving headroom for narration later.
+    mp=float(np.max(np.abs(music))) if len(music) else 1.0
+    sp=float(np.max(np.abs(sfx))) if len(sfx) else 1.0
+    if mp>0: music*=min(1.0,.20/mp)
+    if sp>0: sfx*=min(1.0,.28/sp)
+    sf.write(bg_path,music,sr)
+    sf.write(se_path,sfx,sr)
+
 
 def stamp(t):
     h=int(t//3600); m=int((t%3600)//60); s=t%60; return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".",",")
 
-clips=[]; subs=[]; chapter_lines=[]; chapter_times=[]; accent_times=[]; audio_parts=[]; current=0.0; idx=0
+
+def ass_time(t):
+    h=int(t//3600); m=int((t%3600)//60); s=t%60
+    return f"{h}:{m:02d}:{s:05.2f}"
+
+def split_caption_phrases(text, target=15, maxlen=21):
+    text=text.strip()
+    rough=[p for p in re.split(r"(?<=[、。！？!?])",text) if p.strip()]
+    out=[]
+    connectors=["けど","ので","から","そして","つまり","一方","ただし","例えば","という","ため","すると"]
+    for part in rough:
+        part=part.strip()
+        while len(part)>maxlen:
+            limit=min(maxlen,len(part))
+            cuts=[i+1 for i,ch in enumerate(part[:limit]) if ch in "、， "]
+            for w in connectors:
+                p=part.rfind(w,max(5,target//2),limit)
+                if p>0: cuts.append(p)
+            cut=max(cuts) if cuts else target
+            out.append(part[:cut].strip(" 、，"))
+            part=part[cut:].lstrip(" 、，")
+        if part: out.append(part)
+    merged=[]
+    for p in out:
+        if merged and len(p)<=4 and len(merged[-1])+len(p)<=maxlen:
+            merged[-1]+=p
+        else:
+            merged.append(p)
+    return merged or [text]
+
+ASS_COLORS={
+    "SSD":"&H00FF8935&","NVMe":"&H00E0DC46&","M.2":"&H00FF8935&","NAND":"&H00FF8935&",
+    "HDD":"&H00449EF6&","プラッタ":"&H00449EF6&","ヘッド":"&H00449EF6&","CMR":"&H00449EF6&","SMR":"&H00449EF6&",
+    "TBW":"&H006758FF&","故障":"&H006758FF&","≠":"&H006758FF&",
+    "3-2-1":"&H008FD250&","バックアップ":"&H008FD250&",
+    "FPS":"&H00E0DC46&","RAM":"&H00E0DC46&"
+}
+
+def ass_escape(s):
+    return s.replace("\\","\\\\").replace("{","(").replace("}",")")
+
+def ass_highlight(s):
+    s=ass_escape(s)
+    keys=sorted(ASS_COLORS,key=len,reverse=True)
+    pat=re.compile("|".join(re.escape(k) for k in keys))
+    def repl(m):
+        return "{\\c"+ASS_COLORS[m.group(0)]+"}"+m.group(0)+"{\\c&H00FFFFFF&}"
+    s=pat.sub(repl,s)
+    plain=re.sub(r"{[^}]+}","",s)
+    if len(plain)>17 and "\\N" not in s:
+        # Pick a visually balanced line break while ignoring ASS tags.
+        raw=plain
+        cut=min(range(max(7,len(raw)//2-3),min(len(raw)-6,len(raw)//2+4)+1),key=lambda x:abs(x-len(raw)/2))
+        left=raw[:cut]; right=raw[cut:]
+        # Re-run highlighting per line to avoid breaking inside tags.
+        return ass_highlight(left)+"\\N"+ass_highlight(right)
+    return s
+
+def make_ass(events,path):
+    header="""[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.709
+
+[V4+ Styles]
+Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
+Style: Main,Noto Sans CJK JP,68,&H00FFFFFF,&H00FFFFFF,&H00101010,&H70000000,-1,0,0,0,100,100,1,0,1,7,3,2,90,90,82,1
+
+[Events]
+Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+"""
+    lines=[header]
+    for st,en,phrase in events:
+        txt=ass_highlight(phrase)
+        tags="{\\fad(65,75)\\fscx94\\fscy94\\t(0,120,\\fscx100\\fscy100)}"
+        lines.append(f"Dialogue: 0,{ass_time(st)},{ass_time(en)},Main,,0,0,0,,{tags}{txt}\n")
+    Path(path).write_text("".join(lines),encoding="utf-8-sig")
+
+clips=[]; subs=[]; caption_events=[]; chapter_lines=[]; chapter_times=[]; accent_times=[]; current=0.0; idx=0
 for sec_i,(title,sents) in enumerate(SECTIONS):
     if sec_i>0:
-        chapter_times.append(current); clips.append(title_segment(title,sec_i)); audio_parts.append(np.zeros(int(round(1.3*48000)),dtype=np.float32)); current+=1.3
+        chapter_times.append(current); clips.append(title_segment(title,sec_i)); current+=1.3
     chapter_lines.append(f"{int(current//60):02d}:{int(current%60):02d} {title}")
     for s in sents:
         wav=WORK/f"voice_{idx:04d}.wav"; tts(s,wav); voice48=read_voice_48k(wav,.10); duration=len(voice48)/48000.0
-        kind=scene_kind(title,s); seg=render_segment(title,s,kind,wav,duration,idx); clips.append(seg); audio_parts.append(voice48)
-        st=current; en=current+duration; subs.append((idx+1,st,en,s)); current=en
+        kind=scene_kind(title,s); seg=render_segment(title,s,kind,wav,duration,idx); clips.append(seg)
+        st=current; en=current+duration; subs.append((idx+1,st,en,s))
+        phrases=split_caption_phrases(s)
+        weights=[max(4,len(re.sub(r"[、。！？!? ]","",p))) for p in phrases]
+        totalw=sum(weights) or 1
+        cursor=st
+        for pi,(p,wgt) in enumerate(zip(phrases,weights)):
+            pend=en if pi==len(phrases)-1 else cursor+duration*(wgt/totalw)
+            caption_events.append((cursor,min(en,pend),p))
+            cursor=pend
+        current=en
         if any(k in s for k in ["M.2","TBW","FPS","3-2-1","使い分け"]): accent_times.append(st+.15)
         idx+=1
-im=bg_image("",""); d=ImageDraw.Draw(im,"RGBA"); txt(d,(1440,870),'次回「SSDとHDDの歴史」',48,WHITE,"mm"); txt(d,(960,990),"VOICEVOX:ずんだもん",24,MUTED,"mm")
+im=bg_image("",""); d=ImageDraw.Draw(im,"RGBA"); txt(d,(1440,870),'次回「SSDとHDDの歴史」',48,WHITE,"mm")
 p=save(im,"next.png"); outro=WORK/"outro.mp4"
-run(["ffmpeg","-y","-loglevel","error","-loop","1","-i",p,"-t","8","-vf",f"scale={W}:{H},fade=t=in:st=4:d=1,format=yuv420p","-r",str(FPS),"-an","-c:v","libx264","-preset","veryfast","-crf","17",outro]); clips.append(outro); audio_parts.append(np.zeros(int(8*48000),dtype=np.float32)); current+=8
+run(["ffmpeg","-y","-loglevel","error","-loop","1","-i",p,"-t","8","-vf",f"scale={W}:{H},fade=t=in:st=4:d=1,format=yuv420p","-r",str(FPS),"-an","-c:v","libx264","-preset","veryfast","-crf","17",outro]); clips.append(outro); current+=8
 concat=WORK/"concat.txt"; concat.write_text("\n".join(f"file '{x.resolve()}'" for x in clips),encoding="utf-8")
 base=WORK/"base.mp4"; run(["ffmpeg","-y","-loglevel","error","-f","concat","-safe","0","-i",concat,"-c","copy",base])
-narration = np.concatenate(audio_parts) if audio_parts else np.zeros(1,dtype=np.float32)
-narr = WORK/"narration_master.wav"; sf.write(narr,narration,48000)
-bg=WORK/"bgm_sfx.wav"; bgm_with_sfx(current,chapter_times,accent_times,bg)
-final=OUT/"ssd_hdd_motion_complete.mp4"
-run(["ffmpeg","-y","-loglevel","error","-i",base,"-i",narr,"-i",bg,"-filter_complex","[1:a]volume=1.0[n];[2:a]volume=0.20[bg];[n][bg]amix=inputs=2:duration=first:dropout_transition=2[a]","-map","0:v","-map","[a]","-t",f"{current:.3f}","-c:v","libx264","-preset","medium","-b:v","8M","-minrate","8M","-maxrate","8M","-bufsize","16M","-x264-params","nal-hrd=cbr:force-cfr=1","-pix_fmt","yuv420p","-c:a","aac","-b:a","256k","-movflags","+faststart",final])
-run(["ffmpeg","-y","-loglevel","error","-i",final,"-vf","scale=1280:720","-c:v","libx264","-preset","veryfast","-crf","21","-c:a","aac","-b:a","160k",OUT/"ssd_hdd_motion_preview.mp4"])
-sf.write(OUT/"narration.wav",narration,48000)
+ass_path=OUT/"subtitles.ass"; make_ass(caption_events,ass_path)
+bg=OUT/"bgm_stem.wav"; se=OUT/"se_stem.wav"; bgm_with_sfx(current,chapter_times,accent_times,bg,se)
+mix=WORK/"bgm_se_mix.wav"
+run(["ffmpeg","-y","-loglevel","error","-i",bg,"-i",se,"-filter_complex","[0:a]volume=1.0[b];[1:a]volume=1.0[s];[b][s]amix=inputs=2:duration=longest:dropout_transition=0[m]","-map","[m]","-c:a","pcm_s24le",mix])
+final=OUT/"SSD_HDD_MASTER_NO_NARRATION.mp4"
+ass_filter=f"ass={ass_path.as_posix()}:fontsdir=/usr/share/fonts/opentype/noto"
+run(["ffmpeg","-y","-loglevel","error","-i",base,"-i",mix,"-vf",ass_filter,"-map","0:v","-map","1:a","-t",f"{current:.3f}","-c:v","libx264","-preset","medium","-b:v","10M","-minrate","10M","-maxrate","10M","-bufsize","20M","-x264-params","nal-hrd=cbr:force-cfr=1","-pix_fmt","yuv420p","-c:a","aac","-b:a","256k","-movflags","+faststart",final])
+run(["ffmpeg","-y","-loglevel","error","-i",final,"-vf","scale=1280:720","-c:v","libx264","-preset","veryfast","-crf","21","-c:a","aac","-b:a","160k",OUT/"SSD_HDD_PREVIEW_NO_NARRATION.mp4"])
 with open(OUT/"subtitles.srt","w",encoding="utf-8") as f:
-    for n,st,en,s in subs: f.write(f"{n}\n{stamp(st)} --> {stamp(en)}\n{s}\n\n")
+    for n,(st,en,p) in enumerate(caption_events,1): f.write(f"{n}\n{stamp(st)} --> {stamp(en)}\n{p}\n\n")
 (OUT/"chapters.txt").write_text("\n".join(chapter_lines),encoding="utf-8")
 print("DONE",final,"duration",current,"sentences",idx)
