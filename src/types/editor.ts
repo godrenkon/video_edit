@@ -74,6 +74,22 @@ export interface Crop {
   left: number;
 }
 
+export type MaskKind = 'rectangle' | 'ellipse';
+export type MaskOperation = 'add' | 'subtract' | 'intersect';
+
+export interface ClipMask {
+  id: string;
+  kind: MaskKind;
+  operation: MaskOperation;
+  enabled: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  feather: number;
+  invert: boolean;
+}
+
 export interface Keyframe {
   id: string;
   time: number;
@@ -201,6 +217,7 @@ export interface Clip {
   transitionIn?: ClipTransition;
   transitionOut?: ClipTransition;
   effects?: EffectInstance[];
+  masks?: ClipMask[];
   groupId?: string;
   text?: TextPayload;
   subtitle?: SubtitlePayload;
