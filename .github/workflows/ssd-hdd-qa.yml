@@ -1,5 +1,10 @@
 name: QA Existing SSD HDD Video
 on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-qa.yml"
   workflow_dispatch:
 
 permissions:
@@ -36,7 +41,6 @@ jobs:
           ffmpeg -y -loglevel error -ss 230 -i src/ssd_hdd_motion_complete.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k qa/sample_hdd.mp4
           ffmpeg -y -loglevel error -ss 510 -i src/ssd_hdd_motion_complete.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k qa/sample_types.mp4
           ffmpeg -y -loglevel error -ss 930 -i src/ssd_hdd_motion_complete.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k qa/sample_backup.mp4
-          ls -lah qa qa/frames
 
       - uses: actions/upload-artifact@v4
         with:
