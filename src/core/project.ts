@@ -1,4 +1,4 @@
-import type { AssetKind, Clip, GeneratorPayload, Project, TrackKind } from '../types/editor';
+import type { AssetKind, Clip, GeneratorPayload, Project, ShapePayload, TrackKind } from '../types/editor';
 
 export type LowerThirdPreset = 'clean' | 'accent' | 'minimal';
 
@@ -148,6 +148,27 @@ export function defaultSubtitleClip(start: number, y = 0, duration = 4): Clip {
   };
 }
 
+export function defaultShapeClip(
+  start: number,
+  kind: ShapePayload['kind'] = 'rectangle',
+  duration = 5,
+): Clip {
+  const shape: ShapePayload = {
+    kind,
+    width: kind === 'line' ? 640 : 520,
+    height: kind === 'line' ? 4 : 320,
+    fill: kind === 'line' ? '#ffffff' : '#5fd8ff',
+    stroke: '#ffffff',
+    strokeWidth: kind === 'line' ? 0 : 0,
+    cornerRadius: kind === 'rectangle' ? 24 : 0,
+  };
+
+  return {
+    ...baseTimelineClip('shape', shapeName(kind), start, duration),
+    shape,
+  };
+}
+
 export function defaultGeneratorClip(
   start: number,
   kind: GeneratorPayload['kind'] = 'color',
@@ -191,6 +212,12 @@ function baseTimelineClip(kind: Clip['kind'], name: string, start: number, durat
     reverse: false,
     effects: [],
   };
+}
+
+function shapeName(kind: ShapePayload['kind']) {
+  if (kind === 'ellipse') return '楕円';
+  if (kind === 'line') return 'ライン';
+  return '長方形';
 }
 
 function generatorName(kind: GeneratorPayload['kind']) {
