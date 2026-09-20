@@ -1,16 +1,26 @@
 import { useEffect, useState } from 'react';
-import { Activity, Clapperboard, Download, FolderOpen, RefreshCcw, Save, Search, X } from 'lucide-react';
+import { Activity, Clapperboard, Download, FolderOpen, ListVideo, RefreshCcw, Save, Search, X } from 'lucide-react';
 import {
   probeCapabilities,
   type BrowserCapabilityReport,
   type CapabilityReport,
   type CapabilityState,
 } from '../core/capabilities';
+import { ProjectLauncherPanel } from './ProjectLauncherPanel';
+import { RenderQueuePanel } from './RenderQueuePanel';
+import type { StoredProjectInfo } from '../core/storage';
+import type { RenderQueueJob } from '../render/renderQueue';
 import '../capabilities.css';
 
 interface Props {
   projectName: string;
+  projectId: string;
+  projects: StoredProjectInfo[];
+  projectLauncherBusy: boolean;
   onProjectName: (name: string) => void;
+  onNewProject: () => void;
+  onOpenProject: (projectId: string) => void;
+  onDeleteProject: (projectId: string) => void;
   onSave: () => void;
   onBackup: () => void;
   onSearch: () => void;
@@ -18,13 +28,23 @@ interface Props {
   onCancelRender: () => void;
   rendering: boolean;
   renderProgress: number | null;
+  renderQueueJobs: RenderQueueJob[];
+  onQueueRender: () => void;
+  onRemoveQueuedRender: (jobId: string) => void;
+  onClearFinishedRenders: () => void;
   capabilities: CapabilityReport;
   saveState: string;
 }
 
 export function TopBar({
   projectName,
+  projectId,
+  projects,
+  projectLauncherBusy,
   onProjectName,
+  onNewProject,
+  onOpenProject,
+  onDeleteProject,
   onSave,
   onBackup,
   onSearch,
@@ -32,6 +52,10 @@ export function TopBar({
   onCancelRender,
   rendering,
   renderProgress,
+  renderQueueJobs,
+  onQueueRender,
+  onRemoveQueuedRender,
+  onClearFinishedRenders,
   capabilities,
   saveState,
 }: Props) {
@@ -39,6 +63,8 @@ export function TopBar({
   const total = Object.keys(capabilities).length;
   const [diagnostics, setDiagnostics] = useState<BrowserCapabilityReport | null>(null);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [projectLauncherOpen, setProjectLauncherOpen] = useState(false);
+  const [renderQueueOpen, setRenderQueueOpen] = useState(false);
   const [diagnosticsBusy, setDiagnosticsBusy] = useState(true);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
@@ -117,6 +143,29 @@ export function TopBar({
         <div className="capWrap">
           <button
             type="button"
+            className="capPill capButton"
+            onClick={() => setProjectLauncherOpen((value) => !value)}
+            aria-expanded={projectLauncherOpen}
+            aria-label="プロジェクト一覧を表示"
+          >
+            <FolderOpen size={13} />
+            projects
+            <span>{projects.length}</span>
+          </button>
+          {projectLauncherOpen && (
+            <ProjectLauncherPanel
+              projects={projects}
+              currentProjectId={projectId}
+              busy={projectLauncherBusy}
+              onCreate={onNewProject}
+              onOpen={onOpenProject}
+              onDelete={onDeleteProject}
+            />
+          )}
+        </div>
+        <div className="capWrap">
+          <button
+            type="button"
             className={`capPill capButton ${diagnostics?.fallbackNotes.length ? 'warn' : ''}`}
             onClick={() => setDiagnosticsOpen((value) => !value)}
             aria-expanded={diagnosticsOpen}
@@ -139,6 +188,27 @@ export function TopBar({
             <Download size={16} />アプリ化
           </button>
         )}
+        <div className="capWrap">
+          <button
+            type="button"
+            className={`capPill capButton ${renderQueueJobs.some((job) => job.status === 'failed') ? 'warn' : ''}`}
+            onClick={() => setRenderQueueOpen((value) => !value)}
+            aria-expanded={renderQueueOpen}
+            aria-label="書き出しキューを表示"
+          >
+            <ListVideo size={13} />
+            queue
+            <span>{renderQueueJobs.filter((job) => job.status === 'queued' || job.status === 'rendering').length}/{renderQueueJobs.length}</span>
+          </button>
+          {renderQueueOpen && (
+            <RenderQueuePanel
+              jobs={renderQueueJobs}
+              onAdd={onQueueRender}
+              onRemoveQueued={onRemoveQueuedRender}
+              onClearFinished={onClearFinishedRenders}
+            />
+          )}
+        </div>
         <button className="button" onClick={onSearch} disabled={rendering} title="プロジェクト全体検索 (Ctrl/Cmd+Shift+F)">
           <Search size={16} />検索
         </button>

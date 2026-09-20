@@ -2,6 +2,9 @@ import type { Project } from '../types/editor';
 import { migrateProject } from './migration';
 
 const PROJECT_FILE = 'project.json';
+const PROJECTS_DIR = 'projects';
+const PROJECT_INDEX_FILE = 'index.json';
+const ACTIVE_PROJECT_STORAGE_KEY = 'suiram.video-edit.active-project-id';
 const ASSET_DIR = 'assets';
 const SNAPSHOT_DIR = 'snapshots';
 const WAVEFORM_DIR = 'waveforms';
@@ -16,6 +19,17 @@ export interface RecoverySnapshotInfo {
   size: number;
   projectName: string;
   projectUpdatedAt: string;
+}
+
+export interface StoredProjectInfo {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  width: number;
+  height: number;
+  fps: number;
+  duration: number;
 }
 
 async function root() {
@@ -128,21 +142,72 @@ export async function saveProject(project: Project) {
     lastSnapshotAt = now;
   }
 
+  // Keep the historical root file as a compatibility/current-project mirror.
+  // Project-specific records power the multi-project launcher without making
+  // existing installations or recovery logic unreadable.
   const handle = await r.getFileHandle(PROJECT_FILE, { create: true });
   await writeText(handle, json);
+  await writeStoredProject(r, safeProject, json);
+  setActiveProjectId(safeProject.id);
 }
 
 export async function loadProject(): Promise<Project | null> {
   const r = await root();
+  const activeId = getActiveProjectId();
+
+  if (activeId) {
+    const active = await readStoredProject(r, activeId);
+    if (active) return active;
+  }
 
   try {
     const handle = await r.getFileHandle(PROJECT_FILE);
     const file = await handle.getFile();
-    return migrateProject(JSON.parse(await file.text()));
+    const project = migrateProject(JSON.parse(await file.text()));
+    setActiveProjectId(project.id);
+    return project;
   } catch (error) {
     console.warn('Main project load failed; checking recovery snapshots', error);
-    return loadLatestRecoverySnapshot(r);
+    const recovered = await loadLatestRecoverySnapshot(r);
+    if (recovered) setActiveProjectId(recovered.id);
+    return recovered;
   }
+}
+
+export async function listStoredProjects(): Promise<StoredProjectInfo[]> {
+  const r = await root();
+  const catalog = await readProjectIndex(r);
+
+  // A project created by an older build may only exist at /project.json until
+  // the first save after this upgrade. Surface it immediately in the launcher.
+  try {
+    const handle = await r.getFileHandle(PROJECT_FILE);
+    const file = await handle.getFile();
+    const legacy = migrateProject(JSON.parse(await file.text()));
+    if (!catalog.some((entry) => entry.id === legacy.id)) catalog.push(projectInfo(legacy));
+  } catch {
+    // No legacy/current mirror is valid.
+  }
+
+  return normalizeProjectIndex(catalog);
+}
+
+export async function loadStoredProject(projectId: string): Promise<Project | null> {
+  if (!projectId) return null;
+  const r = await root();
+  const project = await readStoredProject(r, projectId);
+  if (project) setActiveProjectId(project.id);
+  return project;
+}
+
+export async function deleteStoredProject(projectId: string) {
+  if (!projectId) return;
+  const r = await root();
+  const dir = await r.getDirectoryHandle(PROJECTS_DIR, { create: true });
+  await dir.removeEntry(projectDirectoryName(projectId), { recursive: true }).catch(() => undefined);
+  const catalog = (await readProjectIndex(r)).filter((entry) => entry.id !== projectId);
+  await writeProjectIndex(r, catalog);
+  if (getActiveProjectId() === projectId) clearActiveProjectId();
 }
 
 export async function listRecoverySnapshots(): Promise<RecoverySnapshotInfo[]> {
@@ -194,6 +259,117 @@ function serializableProject(project: Project): Project {
     updatedAt: new Date().toISOString(),
     assets: project.assets.map(({ objectUrl: _objectUrl, proxyObjectUrl: _proxyObjectUrl, ...asset }) => asset),
   };
+}
+
+function getActiveProjectId() {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setActiveProjectId(projectId: string) {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, projectId);
+  } catch {
+    // Storage preferences are an optimization; OPFS remains the source of truth.
+  }
+}
+
+function clearActiveProjectId() {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
+  } catch {
+    // Ignore unavailable preference storage.
+  }
+}
+
+function projectDirectoryName(projectId: string) {
+  return `project-${fnv1a(projectId)}-${projectId.length}`;
+}
+
+function projectInfo(project: Project): StoredProjectInfo {
+  return {
+    id: project.id,
+    name: project.name || '無題のプロジェクト',
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt,
+    width: project.width,
+    height: project.height,
+    fps: project.fps,
+    duration: project.duration,
+  };
+}
+
+export function normalizeProjectIndex(entries: StoredProjectInfo[]) {
+  const byId = new Map<string, StoredProjectInfo>();
+  for (const entry of entries) {
+    if (!entry || typeof entry.id !== 'string' || !entry.id) continue;
+    const previous = byId.get(entry.id);
+    if (!previous || Date.parse(entry.updatedAt) >= Date.parse(previous.updatedAt)) byId.set(entry.id, entry);
+  }
+  return [...byId.values()].sort((a, b) => {
+    const time = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+    return Number.isFinite(time) && time !== 0 ? time : a.name.localeCompare(b.name);
+  });
+}
+
+async function writeStoredProject(r: FileSystemDirectoryHandle, project: Project, json: string) {
+  const projects = await r.getDirectoryHandle(PROJECTS_DIR, { create: true });
+  const directory = await projects.getDirectoryHandle(projectDirectoryName(project.id), { create: true });
+  const handle = await directory.getFileHandle(PROJECT_FILE, { create: true });
+  await writeText(handle, json);
+
+  const catalog = await readProjectIndex(r);
+  const next = normalizeProjectIndex([
+    ...catalog.filter((entry) => entry.id !== project.id),
+    projectInfo(project),
+  ]);
+  await writeProjectIndex(r, next);
+}
+
+async function readStoredProject(r: FileSystemDirectoryHandle, projectId: string): Promise<Project | null> {
+  try {
+    const projects = await r.getDirectoryHandle(PROJECTS_DIR);
+    const directory = await projects.getDirectoryHandle(projectDirectoryName(projectId));
+    const handle = await directory.getFileHandle(PROJECT_FILE);
+    const file = await handle.getFile();
+    const project = migrateProject(JSON.parse(await file.text()));
+    return project.id === projectId ? project : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readProjectIndex(r: FileSystemDirectoryHandle): Promise<StoredProjectInfo[]> {
+  try {
+    const projects = await r.getDirectoryHandle(PROJECTS_DIR);
+    const handle = await projects.getFileHandle(PROJECT_INDEX_FILE);
+    const file = await handle.getFile();
+    const parsed = JSON.parse(await file.text());
+    if (!Array.isArray(parsed)) return [];
+    return normalizeProjectIndex(parsed.filter((entry): entry is StoredProjectInfo => (
+      entry
+      && typeof entry === 'object'
+      && typeof entry.id === 'string'
+      && typeof entry.name === 'string'
+      && typeof entry.createdAt === 'string'
+      && typeof entry.updatedAt === 'string'
+      && typeof entry.width === 'number'
+      && typeof entry.height === 'number'
+      && typeof entry.fps === 'number'
+      && typeof entry.duration === 'number'
+    )));
+  } catch {
+    return [];
+  }
+}
+
+async function writeProjectIndex(r: FileSystemDirectoryHandle, entries: StoredProjectInfo[]) {
+  const projects = await r.getDirectoryHandle(PROJECTS_DIR, { create: true });
+  const handle = await projects.getFileHandle(PROJECT_INDEX_FILE, { create: true });
+  await writeText(handle, JSON.stringify(normalizeProjectIndex(entries), null, 2));
 }
 
 async function writeSnapshot(r: FileSystemDirectoryHandle, json: string, now: number) {

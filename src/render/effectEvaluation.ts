@@ -11,7 +11,7 @@ const CANVAS_FILTER_EFFECTS = new Set([
   'drop-shadow',
 ]);
 const VISUAL_OVERLAY_EFFECTS = new Set(['vignette', 'temperature-tint']);
-const PIXEL_EFFECTS = new Set(['sharpen', 'chroma-key', 'levels', 'lift-gamma-gain', 'tonal-ranges', 'tone-curve', 'hue-vs-sat']);
+const PIXEL_EFFECTS = new Set(['sharpen', 'chroma-key', 'luma-key', 'levels', 'lift-gamma-gain', 'tonal-ranges', 'tone-curve', 'hue-vs-sat', 'hue-shift', 'pixelate', 'grain', 'lut-3d']);
 
 export interface ResolvedVignette {
   amount: number;
@@ -42,6 +42,13 @@ export function effectString(effect: EffectInstance, parameterId: string, timeSe
   if (!parameter) return fallback;
   const value = evaluateEffectParameter(parameter, timeSeconds);
   return typeof value === 'string' ? value : fallback;
+}
+
+export function effectBoolean(effect: EffectInstance, parameterId: string, timeSeconds: number, fallback: boolean) {
+  const parameter = effect.parameters[parameterId];
+  if (!parameter) return fallback;
+  const value = evaluateEffectParameter(parameter, timeSeconds);
+  return typeof value === 'boolean' ? value : fallback;
 }
 
 export function isCanvasFilterEffectSupported(kind: string) {

@@ -11,7 +11,7 @@ import { previewCropLayout } from '../render/cropGeometry';
 import { canvasFilterForEffects, resolveTemperatureTintEffects, resolveVignetteEffects, vignetteCssBackground } from '../render/effectEvaluation';
 import { PreviewAudioGraph } from '../render/previewAudioGraph';
 import { previewSyncTolerance } from '../render/previewClock';
-import { transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect } from '../render/transitionEnvelope';
+import { transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect, transitionScale } from '../render/transitionEnvelope';
 import { activeSubtitleHighlight, normalizeSubtitleHighlightColor } from '../render/subtitleHighlight';
 import {
   deterministicNoiseByte,
@@ -25,6 +25,7 @@ import { PlaybackDiagnostics } from './PlaybackDiagnostics';
 import { PausedPreviewCanvas } from './PausedPreviewCanvas';
 import { RealtimeProcessedPreviewCanvas } from './RealtimeProcessedPreviewCanvas';
 import { hasPixelEffects } from '../render/pixelEffects';
+import { hasEnabledMasks } from '../render/clipMasks';
 import { PreviewAudioMeter } from './PreviewAudioMeter';
 import '../preview-synthetic.css';
 
@@ -40,7 +41,7 @@ function clipPreviewTransform(clip: Clip, project: Project, clipLocalTime: numbe
   const transitionOffset = transitionMotionOffset(clip, clipLocalTime, project.width, project.height);
   const x = (clip.transform.x + transitionOffset.x) / Math.max(1, project.width) * 100;
   const y = (clip.transform.y + transitionOffset.y + extraY) / Math.max(1, project.height) * 100;
-  return `translate(${x}%, ${y}%) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`;
+  return `translate(${x}%, ${y}%) scale(${clip.transform.scale * transitionScale(clip, clipLocalTime)}) rotate(${clip.transform.rotation}deg)`;
 }
 
 function transitionClipPath(clip: Clip, clipLocalTime: number) {
@@ -105,7 +106,7 @@ function assetLayerStyles(
       height: `${layout.frameHeightPercent}%`,
       overflow: 'hidden',
       transformOrigin: '0 0',
-      transform: `rotate(${clip.transform.rotation}deg) scale(${clip.transform.scale}) translate(${-anchorX * 100}%, ${-anchorY * 100}%)`,
+      transform: `rotate(${clip.transform.rotation}deg) scale(${clip.transform.scale * transitionScale(clip, clipLocal)}) translate(${-anchorX * 100}%, ${-anchorY * 100}%)`,
       opacity: Math.max(0, Math.min(1, clip.transform.opacity * transitionOpacity(clip, clipLocal))),
       mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
       filter: previewVisualFilter(clip, clipLocal),
@@ -175,10 +176,10 @@ function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asse
   return null;
 }
 
-function ZundamonLayer({ clip, assets, project, time }: { clip: Clip; assets: AssetMeta[]; project: Project; time: number }) {
+function ZundamonLayer({ clip, assetsById, project, time }: { clip: Clip; assetsById: ReadonlyMap<string, AssetMeta>; project: Project; time: number }) {
   const state = zundamonVisualState(clip, time);
   if (!state.assetId) return null;
-  const asset = assets.find((item) => item.id === state.assetId);
+  const asset = assetsById.get(state.assetId);
   if (!asset?.objectUrl) return null;
   const styles = assetLayerStyles(clip, asset, project, time, state.bobOffset);
   if (!styles) return null;
@@ -228,6 +229,47 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
     return (
       <div className="previewSynthetic previewTextLayer" style={style}>
         <div style={{ background: text.backgroundColor ?? undefined }}>{highlightedText}</div>
+        <VisualEffectOverlays clip={clip} time={time} />
+      </div>
+    );
+  }
+
+  if (clip.kind === 'shape' && clip.shape) {
+    const shape = clip.shape;
+    const widthPercent = Math.max(0.01, shape.width / Math.max(1, project.width) * 100);
+    const heightPercent = Math.max(0.01, shape.height / Math.max(1, project.height) * 100);
+    const anchorX = Math.max(0, Math.min(1, clip.transform.anchorX ?? 0.5));
+    const anchorY = Math.max(0, Math.min(1, clip.transform.anchorY ?? 0.5));
+    const shapeStyle: CSSProperties = {
+      ...common,
+      width: `${widthPercent}%`,
+      height: `${heightPercent}%`,
+      left: '50%',
+      top: '50%',
+      marginLeft: `${-widthPercent * anchorX}%`,
+      marginTop: `${-heightPercent * anchorY}%`,
+      background: shape.kind === 'line' ? 'transparent' : shape.fill,
+      border: shape.kind === 'line' || shape.strokeWidth <= 0
+        ? undefined
+        : `${Math.max(0, shape.strokeWidth) / Math.max(1, project.width) * 100}cqw solid ${shape.stroke}`,
+      borderRadius: shape.kind === 'ellipse'
+        ? '50%'
+        : shape.kind === 'rectangle'
+          ? `${Math.max(0, shape.cornerRadius ?? 0) / Math.max(1, project.width) * 100}cqw`
+          : undefined,
+      position: 'absolute',
+      boxSizing: 'border-box',
+      overflow: 'visible',
+    };
+
+    if (shape.kind === 'line') {
+      shapeStyle.height = `${Math.max(1, shape.height) / Math.max(1, project.height) * 100}%`;
+      shapeStyle.background = shape.fill || shape.stroke || '#ffffff';
+      shapeStyle.borderRadius = '999px';
+    }
+
+    return (
+      <div className="previewSynthetic previewShape" style={shapeStyle}>
         <VisualEffectOverlays clip={clip} time={time} />
       </div>
     );
@@ -356,8 +398,9 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
   const [fullscreen, setFullscreen] = useState(false);
   const visuals = useMemo(() => visualTimelineItems(project, time), [project, time]);
   const audios = useMemo(() => audioTimelineItems(project, time), [project, time]);
+  const assetsById = useMemo(() => new Map(project.assets.map((asset) => [asset.id, asset] as const)), [project.assets]);
   const requiresProcessedPreview = useMemo(
-    () => visuals.some(({ clip }) => hasPixelEffects(clip.effects)),
+    () => visuals.some(({ clip }) => hasPixelEffects(clip.effects) || hasEnabledMasks(clip.masks)),
     [visuals],
   );
   const aspect = `${project.width} / ${project.height}`;
@@ -397,11 +440,11 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
         <div className="stageOuter">
           <div className="stage" style={{ aspectRatio: aspect, background: project.background }}>
             {visuals.map(({ clip }) => {
-              if (clip.kind === 'zundamon') return <ZundamonLayer key={clip.id} clip={clip} assets={project.assets} project={project} time={time} />;
-              if (clip.kind === 'text' || clip.kind === 'subtitle' || clip.kind === 'generator') {
+              if (clip.kind === 'zundamon') return <ZundamonLayer key={clip.id} clip={clip} assetsById={assetsById} project={project} time={time} />;
+              if (clip.kind === 'text' || clip.kind === 'subtitle' || clip.kind === 'generator' || clip.kind === 'shape') {
                 return <SyntheticLayer key={clip.id} clip={clip} project={project} time={time} />;
               }
-              return <VisualLayer key={clip.id} clip={clip} project={project} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} />;
+              return <VisualLayer key={clip.id} clip={clip} project={project} asset={clip.assetId ? assetsById.get(clip.assetId) : undefined} time={time} playing={playing} />;
             })}
             {visuals.length > 0 && (
               <>
@@ -424,7 +467,7 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
             trackMuted={track.muted}
             trackGain={track.gain ?? 1}
             trackPan={track.pan ?? 0}
-            asset={project.assets.find((asset) => asset.id === clip.assetId)}
+            asset={clip.assetId ? assetsById.get(clip.assetId) : undefined}
             time={time}
             playing={playing}
             fps={project.fps}
@@ -443,15 +486,27 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
   );
 }
 
+const PREVIEW_NOISE_CACHE_LIMIT = 96;
+const previewNoiseUrlCache = new Map<string, string>();
+
 function noiseDataUrl(clipId: string, timeSeconds: number, speed: number) {
   if (typeof document === 'undefined') return undefined;
+  const frame = Math.floor(timeSeconds * speed);
+  const cacheKey = `${clipId}:${frame}`;
+  const cached = previewNoiseUrlCache.get(cacheKey);
+  if (cached) {
+    previewNoiseUrlCache.delete(cacheKey);
+    previewNoiseUrlCache.set(cacheKey, cached);
+    return cached;
+  }
+
   const canvas = document.createElement('canvas');
   canvas.width = 32;
   canvas.height = 18;
   const context = canvas.getContext('2d');
   if (!context) return undefined;
   const image = context.createImageData(canvas.width, canvas.height);
-  const seed = hashString(`${clipId}:${Math.floor(timeSeconds * speed)}`);
+  const seed = hashString(cacheKey);
   for (let y = 0; y < canvas.height; y += 1) {
     for (let x = 0; x < canvas.width; x += 1) {
       const value = deterministicNoiseByte(seed, x, y);

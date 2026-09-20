@@ -1,16 +1,18 @@
 import type {
   BlendMode,
   ClipKind,
+  ClipMask,
   Crop,
   EffectInstance,
   GeneratorPayload,
   Project,
+  ShapePayload,
   SubtitlePayload,
   TextPayload,
   Transform,
 } from '../types/editor';
 import { visualTimelineItems, zundamonVisualState } from './timelineEvaluation';
-import { transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect, type TransitionRevealRect } from './transitionEnvelope';
+import { transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect, transitionScale, type TransitionRevealRect } from './transitionEnvelope';
 
 export interface VisualFrameLayerPlan {
   clipId: string;
@@ -27,9 +29,11 @@ export interface VisualFrameLayerPlan {
   crop: Crop | null;
   blendMode: BlendMode;
   effects: EffectInstance[];
+  masks: ClipMask[];
   text: TextPayload | null;
   subtitle: SubtitlePayload | null;
   generator: GeneratorPayload | null;
+  shape: ShapePayload | null;
   reveal: TransitionRevealRect;
   transitionBrightness: number;
 }
@@ -56,7 +60,7 @@ export function buildVisualFramePlan(project: Project, timeSeconds: number): Vis
       transform: {
         x: clip.transform.x + transitionOffset.x,
         y: clip.transform.y + transitionOffset.y + (zundamon?.bobOffset ?? 0),
-        scale: clip.transform.scale,
+        scale: clip.transform.scale * transitionScale(clip, clipLocalTime),
         rotation: clip.transform.rotation,
         opacity: clip.transform.opacity * transitionOpacity(clip, clipLocalTime),
         anchorX: clip.transform.anchorX ?? 0.5,
@@ -65,6 +69,7 @@ export function buildVisualFramePlan(project: Project, timeSeconds: number): Vis
       crop: clip.crop ? { ...clip.crop } : null,
       blendMode: clip.blendMode ?? 'normal',
       effects: clip.effects?.filter((effect) => effect.enabled).map(cloneEffect) ?? [],
+      masks: clip.masks?.filter((mask) => mask.enabled).map((mask) => ({ ...mask })) ?? [],
       text: clip.text ? { ...clip.text } : null,
       subtitle: clip.subtitle ? {
         ...clip.subtitle,
@@ -76,6 +81,7 @@ export function buildVisualFramePlan(project: Project, timeSeconds: number): Vis
         ...clip.generator,
         data: clip.generator.data ? { ...clip.generator.data } : undefined,
       } : null,
+      shape: clip.shape ? { ...clip.shape } : null,
     };
   });
 }

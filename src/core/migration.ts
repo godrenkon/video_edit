@@ -1,4 +1,4 @@
-import type { AssetBin, AudioBusId, AudioBusSettings, AudioDuckingSettings, Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
+import type { AssetBin, AudioBusId, AudioBusSettings, AudioDuckingSettings, Clip, ClipMask, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
 import { sanitizeTranscriptDocument } from './transcript';
 
 const CURRENT_PROJECT_VERSION = 2 as const;
@@ -135,6 +135,7 @@ function migrateClip(clip: Record<string, unknown>, index: number): Clip {
     freezeFrameAt: optionalClampedNumber(clip.freezeFrameAt, 0, Number.MAX_SAFE_INTEGER),
     transitionIn: migrateTransition(clip.transitionIn, duration),
     transitionOut: migrateTransition(clip.transitionOut, duration),
+    masks: migrateMasks(clip.masks),
     transform: {
       x: finiteNumber(transform.x, 0),
       y: finiteNumber(transform.y, 0),
@@ -145,6 +146,40 @@ function migrateClip(clip: Record<string, unknown>, index: number): Clip {
       anchorY: optionalFiniteNumber(transform.anchorY),
     },
   };
+}
+
+function migrateMasks(value: unknown): ClipMask[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const result: ClipMask[] = [];
+  const seen = new Set<string>();
+
+  for (let index = 0; index < value.length && result.length < 32; index += 1) {
+    const item = value[index];
+    if (!isRecord(item)) continue;
+    const id = stringValue(item.id, `mask_migrated_${index}`);
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    const kind: ClipMask['kind'] = item.kind === 'ellipse' ? 'ellipse' : 'rectangle';
+    const operation: ClipMask['operation'] = item.operation === 'subtract' || item.operation === 'intersect'
+      ? item.operation
+      : 'add';
+
+    result.push({
+      id,
+      kind,
+      operation,
+      enabled: item.enabled === undefined ? true : Boolean(item.enabled),
+      x: finiteNumber(item.x, 0.5, 0, 1),
+      y: finiteNumber(item.y, 0.5, 0, 1),
+      width: finiteNumber(item.width, 0.6, 0.001, 2),
+      height: finiteNumber(item.height, 0.6, 0.001, 2),
+      feather: finiteNumber(item.feather, 0, 0, 1),
+      invert: Boolean(item.invert),
+    });
+  }
+
+  return result.length ? result : undefined;
 }
 
 function migrateTransition(value: unknown, clipDuration: number): ClipTransition | undefined {

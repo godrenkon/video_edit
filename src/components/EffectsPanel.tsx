@@ -6,11 +6,13 @@ import { loadFavoriteEffects, saveFavoriteEffects, toggleFavoriteEffect } from '
 import { uid } from '../core/project';
 import { createVoicePresetEffects, VOICE_PRESETS, type VoicePresetId } from '../core/voicePresets';
 import { isAudioEffectSupported, isRealtimeAudioEffectSupported } from '../render/audioEffects';
+import { parseCubeLut } from '../render/lut3d';
 import {
   evaluateEffectParameter,
   isVisualEffectSupported,
 } from '../render/effectEvaluation';
 import type { Clip, EffectInstance, EffectParameter, EffectParameterValue, Interpolation } from '../types/editor';
+import { KeyframeGraph } from './KeyframeGraph';
 import '../effects-panel.css';
 
 interface Props {
@@ -22,6 +24,7 @@ interface Props {
 
 export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
   const [favoriteKinds, setFavoriteKinds] = useState(() => loadFavoriteEffects());
+  const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
   const available = useMemo(() => {
     const items = [
       ...listEffects('video').filter((effect) => isVisualEffectSupported(effect.kind)),
@@ -310,6 +313,63 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
                   </label>
                 );
               }
+              if (descriptorParameter.control === 'file') {
+                const source = typeof evaluated === 'string' ? evaluated : '';
+                const fileKey = `${effect.id}:${descriptorParameter.id}`;
+                return (
+                  <div className="effectParameter effectFileParameter" key={descriptorParameter.id}>
+                    <span>
+                      {descriptorParameter.label}
+                      <b>{source ? `読み込み済み ${formatBytes(source.length)}` : '未読込'}</b>
+                    </span>
+                    <div className="effectFileControls">
+                      <label className="effectFilePicker">
+                        <input
+                          type="file"
+                          accept=".cube,text/plain"
+                          onChange={async (event) => {
+                            const file = event.target.files?.[0];
+                            event.target.value = '';
+                            if (!file) return;
+                            try {
+                              if (file.size > 12 * 1024 * 1024) throw new Error('LUTファイルは12MB以下にしてください。');
+                              const nextSource = await file.text();
+                              parseCubeLut(nextSource);
+                              setFileErrors((current) => {
+                                const next = { ...current };
+                                delete next[fileKey];
+                                return next;
+                              });
+                              setValue(nextSource);
+                            } catch (error) {
+                              setFileErrors((current) => ({
+                                ...current,
+                                [fileKey]: error instanceof Error ? error.message : 'LUTを読み込めませんでした。',
+                              }));
+                            }
+                          }}
+                        />
+                        .cube を選択
+                      </label>
+                      <button
+                        type="button"
+                        disabled={!source}
+                        onClick={() => {
+                          setValue('');
+                          setFileErrors((current) => {
+                            const next = { ...current };
+                            delete next[fileKey];
+                            return next;
+                          });
+                        }}
+                      >
+                        解除
+                      </button>
+                    </div>
+                    {fileErrors[fileKey] && <div className="effectFileError">{fileErrors[fileKey]}</div>}
+                  </div>
+                );
+              }
 
               const numeric = typeof evaluated === 'number'
                 ? evaluated
@@ -349,6 +409,17 @@ export function EffectsPanel({ clip, timelineTime, fps, onClip }: Props) {
                       <option value="bezier">Bezier</option>
                     </select>
                   )}
+                  {current.keyframes?.some((keyframe) => typeof keyframe.value === 'number') && (
+                    <KeyframeGraph
+                      parameter={current}
+                      min={descriptorParameter.min ?? 0}
+                      max={descriptorParameter.max ?? 1}
+                      duration={clip.duration}
+                      fps={fps}
+                      currentTime={localTime}
+                      onChange={(parameter) => replaceParameter(effect, descriptorParameter.id, parameter)}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -385,4 +456,10 @@ function formatNumber(value: number) {
 function formatSeconds(value: number) {
   const safe = Math.max(0, Number.isFinite(value) ? value : 0);
   return `${Number(safe.toFixed(2))}s`;
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }

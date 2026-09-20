@@ -15,7 +15,7 @@ export type BlendMode =
   | 'add';
 
 export type EffectParameterValue = number | string | boolean | number[];
-export type TransitionKind = 'dissolve' | 'dip-black' | 'slide-left' | 'slide-right' | 'slide-up' | 'slide-down' | 'wipe-left' | 'wipe-right' | 'wipe-up' | 'wipe-down';
+export type TransitionKind = 'dissolve' | 'dip-black' | 'slide-left' | 'slide-right' | 'slide-up' | 'slide-down' | 'wipe-left' | 'wipe-right' | 'wipe-up' | 'wipe-down' | 'zoom-in' | 'zoom-out';
 
 export interface ClipTransition {
   kind: TransitionKind;
@@ -72,6 +72,22 @@ export interface Crop {
   right: number;
   bottom: number;
   left: number;
+}
+
+export type MaskKind = 'rectangle' | 'ellipse';
+export type MaskOperation = 'add' | 'subtract' | 'intersect';
+
+export interface ClipMask {
+  id: string;
+  kind: MaskKind;
+  operation: MaskOperation;
+  enabled: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  feather: number;
+  invert: boolean;
 }
 
 export interface Keyframe {
@@ -159,6 +175,16 @@ export interface GeneratorPayload {
   data?: Record<string, EffectParameterValue>;
 }
 
+export interface ShapePayload {
+  kind: 'rectangle' | 'ellipse' | 'line';
+  width: number;
+  height: number;
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+  cornerRadius?: number;
+}
+
 export interface MouthCue {
   time: number;
   state: 0 | 1 | 2;
@@ -201,10 +227,12 @@ export interface Clip {
   transitionIn?: ClipTransition;
   transitionOut?: ClipTransition;
   effects?: EffectInstance[];
+  masks?: ClipMask[];
   groupId?: string;
   text?: TextPayload;
   subtitle?: SubtitlePayload;
   generator?: GeneratorPayload;
+  shape?: ShapePayload;
 }
 
 export interface AudioBusSettings {

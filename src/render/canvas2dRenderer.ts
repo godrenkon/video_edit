@@ -5,6 +5,7 @@ import { buildVisualFramePlan, type VisualFrameLayerPlan } from './framePlan';
 import { activeSubtitleHighlight, normalizeSubtitleHighlightColor, type SubtitleHighlightRange } from './subtitleHighlight';
 import { RenderAssetStore, type RenderAssetFrame } from './renderAssetStore';
 import { applyPixelEffects, hasPixelEffects } from './pixelEffects';
+import { applyClipMasks, hasEnabledMasks } from './clipMasks';
 import {
   deterministicNoiseByte,
   generatorColor,
@@ -59,6 +60,10 @@ export class Canvas2DProjectRenderer {
         drawGeneratorLayer(context, project, layer, timeSeconds);
         continue;
       }
+      if (layer.kind === 'shape') {
+        drawShapeLayer(context, project, layer);
+        continue;
+      }
       if (!layer.assetId) continue;
 
       const frame = await this.assets.getFrame(layer.assetId, layer.sourceTime, signal);
@@ -75,7 +80,8 @@ export class Canvas2DProjectRenderer {
         context.save();
         applyLayerTransform(context, project, layer);
         applyLayerReveal(context, layer, dx, dy, drawWidth, drawHeight);
-        if (hasPixelEffects(layer.effects)) {
+        const masked = hasEnabledMasks(layer.masks);
+        if (hasPixelEffects(layer.effects) || masked) {
           drawPixelProcessedFrame(
             context,
             this.pixelCanvas,
@@ -87,14 +93,18 @@ export class Canvas2DProjectRenderer {
             drawWidth,
             drawHeight,
             layer.effects,
+            layer.masks,
             layer.clipLocalTime,
+            masked,
           );
         } else if (frame.kind === 'video') {
           frame.sample.draw(context, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight);
         } else {
           context.drawImage(frame.bitmap, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight);
         }
-        drawVisualOverlayEffects(context, layer.effects, layer.clipLocalTime, dx, dy, drawWidth, drawHeight);
+        if (!masked) {
+          drawVisualOverlayEffects(context, layer.effects, layer.clipLocalTime, dx, dy, drawWidth, drawHeight);
+        }
         context.restore();
       } finally {
         this.assets.releaseFrame(frame);
@@ -114,7 +124,9 @@ function drawPixelProcessedFrame(
   drawWidth: number,
   drawHeight: number,
   effects: VisualFrameLayerPlan['effects'],
+  masks: VisualFrameLayerPlan['masks'],
   clipLocalTime: number,
+  includeOverlaysInRaster: boolean,
 ) {
   const outputWidth = Math.max(1, Math.round(Math.abs(drawWidth)));
   const outputHeight = Math.max(1, Math.round(Math.abs(drawHeight)));
@@ -135,9 +147,16 @@ function drawPixelProcessedFrame(
   } else {
     scratchContext.drawImage(frame.bitmap, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
   }
-  const image = scratchContext.getImageData(0, 0, width, height);
+  let image = scratchContext.getImageData(0, 0, width, height);
   applyPixelEffects(image, effects, clipLocalTime);
   scratchContext.putImageData(image, 0, 0);
+
+  if (includeOverlaysInRaster) {
+    drawVisualOverlayEffects(scratchContext, effects, clipLocalTime, 0, 0, width, height);
+    image = scratchContext.getImageData(0, 0, width, height);
+    applyClipMasks(image, masks);
+    scratchContext.putImageData(image, 0, 0);
+  }
   scratchContext.restore();
 
   context.drawImage(scratch as CanvasImageSource, 0, 0, width, height, dx, dy, drawWidth, drawHeight);
@@ -341,6 +360,78 @@ function drawSubtitleHighlightWord(
     context.textAlign = previousAlign;
     return;
   }
+}
+
+function drawShapeLayer(
+  context: RenderContext2D,
+  project: Project,
+  layer: VisualFrameLayerPlan,
+) {
+  const shape = layer.shape;
+  if (!shape) return;
+
+  const width = Math.max(1, Number.isFinite(shape.width) ? shape.width : 1);
+  const height = Math.max(1, Number.isFinite(shape.height) ? shape.height : 1);
+  const dx = -width * layer.transform.anchorX;
+  const dy = -height * layer.transform.anchorY;
+  const strokeWidth = Math.max(0, Number.isFinite(shape.strokeWidth) ? shape.strokeWidth : 0);
+
+  context.save();
+  applyLayerTransform(context, project, layer);
+  applyLayerReveal(context, layer, dx, dy, width, height);
+  context.beginPath();
+
+  if (shape.kind === 'ellipse') {
+    context.ellipse(dx + width / 2, dy + height / 2, width / 2, height / 2, 0, 0, Math.PI * 2);
+  } else if (shape.kind === 'line') {
+    context.moveTo(dx, dy + height / 2);
+    context.lineTo(dx + width, dy + height / 2);
+  } else {
+    const radius = Math.max(0, Math.min(width / 2, height / 2, Number.isFinite(shape.cornerRadius) ? shape.cornerRadius ?? 0 : 0));
+    roundedRectPath(context, dx, dy, width, height, radius);
+  }
+
+  if (shape.kind !== 'line' && shape.fill && shape.fill !== 'transparent') {
+    context.fillStyle = shape.fill;
+    context.fill();
+  }
+
+  const lineColor = shape.kind === 'line' ? (shape.fill || shape.stroke || '#ffffff') : shape.stroke;
+  const lineWidth = shape.kind === 'line' ? Math.max(1, height) : strokeWidth;
+  if (lineColor && lineColor !== 'transparent' && lineWidth > 0) {
+    context.strokeStyle = lineColor;
+    context.lineWidth = lineWidth;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.stroke();
+  }
+
+  drawVisualOverlayEffects(context, layer.effects, layer.clipLocalTime, dx, dy, width, height);
+  context.restore();
+}
+
+function roundedRectPath(
+  context: RenderContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  if (radius <= 0) {
+    context.rect(x, y, width, height);
+    return;
+  }
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
 }
 
 function drawGeneratorLayer(

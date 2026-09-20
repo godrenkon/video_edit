@@ -1,0 +1,125 @@
+.maskEditor {
+  display: grid;
+  gap: 7px;
+}
+
+.maskEditorToolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 6px;
+}
+
+.maskEditorToolbar button {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #11181d;
+  color: var(--text);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.maskEditorEmpty {
+  padding: 9px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.maskCard {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #0b1115;
+}
+
+.maskCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.maskCardHeader label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+}
+
+.maskDelete {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #11181d;
+  color: #ff9292;
+  cursor: pointer;
+}
+
+.maskTwoFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 6px;
+}
+
+.maskTwoFields label {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.maskTwoFields select {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #080d10;
+  color: var(--text);
+  font-size: 8px;
+  padding: 0 5px;
+}
+
+.maskRange {
+  display: grid;
+  gap: 3px;
+}
+
+.maskRange > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.maskRange b {
+  color: #c9d7df;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+}
+
+.maskRange input {
+  width: 100%;
+  accent-color: var(--cyan);
+}
+
+.maskInvert {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 8px;
+}

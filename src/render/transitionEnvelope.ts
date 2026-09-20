@@ -22,6 +22,8 @@ const TRANSITION_KINDS = new Set<TransitionKind>([
   'wipe-right',
   'wipe-up',
   'wipe-down',
+  'zoom-in',
+  'zoom-out',
 ]);
 
 export function transitionOpacity(clip: Pick<Clip, 'duration' | 'transitionIn' | 'transitionOut'>, clipLocalTime: number) {
@@ -79,6 +81,34 @@ export function transitionMotionOffset(
   return { x, y };
 }
 
+export function transitionScale(
+  clip: Pick<Clip, 'duration' | 'transitionIn' | 'transitionOut'>,
+  clipLocalTime: number,
+) {
+  const duration = Math.max(0, finite(clip.duration, 0));
+  const local = clamp(finite(clipLocalTime, 0), 0, duration);
+  let scale = 1;
+
+  const transitionIn = normalizeTransition(clip.transitionIn, duration);
+  if (transitionIn && isZoomKind(transitionIn.kind) && local < transitionIn.duration) {
+    const progress = smoothstep(clamp(local / transitionIn.duration, 0, 1));
+    const startScale = transitionIn.kind === 'zoom-in' ? 0.72 : 1.28;
+    scale *= startScale + (1 - startScale) * progress;
+  }
+
+  const transitionOut = normalizeTransition(clip.transitionOut, duration);
+  if (transitionOut && isZoomKind(transitionOut.kind)) {
+    const start = Math.max(0, duration - transitionOut.duration);
+    if (local > start) {
+      const progress = smoothstep(clamp((local - start) / transitionOut.duration, 0, 1));
+      const endScale = transitionOut.kind === 'zoom-in' ? 1.28 : 0.72;
+      scale *= 1 + (endScale - 1) * progress;
+    }
+  }
+
+  return clamp(scale, 0.05, 8);
+}
+
 export function transitionRevealRect(
   clip: Pick<Clip, 'duration' | 'transitionIn' | 'transitionOut'>,
   clipLocalTime: number,
@@ -117,13 +147,13 @@ export function isTransitionKind(value: unknown): value is TransitionKind {
 
 function transitionGainIn(transition: ClipTransition | undefined, local: number, clipDuration: number) {
   const normalized = normalizeTransition(transition, clipDuration);
-  if (!normalized || normalized.kind !== 'dissolve') return 1;
+  if (!normalized || (normalized.kind !== 'dissolve' && !isZoomKind(normalized.kind))) return 1;
   return clamp(local / normalized.duration, 0, 1);
 }
 
 function transitionGainOut(transition: ClipTransition | undefined, local: number, clipDuration: number) {
   const normalized = normalizeTransition(transition, clipDuration);
-  if (!normalized || normalized.kind !== 'dissolve') return 1;
+  if (!normalized || (normalized.kind !== 'dissolve' && !isZoomKind(normalized.kind))) return 1;
   return clamp((clipDuration - local) / normalized.duration, 0, 1);
 }
 
@@ -198,6 +228,15 @@ function isSlideKind(kind: TransitionKind): kind is SlideTransitionKind {
 
 function isWipeKind(kind: TransitionKind): kind is WipeTransitionKind {
   return kind.startsWith('wipe-');
+}
+
+function isZoomKind(kind: TransitionKind): kind is Extract<TransitionKind, 'zoom-in' | 'zoom-out'> {
+  return kind === 'zoom-in' || kind === 'zoom-out';
+}
+
+function smoothstep(value: number) {
+  const t = clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 function finite(value: number, fallback: number) {

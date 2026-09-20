@@ -1,4 +1,4 @@
-import { Captions, FileAudio, FileImage, Film, FolderOpen, FolderPlus, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
+import { Activity, Captions, FileAudio, FileImage, Film, FolderOpen, FolderPlus, Palette, Plus, Search, Square, Star, Trash2, Type } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AssetBin, AssetMeta } from '../types/editor';
 import type { LowerThirdPreset } from '../core/project';
@@ -30,7 +30,15 @@ interface Props {
   onGenerateProxy: (assetId: string) => void;
   onCancelProxy: (assetId: string) => void;
   onRemoveProxy: (assetId: string) => void;
+  silenceAnalysisAssetId?: string | null;
+  beatAnalysisAssetId?: string | null;
+  sceneAnalysisAssetId?: string | null;
+  sceneAnalysisProgress?: number | null;
+  onDetectSilence: (assetId: string) => void;
+  onDetectBeats: (assetId: string) => void;
+  onDetectScenes: (assetId: string) => void;
   onCreateText: () => void;
+  onCreateShape: () => void;
   onCreateLowerThird: (preset: LowerThirdPreset) => void;
   onCreateSubtitle: () => void;
   onCreateGenerator: () => void;
@@ -71,7 +79,15 @@ export function MediaLibrary({
   onGenerateProxy,
   onCancelProxy,
   onRemoveProxy,
+  silenceAnalysisAssetId,
+  beatAnalysisAssetId,
+  sceneAnalysisAssetId,
+  sceneAnalysisProgress,
+  onDetectSilence,
+  onDetectBeats,
+  onDetectScenes,
   onCreateText,
+  onCreateShape,
   onCreateLowerThird,
   onCreateSubtitle,
   onCreateGenerator,
@@ -157,6 +173,7 @@ export function MediaLibrary({
       </div>
       <div className="createTools" aria-label="生成クリップ">
         <button type="button" onClick={onCreateText} title="テキストクリップを追加"><Type size={14} /><span>テキスト</span></button>
+        <button type="button" onClick={onCreateShape} title="図形クリップを追加"><Square size={14} /><span>図形</span></button>
         <button type="button" onClick={onCreateSubtitle} title="字幕クリップを追加"><Captions size={14} /><span>字幕</span></button>
         <button type="button" onClick={onCreateGenerator} title="背景ジェネレーターを追加"><Palette size={14} /><span>背景</span></button>
       </div>
@@ -273,6 +290,44 @@ export function MediaLibrary({
               }}
             />
           </div>
+          {selectedAsset.kind !== 'image' && (
+            <div className="assetAnalysis">
+              <div>
+                <span>ローカル音声解析</span>
+                <small>無音/ビートは波形、シーンは低解像度フレームで解析してマーカー化</small>
+              </div>
+              <div className="assetAnalysisActions">
+                <button
+                  type="button"
+                  onClick={() => onDetectSilence(selectedAsset.id)}
+                  disabled={Boolean(silenceAnalysisAssetId || beatAnalysisAssetId || sceneAnalysisAssetId)}
+                >
+                  <Activity size={12} />
+                  {silenceAnalysisAssetId === selectedAsset.id ? '解析中…' : '無音'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDetectBeats(selectedAsset.id)}
+                  disabled={Boolean(silenceAnalysisAssetId || beatAnalysisAssetId || sceneAnalysisAssetId)}
+                >
+                  <Activity size={12} />
+                  {beatAnalysisAssetId === selectedAsset.id ? '解析中…' : 'ビート'}
+                </button>
+                {selectedAsset.kind === 'video' && (
+                  <button
+                    type="button"
+                    onClick={() => onDetectScenes(selectedAsset.id)}
+                    disabled={Boolean(silenceAnalysisAssetId || beatAnalysisAssetId || sceneAnalysisAssetId)}
+                  >
+                    <Activity size={12} />
+                    {sceneAnalysisAssetId === selectedAsset.id
+                      ? `シーン ${Math.round((sceneAnalysisProgress ?? 0) * 100)}%`
+                      : 'シーン'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
           {selectedAsset.kind === 'video' && (
             <div className="proxyEditor">
               <div className="proxyStatus">
