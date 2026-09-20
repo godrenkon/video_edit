@@ -1,4 +1,4 @@
-import { Activity, Captions, FileAudio, FileImage, Film, FolderOpen, FolderPlus, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
+import { Activity, Captions, FileAudio, FileImage, Film, FolderOpen, FolderPlus, Palette, Plus, Search, Square, Star, Trash2, Type } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AssetBin, AssetMeta } from '../types/editor';
 import type { LowerThirdPreset } from '../core/project';
@@ -38,6 +38,7 @@ interface Props {
   onDetectBeats: (assetId: string) => void;
   onDetectScenes: (assetId: string) => void;
   onCreateText: () => void;
+  onCreateShape: () => void;
   onCreateLowerThird: (preset: LowerThirdPreset) => void;
   onCreateSubtitle: () => void;
   onCreateGenerator: () => void;
@@ -86,6 +87,7 @@ export function MediaLibrary({
   onDetectBeats,
   onDetectScenes,
   onCreateText,
+  onCreateShape,
   onCreateLowerThird,
   onCreateSubtitle,
   onCreateGenerator,
@@ -171,6 +173,7 @@ export function MediaLibrary({
       </div>
       <div className="createTools" aria-label="生成クリップ">
         <button type="button" onClick={onCreateText} title="テキストクリップを追加"><Type size={14} /><span>テキスト</span></button>
+        <button type="button" onClick={onCreateShape} title="図形クリップを追加"><Square size={14} /><span>図形</span></button>
         <button type="button" onClick={onCreateSubtitle} title="字幕クリップを追加"><Captions size={14} /><span>字幕</span></button>
         <button type="button" onClick={onCreateGenerator} title="背景ジェネレーターを追加"><Palette size={14} /><span>背景</span></button>
       </div>
