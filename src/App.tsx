@@ -55,6 +55,7 @@ import { getAssetWaveform, waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
 import { detectSceneCandidates, mergeSceneMarkers, sceneMarkersForAsset } from './render/sceneDetection';
 import { generateVideoProxy } from './render/proxyGenerator';
+import { ColorScopesPanel } from './components/ColorScopesPanel';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
@@ -1352,6 +1353,7 @@ export default function App() {
         />
         <div className="centerColumn">
           <Preview project={project} time={time} playing={playing} onTogglePlay={() => setPlaying((v) => !v)} onTime={(v) => setTime(Math.max(0, Math.min(project.duration, v)))} />
+          <ColorScopesPanel project={project} time={time} playing={playing} />
           <ZundamonPanel assets={project.assets} busy={zBusy} onGenerate={generateZundamon} />
           <EngineStatus capabilities={capabilities} storageText={storageText} />
         </div>
