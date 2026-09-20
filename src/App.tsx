@@ -19,6 +19,7 @@ import {
   defaultClip,
   defaultGeneratorClip,
   defaultLowerThirdClip,
+  defaultShapeClip,
   defaultSubtitleClip,
   defaultTextClip,
   type LowerThirdPreset,
@@ -822,6 +823,10 @@ export default function App() {
     addSyntheticClip(defaultTextClip(time), 'overlay', 'テキストを追加');
   }, [addSyntheticClip, time]);
 
+  const createShape = useCallback(() => {
+    addSyntheticClip(defaultShapeClip(time, 'rectangle'), 'overlay', '図形を追加');
+  }, [addSyntheticClip, time]);
+
   const createLowerThird = useCallback((preset: LowerThirdPreset) => {
     addSyntheticClip(
       defaultLowerThirdClip(time, project.width, project.height, preset),
@@ -1340,6 +1345,7 @@ export default function App() {
           onDetectBeats={detectAssetBeats}
           onDetectScenes={detectAssetScenes}
           onCreateText={createText}
+          onCreateShape={createShape}
           onCreateLowerThird={createLowerThird}
           onCreateSubtitle={createSubtitle}
           onCreateGenerator={createGenerator}
