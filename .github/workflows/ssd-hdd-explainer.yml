@@ -1,12 +1,6 @@
 name: Build SSD HDD Explainer
 
 on:
-  push:
-    branches:
-      - video-build/ssd-hdd-explainer
-    paths:
-      - ".github/workflows/ssd-hdd-explainer.yml"
-      - "tools/ssd_hdd_video/**"
   workflow_dispatch:
 
 permissions:
