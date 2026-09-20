@@ -6,6 +6,7 @@ import type {
   EffectInstance,
   GeneratorPayload,
   Project,
+  ShapePayload,
   SubtitlePayload,
   TextPayload,
   Transform,
@@ -32,6 +33,7 @@ export interface VisualFrameLayerPlan {
   text: TextPayload | null;
   subtitle: SubtitlePayload | null;
   generator: GeneratorPayload | null;
+  shape: ShapePayload | null;
   reveal: TransitionRevealRect;
   transitionBrightness: number;
 }
@@ -79,6 +81,7 @@ export function buildVisualFramePlan(project: Project, timeSeconds: number): Vis
         ...clip.generator,
         data: clip.generator.data ? { ...clip.generator.data } : undefined,
       } : null,
+      shape: clip.shape ? { ...clip.shape } : null,
     };
   });
 }
