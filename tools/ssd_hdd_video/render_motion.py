@@ -454,26 +454,97 @@ def ass_time(t):
     h=int(t//3600); m=int((t%3600)//60); s=t%60
     return f"{h}:{m:02d}:{s:05.2f}"
 
-def split_caption_phrases(text, target=15, maxlen=21):
+def split_caption_phrases(text, target=17, maxlen=23):
+    """YouTube-style semantic caption splitting.
+    Never split inside ASCII/English terms such as "Solid State Drive" or "M.2 NVMe".
+    Prefer clause boundaries, particles and connective phrases over raw character counts.
+    """
     text=text.strip()
-    rough=[p for p in re.split(r"(?<=[、。！？!?])",text) if p.strip()]
+    if not text:
+        return []
+
+    # First split at explicit punctuation. Keep each punctuation mark with the previous phrase.
+    rough=[p.strip() for p in re.split(r"(?<=[、。！？!?])",text) if p.strip()]
     out=[]
-    connectors=["けど","ので","から","そして","つまり","一方","ただし","例えば","という","ため","すると"]
+
+    connectives=[
+        "けれど","けど","なので","ので","だから","から","そして","さらに","つまり",
+        "一方で","一方","ただし","例えば","また","そのため","という","ため","すると",
+        "なら","場合には","場合","時には","時"
+    ]
+    particles=[
+        "では","には","とは","へは","からは","までは","として","によって","について",
+        "は","が","を","に","で","へ","と","も"
+    ]
+
+    def latin_spans(s):
+        return [(m.start(),m.end()) for m in re.finditer(r"[A-Za-z0-9.+/:-]+(?:[ 　]+[A-Za-z0-9.+/:-]+)*",s)]
+
+    def inside_latin(pos,spans):
+        return any(a < pos < b for a,b in spans)
+
+    def candidates(s,lo,hi):
+        spans=latin_spans(s)
+        scored=[]
+        # Very strong: punctuation and whitespace outside English phrases.
+        for i,ch in enumerate(s[:hi],1):
+            if i < lo or inside_latin(i,spans):
+                continue
+            if ch in "、，：:；;":
+                scored.append((0,i))
+            elif ch in " 　":
+                scored.append((1,i))
+        # Strong: connective phrase boundaries.
+        for w in connectives:
+            for m in re.finditer(re.escape(w),s[:hi]):
+                for p in (m.start(),m.end()):
+                    if lo <= p <= hi and not inside_latin(p,spans):
+                        scored.append((2,p))
+        # Natural Japanese particle boundaries.
+        for w in particles:
+            for m in re.finditer(re.escape(w),s[:hi]):
+                p=m.end()
+                if lo <= p <= hi and not inside_latin(p,spans):
+                    scored.append((3,p))
+        # Safe boundaries before/after whole ASCII terms.
+        for a,b in spans:
+            if lo <= a <= hi: scored.append((4,a))
+            if lo <= b <= hi: scored.append((4,b))
+        return scored
+
     for part in rough:
         part=part.strip()
         while len(part)>maxlen:
-            limit=min(maxlen,len(part))
-            cuts=[i+1 for i,ch in enumerate(part[:limit]) if ch in "、， "]
-            for w in connectors:
-                p=part.rfind(w,max(5,target//2),limit)
-                if p>0: cuts.append(p)
-            cut=max(cuts) if cuts else target
-            out.append(part[:cut].strip(" 、，"))
-            part=part[cut:].lstrip(" 、，")
-        if part: out.append(part)
+            lo=max(7,target-7)
+            hi=min(maxlen,len(part)-1)
+            cand=candidates(part,lo,hi)
+            if cand:
+                # Prefer semantic score, then distance to target.
+                _,cut=min(cand,key=lambda x:(x[0],abs(x[1]-target)))
+            else:
+                # Last resort: avoid cutting inside an ASCII term and use the nearest script boundary.
+                spans=latin_spans(part)
+                safe=[]
+                for p in range(lo,hi+1):
+                    if inside_latin(p,spans):
+                        continue
+                    a=part[p-1] if p>0 else ""
+                    b=part[p] if p<len(part) else ""
+                    if (a.isascii() != b.isascii()) or (a in "ぁあア一" or b in "ぁあア一"):
+                        safe.append(p)
+                cut=min(safe,key=lambda p:abs(p-target)) if safe else hi
+            left=part[:cut].strip(" 、，。")
+            part=part[cut:].lstrip(" 、，。")
+            if left:
+                out.append(left)
+        tail=part.strip(" 、，。")
+        if tail:
+            out.append(tail)
+
+    # Merge tiny fragments only when it keeps a clean, short caption.
     merged=[]
     for p in out:
-        if merged and len(p)<=4 and len(merged[-1])+len(p)<=maxlen:
+        if merged and len(p)<=3 and len(merged[-1])+len(p)<=maxlen:
             merged[-1]+=p
         else:
             merged.append(p)
@@ -491,21 +562,14 @@ def ass_escape(s):
     return s.replace("\\","\\\\").replace("{","(").replace("}",")")
 
 def ass_highlight(s):
+    # Phrase splitting already guarantees a short caption. Do not insert character-count
+    # line breaks here, because that can split English words or Japanese compounds.
     s=ass_escape(s)
     keys=sorted(ASS_COLORS,key=len,reverse=True)
     pat=re.compile("|".join(re.escape(k) for k in keys))
     def repl(m):
         return "{\\c"+ASS_COLORS[m.group(0)]+"}"+m.group(0)+"{\\c&H00FFFFFF&}"
-    s=pat.sub(repl,s)
-    plain=re.sub(r"{[^}]+}","",s)
-    if len(plain)>17 and "\\N" not in s:
-        # Pick a visually balanced line break while ignoring ASS tags.
-        raw=plain
-        cut=min(range(max(7,len(raw)//2-3),min(len(raw)-6,len(raw)//2+4)+1),key=lambda x:abs(x-len(raw)/2))
-        left=raw[:cut]; right=raw[cut:]
-        # Re-run highlighting per line to avoid breaking inside tags.
-        return ass_highlight(left)+"\\N"+ass_highlight(right)
-    return s
+    return pat.sub(repl,s)
 
 def make_ass(events,path):
     header="""[Script Info]
@@ -558,7 +622,7 @@ base=WORK/"base.mp4"; run(["ffmpeg","-y","-loglevel","error","-f","concat","-saf
 ass_path=OUT/"subtitles.ass"; make_ass(caption_events,ass_path)
 bg=OUT/"bgm_stem.wav"; se=OUT/"se_stem.wav"; bgm_with_sfx(current,chapter_times,accent_times,bg,se)
 mix=WORK/"bgm_se_mix.wav"
-run(["ffmpeg","-y","-loglevel","error","-i",bg,"-i",se,"-filter_complex","[0:a]volume=1.0[b];[1:a]volume=1.0[s];[b][s]amix=inputs=2:duration=longest:dropout_transition=0[m]","-map","[m]","-c:a","pcm_s24le",mix])
+run(["ffmpeg","-y","-loglevel","error","-i",bg,"-i",se,"-filter_complex","[0:a]volume=1.0[b];[1:a]volume=1.0[s];[b][s]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0, loudnorm=I=-27:TP=-6:LRA=10[m]","-map","[m]","-c:a","pcm_s24le",mix])
 final=OUT/"SSD_HDD_MASTER_NO_NARRATION.mp4"
 ass_filter=f"ass={ass_path.as_posix()}:fontsdir=/usr/share/fonts/opentype/noto"
 run(["ffmpeg","-y","-loglevel","error","-i",base,"-i",mix,"-vf",ass_filter,"-map","0:v","-map","1:a","-t",f"{current:.3f}","-c:v","libx264","-preset","medium","-b:v","10M","-minrate","10M","-maxrate","10M","-bufsize","20M","-x264-params","nal-hrd=cbr:force-cfr=1","-pix_fmt","yuv420p","-c:a","aac","-b:a","256k","-movflags","+faststart",final])
