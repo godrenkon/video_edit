@@ -1,0 +1,194 @@
+name: Final Sync SSD HDD Video
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-remux.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  remux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download successful 1080p60 visual build
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-motion-video
+          path: src
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35511409510
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python3 -m pip install --upgrade pip
+          python3 -m pip install requests numpy soundfile
+
+      - name: Start VOICEVOX
+        run: |
+          docker pull voicevox/voicevox_engine:cpu-latest
+          docker run -d --rm --name voicevox -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:cpu-latest
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:50021/version >/dev/null; then
+              echo "VOICEVOX ready"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Build single-pass narration and BGM
+        run: |
+          mkdir -p final qa/frames
+          cat > /tmp/build_audio.py <<'PY'
+          import ast, wave
+          from pathlib import Path
+          import requests, numpy as np, soundfile as sf
+
+          SRC=Path("tools/ssd_hdd_video/render.py").read_text(encoding="utf-8")
+          mod=ast.parse(SRC)
+          SECTIONS=None
+          for node in mod.body:
+              if isinstance(node,ast.Assign):
+                  for t in node.targets:
+                      if isinstance(t,ast.Name) and t.id=="SECTIONS":
+                          SECTIONS=ast.literal_eval(node.value)
+                          break
+          if SECTIONS is None:
+              raise RuntimeError("SECTIONS not found")
+
+          def tts(text,path):
+              q=requests.post("http://127.0.0.1:50021/audio_query",params={"text":text,"speaker":3},timeout=120)
+              q.raise_for_status(); data=q.json()
+              data["speedScale"]=1.04
+              data["intonationScale"]=1.06
+              data["prePhonemeLength"]=0.08
+              data["postPhonemeLength"]=0.11
+              r=requests.post("http://127.0.0.1:50021/synthesis",params={"speaker":3},json=data,timeout=180)
+              r.raise_for_status(); Path(path).write_bytes(r.content)
+
+          def read48(path,pad=.10):
+              y,sr=sf.read(path,dtype="float32")
+              if getattr(y,"ndim",1)>1:
+                  y=y.mean(axis=1)
+              if sr != 48000:
+                  old=np.arange(len(y),dtype=np.float64)/sr
+                  new_len=int(round(len(y)*48000/sr))
+                  new=np.arange(new_len,dtype=np.float64)/48000
+                  y=np.interp(new,old,y).astype(np.float32)
+              if pad:
+                  y=np.concatenate([y,np.zeros(int(round(pad*48000)),dtype=np.float32)])
+              return y
+
+          def stamp(t):
+              h=int(t//3600); m=int((t%3600)//60); s=t%60
+              return f"{h:02d}:{m:02d}:{s:06.3f}".replace(".",",")
+
+          parts=[]; subs=[]; chapters=[]; chapter_times=[]; accent=[]; cur=0.0; idx=0
+          tmp=Path("/tmp/voice"); tmp.mkdir(exist_ok=True)
+          for si,(title,sents) in enumerate(SECTIONS):
+              if si>0:
+                  chapter_times.append(cur)
+                  parts.append(np.zeros(int(round(1.3*48000)),dtype=np.float32))
+                  cur += 1.3
+              chapters.append(f"{int(cur//60):02d}:{int(cur%60):02d} {title}")
+              for s in sents:
+                  p=tmp/f"{idx:04d}.wav"
+                  tts(s,p)
+                  a=read48(p,.10)
+                  st=cur; en=cur+len(a)/48000.0
+                  parts.append(a); subs.append((idx+1,st,en,s)); cur=en
+                  if any(k in s for k in ["M.2","TBW","FPS","3-2-1","使い分け"]):
+                      accent.append(st+.15)
+                  idx += 1
+          parts.append(np.zeros(int(8*48000),dtype=np.float32))
+          cur += 8
+          narration=np.concatenate(parts)
+          sf.write("final/narration.wav",narration,48000)
+
+          # restrained original background bed + subtle chapter/accent chimes
+          sr=48000; n=len(narration); t=np.arange(n)/sr
+          y=np.zeros(n,dtype=np.float32)
+          chords=[(110,164.81,220),(98,146.83,196),(130.81,196,261.63),(87.31,130.81,174.61)]
+          block=8.0
+          for i in range(int(cur//block)+1):
+              a=int(i*block*sr); b=min(n,int((i+1)*block*sr)); tt=t[a:b]
+              if b<=a: continue
+              c=chords[i%len(chords)]
+              pad=sum(np.sin(2*np.pi*f*tt+j*.55) for j,f in enumerate(c))/3
+              y[a:b]+=0.032*pad*(0.78+0.22*np.sin(2*np.pi*tt/block))
+          for beat in np.arange(0,cur,2.0):
+              a=int(beat*sr); L=min(n-a,int(.07*sr))
+              if L>0:
+                  tt=np.arange(L)/sr
+                  y[a:a+L]+=0.007*np.sin(2*np.pi*95*tt)*np.exp(-tt*35)
+          def chime(at,freq=880,amp=.045,L=.30):
+              a=int(at*sr); m=min(n-a,int(L*sr))
+              if m<=0:return
+              tt=np.arange(m)/sr
+              y[a:a+m]+=amp*np.sin(2*np.pi*freq*tt)*np.exp(-tt*8)
+          for at in chapter_times: chime(at,700,.045,.35)
+          for at in accent: chime(at,1040,.035,.20)
+          sf.write("final/bgm.wav",y,sr)
+
+          with open("final/subtitles.srt","w",encoding="utf-8") as f:
+              for num,st,en,s in subs:
+                  f.write(f"{num}\n{stamp(st)} --> {stamp(en)}\n{s}\n\n")
+          Path("final/chapters.txt").write_text("\n".join(chapters),encoding="utf-8")
+          Path("final/duration.txt").write_text(f"{cur:.6f}\n",encoding="utf-8")
+          print("AUDIO_DURATION",cur,"SENTENCES",idx)
+          PY
+          python3 /tmp/build_audio.py
+
+      - name: Remux video with corrected single-pass audio
+        run: |
+          DUR=$(cat final/duration.txt)
+          ffmpeg -y -loglevel error -i src/ssd_hdd_motion_complete.mp4 -map 0:v:0 -an -c:v copy final/visual.mp4
+          echo "Visual stream:"
+          ffprobe -v error -select_streams v:0 -show_entries stream=duration,r_frame_rate,width,height -of json final/visual.mp4
+          echo "Narration:"
+          ffprobe -v error -show_entries format=duration -of json final/narration.wav
+          ffmpeg -y -loglevel error             -i final/visual.mp4 -i final/narration.wav -i final/bgm.wav             -filter_complex "[1:a]volume=1.0[n];[2:a]volume=0.20[bg];[n][bg]amix=inputs=2:duration=first:dropout_transition=2[a]"             -map 0:v:0 -map "[a]" -c:v copy -c:a aac -b:a 256k -shortest -movflags +faststart             final/SSD_HDD_FINAL_1080p60.mp4
+
+          ffprobe -v error -show_streams -show_format -of json final/SSD_HDD_FINAL_1080p60.mp4 > final/ffprobe.json
+          ffprobe -v error -show_entries format=duration,size,bit_rate -of json final/SSD_HDD_FINAL_1080p60.mp4
+
+      - name: Extract final QA samples
+        run: |
+          for T in 20 120 240 360 480 600 720 840 960 1080 1180; do
+            ffmpeg -y -loglevel error -ss "$T" -i final/SSD_HDD_FINAL_1080p60.mp4 -frames:v 1 "qa/frames/frame_${T}.png"
+          done
+          ffmpeg -y -loglevel error -ss 230 -i final/SSD_HDD_FINAL_1080p60.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/sample_hdd.mp4
+          ffmpeg -y -loglevel error -ss 510 -i final/SSD_HDD_FINAL_1080p60.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/sample_types.mp4
+          ffmpeg -y -loglevel error -ss 930 -i final/SSD_HDD_FINAL_1080p60.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/sample_backup.mp4
+          cp final/ffprobe.json qa/
+          cp final/subtitles.srt qa/
+          cp final/chapters.txt qa/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-final-sync
+          path: |
+            final/SSD_HDD_FINAL_1080p60.mp4
+            final/subtitles.srt
+            final/narration.wav
+            final/chapters.txt
+            final/ffprobe.json
+          compression-level: 0
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-final-qa
+          path: qa
+          compression-level: 0
+          retention-days: 7
