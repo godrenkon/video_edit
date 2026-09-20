@@ -4,7 +4,7 @@ import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrack
 import { constrainNormalizedCrop, cropToNormalized } from '../render/cropGeometry';
 import { clipSourceTime } from '../render/timelineEvaluation';
 import { generateEvenSubtitleWords, normalizeSubtitleHighlightColor } from '../render/subtitleHighlight';
-import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker, TrackKind, TransitionKind } from '../types/editor';
+import type { BlendMode, Clip, Crop, GeneratorPayload, Project, ShapePayload, TextPayload, TimelineMarker, TrackKind, TransitionKind } from '../types/editor';
 import { EffectsPanel } from './EffectsPanel';
 import { MaskEditor } from './MaskEditor';
 import { ProjectExportSettingsPanel } from './ProjectExportSettingsPanel';
@@ -79,6 +79,11 @@ export function Inspector({
   const patchGenerator = (patch: Partial<GeneratorPayload>) => {
     if (!selectedClip?.generator) return;
     onClip({ generator: { ...selectedClip.generator, ...patch } });
+  };
+
+  const patchShape = (patch: Partial<ShapePayload>) => {
+    if (!selectedClip?.shape) return;
+    onClip({ shape: { ...selectedClip.shape, ...patch } });
   };
 
   const patchGeneratorData = (key: string, value: string | number | boolean | number[]) => {
@@ -196,6 +201,44 @@ export function Inspector({
                   <option value="left">左</option><option value="center">中央</option><option value="right">右</option>
                 </select>
               </Field>
+            </>
+          )}
+
+          {selectedClip.kind === 'shape' && selectedClip.shape && (
+            <>
+              <h3>シェイプ</h3>
+              <Field label="種類">
+                <select value={selectedClip.shape.kind} onChange={(e) => patchShape({ kind: e.target.value as ShapePayload['kind'] })}>
+                  <option value="rectangle">長方形</option>
+                  <option value="ellipse">楕円</option>
+                  <option value="line">ライン</option>
+                </select>
+              </Field>
+              <div className="twoFields">
+                <NumberField label="幅" value={selectedClip.shape.width} step={1} onChange={(v) => patchShape({ width: Math.max(1, v) })} />
+                <NumberField label="高さ" value={selectedClip.shape.height} step={1} onChange={(v) => patchShape({ height: Math.max(1, v) })} />
+              </div>
+              <div className="twoFields">
+                <Field label={selectedClip.shape.kind === 'line' ? '線色' : '塗り'}>
+                  <input type="color" value={safeColor(selectedClip.shape.fill, '#5fd8ff')} onChange={(e) => patchShape({ fill: e.target.value })} />
+                </Field>
+                {selectedClip.shape.kind !== 'line' && (
+                  <Field label="枠線色">
+                    <input type="color" value={safeColor(selectedClip.shape.stroke, '#ffffff')} onChange={(e) => patchShape({ stroke: e.target.value })} />
+                  </Field>
+                )}
+              </div>
+              {selectedClip.shape.kind !== 'line' && (
+                <div className="twoFields">
+                  <NumberField label="枠線" value={selectedClip.shape.strokeWidth} step={1} onChange={(v) => patchShape({ strokeWidth: Math.max(0, v) })} />
+                  {selectedClip.shape.kind === 'rectangle' && (
+                    <NumberField label="角丸" value={selectedClip.shape.cornerRadius ?? 0} step={1} onChange={(v) => patchShape({ cornerRadius: Math.max(0, v) })} />
+                  )}
+                </div>
+              )}
+              {selectedClip.shape.kind === 'line' && (
+                <div className="infoCard">ラインの太さは「高さ」で調整します。回転・不透明度・エフェクトも通常クリップと同様に適用されます。</div>
+              )}
             </>
           )}
 
