@@ -242,7 +242,7 @@ def render_segment(title,s,kind,wav,dur,idx):
 def title_segment(title,secidx):
     im=bg_image("",""); d=ImageDraw.Draw(im,"RGBA"); txt(d,(960,430),title,72,WHITE,"mm"); txt(d,(960,540),"SSD / HDD",34,CYAN,"mm"); d.line((620,610,1300,610),fill=CYAN,width=5)
     p=save(im,f"title_{secidx:02d}.png"); out=WORK/f"title_{secidx:02d}.mp4"
-    run(["ffmpeg","-y","-loglevel","error","-loop","1","-i",p,"-loop","1","-i",SPR["scan"],"-f","lavfi","-i","anullsrc=r=48000:cl=stereo","-filter_complex",f"[1:v]format=rgba,colorchannelmixer=aa=0.42[s];[0:v][s]overlay=x='-120+mod(t*420,{W+240})':y=300,fade=t=in:st=0:d=.25,fade=t=out:st=1.05:d=.25,format=yuv420p[v]","-map","[v]","-map","2:a","-t","1.3","-r",str(FPS),"-c:v","libx264","-preset","veryfast","-crf","17","-c:a","aac","-b:a","160k","-shortest",out])
+    run(["ffmpeg","-y","-loglevel","error","-loop","1","-i",p,"-loop","1","-i",SPR["scan"],"-f","lavfi","-i","anullsrc=r=48000:cl=stereo","-filter_complex",f"[1:v]format=rgba,colorchannelmixer=aa=0.42[s];[0:v][s]overlay=x='-120+mod(t*420,{W+240})':y=300,fade=t=in:st=0:d=0.25,fade=t=out:st=1.05:d=0.25,format=yuv420p[v]","-map","[v]","-map","2:a","-t","1.3","-r",str(FPS),"-c:v","libx264","-preset","veryfast","-crf","17","-c:a","aac","-b:a","160k","-shortest",out])
     return out
 
 def bgm_with_sfx(duration,chapter_times,accent_times,path):
