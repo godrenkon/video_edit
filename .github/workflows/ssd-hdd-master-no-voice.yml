@@ -1,0 +1,84 @@
+name: Build SSD HDD No-Narration Master
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-master-no-voice.yml"
+      - "tools/ssd_hdd_video/render_motion.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow requests numpy soundfile
+
+      - name: Start VOICEVOX timing engine
+        run: |
+          docker pull voicevox/voicevox_engine:cpu-latest
+          docker run -d --rm --name voicevox -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:cpu-latest
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:50021/version >/dev/null; then
+              echo "VOICEVOX timing engine ready"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Render no-narration master
+        run: |
+          python3 -m py_compile tools/ssd_hdd_video/render_motion.py
+          python3 tools/ssd_hdd_video/render_motion.py
+
+      - name: Inspect output
+        run: |
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,duration -show_entries format=duration,size,bit_rate -of json output_motion/SSD_HDD_MASTER_NO_NARRATION.mp4
+          ls -lah output_motion
+
+      - name: Build QA package
+        run: |
+          mkdir -p qa/frames
+          cp output_motion/subtitles.ass qa/
+          cp output_motion/subtitles.srt qa/
+          cp output_motion/chapters.txt qa/
+          ffprobe -v error -show_streams -show_format -of json output_motion/SSD_HDD_MASTER_NO_NARRATION.mp4 > qa/ffprobe.json
+          for T in 15 90 180 300 420 540 660 780 900 1020 1140; do
+            ffmpeg -y -loglevel error -ss "$T" -i output_motion/SSD_HDD_MASTER_NO_NARRATION.mp4 -frames:v 1 "qa/frames/frame_${T}.png"
+          done
+          ffmpeg -y -loglevel error -ss 180 -i output_motion/SSD_HDD_MASTER_NO_NARRATION.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/sample_hdd.mp4
+          ffmpeg -y -loglevel error -ss 500 -i output_motion/SSD_HDD_MASTER_NO_NARRATION.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/sample_types.mp4
+          ffmpeg -y -loglevel error -ss 860 -i output_motion/SSD_HDD_MASTER_NO_NARRATION.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/sample_backup.mp4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-no-narration-master
+          path: |
+            output_motion/SSD_HDD_MASTER_NO_NARRATION.mp4
+            output_motion/SSD_HDD_PREVIEW_NO_NARRATION.mp4
+            output_motion/subtitles.ass
+            output_motion/subtitles.srt
+            output_motion/bgm_stem.wav
+            output_motion/se_stem.wav
+            output_motion/chapters.txt
+          compression-level: 0
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-no-narration-qa
+          path: qa
+          compression-level: 0
+          retention-days: 7
