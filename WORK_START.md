@@ -42,6 +42,9 @@ Implemented already:
 - proxy generation / auto relink / manual original relink
 - cached waveform / decoded thumbnails / long-timeline virtualization
 - lazy-loaded decode, proxy and export runtime chunks
+- shared thumbnail/waveform analysis worker with cancellation and fallback
+- paused/effect-preview composition worker with cancellation and fallback
+- video export decode/render/audio-mix/encode worker with cancellation and fallback
 - Zundamon PNG-based mouth/blink/bob prototype
 - Amplify static hosting configuration
 - regression tests and GitHub Actions CI on `main`
@@ -54,10 +57,10 @@ Implemented already:
    - memory/resource leak checks
    - missing/unsupported media diagnostics
    - verify VP9 / VP8 / AV1 + Opus combinations on target browsers
-2. Move long-running media/render work off the main thread
-   - decode worker boundaries
-   - offline render worker
-   - bounded queues and cancellation
+2. Complete remaining realtime media Worker boundaries
+   - frame-accurate playback decode worker
+   - proxy and transcript worker boundaries
+   - bounded queues, backpressure and cancellation
 3. Add WebGPU compositor with WebGL2/Canvas fallbacks
 4. Add LUT, scopes, masks, tracking and graph editor
 5. Add speech-to-text, automatic captions and text-based editing
@@ -80,13 +83,13 @@ Project
  -> OPFS direct output or memory fallback
 ```
 
-Do not treat it as the final renderer yet. Browser fixture tests, full effect/text parity, MP4 and GPU composition remain required.
+Do not treat it as the final renderer yet. Browser fixture tests, long-duration A/V sync and memory validation, and GPU composition remain required.
 
 ## Architecture rules
 
 - Preview and final export are separate pipelines, but must share timeline/effect semantics.
 - Project state contains metadata only; never store Blob, VideoFrame, AudioData, AudioBuffer, DOM nodes, GPU resources, or Object URLs in undo history.
-- Long-running decode, proxy, waveform, transcript, and render work belongs in workers. Current main-thread export code is a stepping stone and should preserve worker-safe boundaries.
+- Long-running decode, proxy, waveform, transcript, and render work belongs in workers. Video export now uses a dedicated Worker and retains the same implementation as an unsupported-browser fallback.
 - Every editing mutation should become an EditorCommand or equivalent deterministic operation.
 - Any schema change requires a migration path.
 - Every new feature must define preview behavior, export behavior, undo behavior, fallback behavior, and tests.

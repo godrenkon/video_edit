@@ -49,7 +49,7 @@ This checkpoint is not the final production renderer. The following are still ma
 - text/subtitle/generator rendering parity
 - registered effect + keyframe rendering parity
 - MP4/H.264/AAC delivery
-- Worker-based decode/render execution
+- browser fixture coverage for Worker-based decode/render execution
 - GPU compositor and fallbacks
 
 ## 3. Non-negotiable architecture
@@ -332,7 +332,7 @@ Dedicated workers should handle:
 - export rendering
 - audio analysis / offline mix where practical
 
-Current deterministic export may execute on the main thread while the Worker boundary is being completed. New render code must remain free of unnecessary DOM coupling so it can move into workers without redesigning the project model.
+Current deterministic video export executes decode, composition, audio mixing, encode and mux inside a dedicated Worker when the required browser APIs are available. Unsupported Worker runtimes use the same renderer through an automatic main-thread fallback.
 
 GPU path:
 

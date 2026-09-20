@@ -34,6 +34,7 @@ if (failures.length) {
 
 checkWorkerBundle('mediaAnalysisWorker', 'Media analysis worker', { rawBytes: 720 * 1024, gzipBytes: 180 * 1024 });
 checkWorkerBundle('previewRenderWorker', 'Preview render worker', { rawBytes: 720 * 1024, gzipBytes: 180 * 1024 });
+checkWorkerBundle('projectExportWorker', 'Project export worker', { rawBytes: 780 * 1024, gzipBytes: 195 * 1024 });
 checkOfflinePrecacheManifest();
 
 function checkWorkerBundle(filePrefix, label, workerLimits) {

@@ -88,7 +88,7 @@ Current implementation branch: `main`.
 - [x] bounded source cache configuration
 - [x] shared thumbnail/waveform media-analysis worker with cancellation and automatic main-thread fallback
 - [x] paused/effect-preview composition worker with cancellation and automatic main-thread fallback
-- [ ] export decode/render worker
+- [x] export decode/render/encode worker with progress, cancellation and automatic main-thread fallback
 - [x] streamed OPFS video proxy generation + progress/cancel/remove UI
 - [x] proxy auto-relink on load + manual original media relink
 - [x] bounded memory + OPFS timeline thumbnail cache

@@ -24,6 +24,7 @@
 - 重量級decode / proxy / export runtimeのオンデマンド読み込み
 - production buildの初期bundle容量budget検査
 - 動画thumbnail decode / WebP生成と音声waveform解析を共有Media Analysis Workerへ分離（自動fallback付き）
+- pause/effect preview合成をPreview Render Workerへ分離（自動fallback付き）
 - build-versioned PWA app shell（初回install時に遅延読込chunk/Workerもprecache）
 - Vitest回帰テスト
 - GitHub Actions CI: `npm test` → TypeScript check → production build
@@ -73,6 +74,7 @@
 - Opus音声をWebMへmux
 - in/out range対応
 - render progress / cancellation / error reporting
+- decode / composite / audio mix / encode / muxを専用Export Workerへ分離（自動fallback付き）
 - 長時間向けOPFS direct output
 - OPFS非対応時のmemory output fallback
 - WAV / PNG still / PNG sequence出力
@@ -147,10 +149,9 @@ CIではunit test / typecheck / production buildまで検証しています。�
 現在の主要な未完成領域は以下です。
 
 - browser実機fixtureによるA/V sync・frame accuracy・長時間memory検証
-- decode / render Worker化
+- frame-accurate realtime playback decode worker
 - WebGPU compositor + WebGL fallback
 - frame-accurate decoded-frame preview engine
-- dedicated paused/effect-preview render worker with automatic main-thread fallback
 - LUT / scope / mask / tracking / graph editor
 - noise suppression / automation lane UI
 - speech-to-text / automatic captions / text-based timeline editing

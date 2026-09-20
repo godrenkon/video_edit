@@ -889,7 +889,7 @@ export default function App() {
     setSaveState('動画書き出しを準備中…');
 
     try {
-      const { exportProjectVideo } = await import('./render/projectExporter');
+      const { exportProjectVideo } = await import('./render/projectExportEngine');
       const result = await exportProjectVideo(project, {
         signal: controller.signal,
         preferOpfs: true,
