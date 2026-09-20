@@ -234,6 +234,47 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
     );
   }
 
+  if (clip.kind === 'shape' && clip.shape) {
+    const shape = clip.shape;
+    const widthPercent = Math.max(0.01, shape.width / Math.max(1, project.width) * 100);
+    const heightPercent = Math.max(0.01, shape.height / Math.max(1, project.height) * 100);
+    const anchorX = Math.max(0, Math.min(1, clip.transform.anchorX ?? 0.5));
+    const anchorY = Math.max(0, Math.min(1, clip.transform.anchorY ?? 0.5));
+    const shapeStyle: CSSProperties = {
+      ...common,
+      width: `${widthPercent}%`,
+      height: `${heightPercent}%`,
+      left: '50%',
+      top: '50%',
+      marginLeft: `${-widthPercent * anchorX}%`,
+      marginTop: `${-heightPercent * anchorY}%`,
+      background: shape.kind === 'line' ? 'transparent' : shape.fill,
+      border: shape.kind === 'line' || shape.strokeWidth <= 0
+        ? undefined
+        : `${Math.max(0, shape.strokeWidth) / Math.max(1, project.width) * 100}cqw solid ${shape.stroke}`,
+      borderRadius: shape.kind === 'ellipse'
+        ? '50%'
+        : shape.kind === 'rectangle'
+          ? `${Math.max(0, shape.cornerRadius ?? 0) / Math.max(1, project.width) * 100}cqw`
+          : undefined,
+      position: 'absolute',
+      boxSizing: 'border-box',
+      overflow: 'visible',
+    };
+
+    if (shape.kind === 'line') {
+      shapeStyle.height = `${Math.max(1, shape.height) / Math.max(1, project.height) * 100}%`;
+      shapeStyle.background = shape.fill || shape.stroke || '#ffffff';
+      shapeStyle.borderRadius = '999px';
+    }
+
+    return (
+      <div className="previewSynthetic previewShape" style={shapeStyle}>
+        <VisualEffectOverlays clip={clip} time={time} />
+      </div>
+    );
+  }
+
   if (clip.kind === 'generator' && clip.generator) {
     const generator = clip.generator;
     if (generator.kind === 'bars') {
@@ -400,7 +441,7 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
           <div className="stage" style={{ aspectRatio: aspect, background: project.background }}>
             {visuals.map(({ clip }) => {
               if (clip.kind === 'zundamon') return <ZundamonLayer key={clip.id} clip={clip} assetsById={assetsById} project={project} time={time} />;
-              if (clip.kind === 'text' || clip.kind === 'subtitle' || clip.kind === 'generator') {
+              if (clip.kind === 'text' || clip.kind === 'subtitle' || clip.kind === 'generator' || clip.kind === 'shape') {
                 return <SyntheticLayer key={clip.id} clip={clip} project={project} time={time} />;
               }
               return <VisualLayer key={clip.id} clip={clip} project={project} asset={clip.assetId ? assetsById.get(clip.assetId) : undefined} time={time} playing={playing} />;
