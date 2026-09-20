@@ -175,6 +175,16 @@ export interface GeneratorPayload {
   data?: Record<string, EffectParameterValue>;
 }
 
+export interface ShapePayload {
+  kind: 'rectangle' | 'ellipse' | 'line';
+  width: number;
+  height: number;
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+  cornerRadius?: number;
+}
+
 export interface MouthCue {
   time: number;
   state: 0 | 1 | 2;
@@ -222,6 +232,7 @@ export interface Clip {
   text?: TextPayload;
   subtitle?: SubtitlePayload;
   generator?: GeneratorPayload;
+  shape?: ShapePayload;
 }
 
 export interface AudioBusSettings {
