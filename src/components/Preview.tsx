@@ -11,7 +11,7 @@ import { previewCropLayout } from '../render/cropGeometry';
 import { canvasFilterForEffects, resolveTemperatureTintEffects, resolveVignetteEffects, vignetteCssBackground } from '../render/effectEvaluation';
 import { PreviewAudioGraph } from '../render/previewAudioGraph';
 import { previewSyncTolerance } from '../render/previewClock';
-import { transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect } from '../render/transitionEnvelope';
+import { transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect, transitionScale } from '../render/transitionEnvelope';
 import { activeSubtitleHighlight, normalizeSubtitleHighlightColor } from '../render/subtitleHighlight';
 import {
   deterministicNoiseByte,
@@ -41,7 +41,7 @@ function clipPreviewTransform(clip: Clip, project: Project, clipLocalTime: numbe
   const transitionOffset = transitionMotionOffset(clip, clipLocalTime, project.width, project.height);
   const x = (clip.transform.x + transitionOffset.x) / Math.max(1, project.width) * 100;
   const y = (clip.transform.y + transitionOffset.y + extraY) / Math.max(1, project.height) * 100;
-  return `translate(${x}%, ${y}%) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`;
+  return `translate(${x}%, ${y}%) scale(${clip.transform.scale * transitionScale(clip, clipLocalTime)}) rotate(${clip.transform.rotation}deg)`;
 }
 
 function transitionClipPath(clip: Clip, clipLocalTime: number) {
@@ -106,7 +106,7 @@ function assetLayerStyles(
       height: `${layout.frameHeightPercent}%`,
       overflow: 'hidden',
       transformOrigin: '0 0',
-      transform: `rotate(${clip.transform.rotation}deg) scale(${clip.transform.scale}) translate(${-anchorX * 100}%, ${-anchorY * 100}%)`,
+      transform: `rotate(${clip.transform.rotation}deg) scale(${clip.transform.scale * transitionScale(clip, clipLocal)}) translate(${-anchorX * 100}%, ${-anchorY * 100}%)`,
       opacity: Math.max(0, Math.min(1, clip.transform.opacity * transitionOpacity(clip, clipLocal))),
       mixBlendMode: clip.blendMode === 'add' ? 'plus-lighter' : clip.blendMode ?? 'normal',
       filter: previewVisualFilter(clip, clipLocal),
