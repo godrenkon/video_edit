@@ -47,13 +47,13 @@ import { clearTimelineThumbnailCache } from './render/thumbnailCache';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
+import { RecoveryDialog } from './components/RecoveryDialog';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
 import { ZundamonPanel } from './components/ZundamonPanel';
 import type { ZundamonRequest } from './components/ZundamonPanel';
 import type { Clip, Project, TrackKind } from './types/editor';
 
-const RecoveryDialog = lazy(() => import('./components/RecoveryDialog').then((module) => ({ default: module.RecoveryDialog })));
 const SearchEverythingPalette = lazy(() => import('./components/SearchEverythingPalette').then((module) => ({ default: module.SearchEverythingPalette })));
 
 interface UpdateOptions {
@@ -997,18 +997,16 @@ export default function App() {
         </Suspense>
       )}
       {showRecovery && (
-        <Suspense fallback={<OverlayLoading label="復旧データを読み込み中…" />}>
-          <RecoveryDialog
-            snapshots={recoverySnapshots}
-            suspectedCrash={suspectedCrash}
-            busy={recoveryBusy}
-            onRestore={restoreSnapshot}
-            onDismiss={() => {
-              setShowRecovery(false);
-              setSaveState('現在の保存を使用');
-            }}
-          />
-        </Suspense>
+        <RecoveryDialog
+          snapshots={recoverySnapshots}
+          suspectedCrash={suspectedCrash}
+          busy={recoveryBusy}
+          onRestore={restoreSnapshot}
+          onDismiss={() => {
+            setShowRecovery(false);
+            setSaveState('現在の保存を使用');
+          }}
+        />
       )}
 
       <TopBar
