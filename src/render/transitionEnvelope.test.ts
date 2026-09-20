@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeTransition, transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect } from './transitionEnvelope';
+import { normalizeTransition, transitionBrightness, transitionMotionOffset, transitionOpacity, transitionRevealRect, transitionScale } from './transitionEnvelope';
 
 describe('visual transition envelope', () => {
   it('fades a dissolve in and out on clip-local time', () => {
@@ -87,11 +87,29 @@ describe('visual transition envelope', () => {
     expect(transitionRevealRect(down, 1)).toEqual({ x: 0, y: 0, width: 1, height: 0.5 });
   });
 
+  it('scales zoom transitions with matching fade envelopes', () => {
+    const zoomIn = {
+      duration: 4,
+      transitionIn: { kind: 'zoom-in' as const, duration: 2 },
+      transitionOut: { kind: 'zoom-in' as const, duration: 2 },
+    };
+    expect(transitionScale(zoomIn, 0)).toBeCloseTo(0.72);
+    expect(transitionOpacity(zoomIn, 0)).toBe(0);
+    expect(transitionScale(zoomIn, 2)).toBeCloseTo(1);
+    expect(transitionScale(zoomIn, 4)).toBeCloseTo(1.28);
+    expect(transitionOpacity(zoomIn, 4)).toBe(0);
+
+    const zoomOut = { duration: 4, transitionIn: { kind: 'zoom-out' as const, duration: 2 } };
+    expect(transitionScale(zoomOut, 0)).toBeCloseTo(1.28);
+    expect(transitionScale(zoomOut, 2)).toBeCloseTo(1);
+  });
+
   it('normalizes supported transition kinds and rejects invalid durations', () => {
     expect(normalizeTransition({ kind: 'dissolve', duration: 99 }, 4)).toEqual({ kind: 'dissolve', duration: 4 });
     expect(normalizeTransition({ kind: 'dip-black', duration: 1 }, 4)).toEqual({ kind: 'dip-black', duration: 1 });
     expect(normalizeTransition({ kind: 'slide-right', duration: 1.5 }, 4)).toEqual({ kind: 'slide-right', duration: 1.5 });
     expect(normalizeTransition({ kind: 'wipe-left', duration: 1 }, 4)).toEqual({ kind: 'wipe-left', duration: 1 });
+    expect(normalizeTransition({ kind: 'zoom-in', duration: 1 }, 4)).toEqual({ kind: 'zoom-in', duration: 1 });
     expect(normalizeTransition({ kind: 'slide-up', duration: -1 }, 4)).toBeUndefined();
   });
 });
