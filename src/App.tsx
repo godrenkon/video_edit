@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles } from 'lucide-react';
 import { rippleTrimClip, rollEditBoundary, slideEditClip } from './core/advancedTimelineOps';
 import { addAssetBin, assignAssetBin, removeAssetBin, renameAssetBin } from './core/assetBins';
@@ -41,20 +41,20 @@ import {
 import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
-import { exportProjectVideo } from './render/projectExporter';
 import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
 import { waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
-import { generateVideoProxy } from './render/proxyGenerator';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
-import { RecoveryDialog } from './components/RecoveryDialog';
-import { SearchEverythingPalette } from './components/SearchEverythingPalette';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
-import { ZundamonPanel, type ZundamonRequest } from './components/ZundamonPanel';
+import { ZundamonPanel } from './components/ZundamonPanel';
+import type { ZundamonRequest } from './components/ZundamonPanel';
 import type { Clip, Project, TrackKind } from './types/editor';
+
+const RecoveryDialog = lazy(() => import('./components/RecoveryDialog').then((module) => ({ default: module.RecoveryDialog })));
+const SearchEverythingPalette = lazy(() => import('./components/SearchEverythingPalette').then((module) => ({ default: module.SearchEverythingPalette })));
 
 interface UpdateOptions {
   history?: boolean;
@@ -441,6 +441,7 @@ export default function App() {
     }), { history: false });
 
     try {
+      const { generateVideoProxy } = await import('./render/proxyGenerator');
       const generated = await generateVideoProxy(asset, {
         signal: controller.signal,
         onProgress: (progress) => {
@@ -887,6 +888,7 @@ export default function App() {
     setSaveState('動画書き出しを準備中…');
 
     try {
+      const { exportProjectVideo } = await import('./render/projectExporter');
       const result = await exportProjectVideo(project, {
         signal: controller.signal,
         preferOpfs: true,
@@ -984,23 +986,29 @@ export default function App() {
 
   return (
     <div className="appShell">
-      <SearchEverythingPalette
-        project={project}
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        onNavigate={navigateSearchResult}
-      />
+      {searchOpen && (
+        <Suspense fallback={<OverlayLoading label="検索を読み込み中…" />}>
+          <SearchEverythingPalette
+            project={project}
+            open
+            onClose={() => setSearchOpen(false)}
+            onNavigate={navigateSearchResult}
+          />
+        </Suspense>
+      )}
       {showRecovery && (
-        <RecoveryDialog
-          snapshots={recoverySnapshots}
-          suspectedCrash={suspectedCrash}
-          busy={recoveryBusy}
-          onRestore={restoreSnapshot}
-          onDismiss={() => {
-            setShowRecovery(false);
-            setSaveState('現在の保存を使用');
-          }}
-        />
+        <Suspense fallback={<OverlayLoading label="復旧データを読み込み中…" />}>
+          <RecoveryDialog
+            snapshots={recoverySnapshots}
+            suspectedCrash={suspectedCrash}
+            busy={recoveryBusy}
+            onRestore={restoreSnapshot}
+            onDismiss={() => {
+              setShowRecovery(false);
+              setSaveState('現在の保存を使用');
+            }}
+          />
+        </Suspense>
       )}
 
       <TopBar
@@ -1132,6 +1140,10 @@ export default function App() {
       />
     </div>
   );
+}
+
+function OverlayLoading({ label }: { label: string }) {
+  return <div className="warningBar" role="status" aria-live="polite">{label}</div>;
 }
 
 function EngineStatus({ capabilities, storageText }: { capabilities: ReturnType<typeof detectCapabilities>; storageText: string }) {

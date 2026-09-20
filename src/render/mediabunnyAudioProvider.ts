@@ -1,10 +1,4 @@
-import {
-  ALL_FORMATS,
-  AudioBufferSink,
-  BlobSource,
-  Input,
-  type WrappedAudioBuffer,
-} from 'mediabunny';
+import type { AudioBufferSink, BlobSource, Input, WrappedAudioBuffer } from 'mediabunny';
 
 export interface MediabunnyAudioProviderOptions {
   maxCacheSize?: number;
@@ -28,6 +22,9 @@ export class MediabunnyAudioProvider {
 
   async open(signal?: AbortSignal) {
     if (this.opened) return;
+    throwIfAborted(signal);
+
+    const { ALL_FORMATS, AudioBufferSink, BlobSource, Input } = await import('mediabunny');
     throwIfAborted(signal);
 
     const input = new Input({

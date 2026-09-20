@@ -100,6 +100,8 @@ Current implementation branch: `main`.
 - [x] preview FPS / dropped-frame / frame-delay diagnostics
 - [x] decode-latency diagnostics
 - [x] timeline clip virtualization for long projects
+- [x] demand-loaded decode / proxy / export runtime chunks to keep the initial editor shell light
+- [x] CI-enforced initial JavaScript bundle budget
 
 ## Phase 3 — Export / Deliver
 
