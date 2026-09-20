@@ -15,7 +15,7 @@ permissions:
 jobs:
   render:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -39,23 +39,23 @@ jobs:
           done
           curl -fsS http://127.0.0.1:50021/speakers | head -c 2000
 
-      - name: Render full video
+      - name: Render animated full video
         run: |
-          python3 tools/ssd_hdd_video/render.py
+          python3 tools/ssd_hdd_video/render_motion.py
 
       - name: Inspect output
         run: |
-          ffprobe -v error -show_entries format=duration,size,bit_rate -of json output/ssd_hdd_complete.mp4
-          ls -lah output
+          ffprobe -v error -show_entries format=duration,size,bit_rate -of json output_motion/ssd_hdd_motion_complete.mp4
+          ls -lah output_motion
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ssd-hdd-complete-video
+          name: ssd-hdd-motion-video
           path: |
-            output/ssd_hdd_complete.mp4
-            output/ssd_hdd_preview.mp4
-            output/subtitles.srt
-            output/narration.wav
-            output/chapters.txt
+            output_motion/ssd_hdd_motion_complete.mp4
+            output_motion/ssd_hdd_motion_preview.mp4
+            output_motion/subtitles.srt
+            output_motion/narration.wav
+            output_motion/chapters.txt
           compression-level: 0
           retention-days: 7
