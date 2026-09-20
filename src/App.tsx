@@ -52,6 +52,7 @@ import { activeRenderQueueReferencesAsset, clearFinishedRenderJobs, createRender
 import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
 import { getAssetWaveform, waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
+import { detectSceneCandidates, mergeSceneMarkers, sceneMarkersForAsset } from './render/sceneDetection';
 import { generateVideoProxy } from './render/proxyGenerator';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
@@ -92,6 +93,8 @@ export default function App() {
   const [proxyProgress, setProxyProgress] = useState<Record<string, number>>({});
   const [silenceAnalysisAssetId, setSilenceAnalysisAssetId] = useState<string | null>(null);
   const [beatAnalysisAssetId, setBeatAnalysisAssetId] = useState<string | null>(null);
+  const [sceneAnalysisAssetId, setSceneAnalysisAssetId] = useState<string | null>(null);
+  const [sceneAnalysisProgress, setSceneAnalysisProgress] = useState<number | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mediaFocus, setMediaFocus] = useState<{ assetId?: string; binId?: string; token: number }>({ token: 0 });
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>(() => loadShortcutOverrides());
@@ -662,6 +665,45 @@ export default function App() {
       setBeatAnalysisAssetId(null);
     }
   }, [beatAnalysisAssetId, project, rendering, silenceAnalysisAssetId, updateProject]);
+
+  const detectAssetScenes = useCallback(async (assetId: string) => {
+    if (rendering || beatAnalysisAssetId || silenceAnalysisAssetId || sceneAnalysisAssetId) return;
+    const asset = project.assets.find((item) => item.id === assetId);
+    if (!asset || asset.kind !== 'video') return;
+
+    setSceneAnalysisAssetId(assetId);
+    setSceneAnalysisProgress(0);
+    setSaveState(`シーン解析中: ${asset.name}`);
+    try {
+      const candidates = await detectSceneCandidates(asset, {
+        sampleInterval: 0.5,
+        threshold: 0.24,
+        minSceneDuration: 0.8,
+        analysisWidth: 64,
+        histogramBins: 16,
+        onProgress: setSceneAnalysisProgress,
+      });
+      const generated = sceneMarkersForAsset(project, assetId, candidates);
+      updateProject((current) => ({
+        ...current,
+        markers: mergeSceneMarkers(current.markers, assetId, generated),
+      }), { label: 'シーン切替を解析' });
+      setSaveState(`シーン解析完了: ${candidates.length}候補 / ${generated.length}マーカー`);
+    } catch (error) {
+      console.error('Scene analysis failed', error);
+      setSaveState(error instanceof Error ? `シーン解析エラー: ${error.message}` : 'シーン解析エラー');
+    } finally {
+      setSceneAnalysisAssetId(null);
+      setSceneAnalysisProgress(null);
+    }
+  }, [
+    beatAnalysisAssetId,
+    project,
+    rendering,
+    sceneAnalysisAssetId,
+    silenceAnalysisAssetId,
+    updateProject,
+  ]);
 
   const removeAssetProxy = useCallback(async (assetId: string) => {
     proxyAbort.current.get(assetId)?.abort('Proxy removed');
@@ -1292,8 +1334,11 @@ export default function App() {
           onRemoveProxy={removeAssetProxy}
           silenceAnalysisAssetId={silenceAnalysisAssetId}
           beatAnalysisAssetId={beatAnalysisAssetId}
+          sceneAnalysisAssetId={sceneAnalysisAssetId}
+          sceneAnalysisProgress={sceneAnalysisProgress}
           onDetectSilence={detectAssetSilence}
           onDetectBeats={detectAssetBeats}
+          onDetectScenes={detectAssetScenes}
           onCreateText={createText}
           onCreateLowerThird={createLowerThird}
           onCreateSubtitle={createSubtitle}
