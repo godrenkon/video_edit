@@ -89,6 +89,24 @@ describe('media analysis worker client', () => {
     await expect(request).rejects.toThrow('mismatched response');
   });
 
+  it('preserves cancellation errors returned by the worker', async () => {
+    const client = await import('./mediaAnalysisWorkerClient');
+    const request = client.analyzeWaveformInWorker('asset:a', new Blob(['a']), {
+      duration: 2,
+      samplesPerSecond: 10,
+      maxBins: 100,
+      chunkSeconds: 30,
+    });
+    const instance = FakeWorker.instances[0];
+    const sent = instance.sent[0] as { id: number };
+
+    instance.onmessage?.({
+      data: { id: sent.id, kind: 'waveform', ok: false, error: 'resources cleared', errorName: 'AbortError' },
+    } as MessageEvent);
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError', message: 'resources cleared' });
+  });
+
   it('clears only resources belonging to the requested asset', async () => {
     const client = await import('./mediaAnalysisWorkerClient');
     const request = client.renderTimelineThumbnailInWorker('asset:a', new Blob(['a']), 1);

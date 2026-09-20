@@ -12,6 +12,7 @@ if (!entryMatch) {
 
 const relativeEntry = entryMatch[1].replace(/^\//, '');
 const distRoot = resolve(root, 'dist');
+const distAssetsRoot = resolve(distRoot, 'assets');
 const initialFiles = collectStaticJavaScript(resolve(distRoot, relativeEntry));
 const rawBytes = initialFiles.reduce((total, file) => total + readFileSync(file).byteLength, 0);
 const gzipBytes = initialFiles.reduce((total, file) => total + gzipSync(readFileSync(file), { level: 9 }).byteLength, 0);
@@ -33,13 +34,14 @@ if (failures.length) {
 
 checkWorkerBundle('mediaAnalysisWorker', 'Media analysis worker', { rawBytes: 720 * 1024, gzipBytes: 180 * 1024 });
 checkWorkerBundle('previewRenderWorker', 'Preview render worker', { rawBytes: 720 * 1024, gzipBytes: 180 * 1024 });
+checkOfflinePrecacheManifest();
 
 function checkWorkerBundle(filePrefix, label, workerLimits) {
-  const workerName = readdirSync(resolve(root, 'dist/assets'))
+  const workerName = readdirSync(distAssetsRoot)
     .find((name) => new RegExp(`^${filePrefix}-.*\\.js$`).test(name));
   if (!workerName) throw new Error(`${label} bundle is missing from the production build`);
 
-  const workerSource = readFileSync(resolve(root, 'dist/assets', workerName));
+  const workerSource = readFileSync(resolve(distAssetsRoot, workerName));
   const workerRawBytes = workerSource.byteLength;
   const workerGzipBytes = gzipSync(workerSource, { level: 9 }).byteLength;
   console.log(`${label}: ${format(workerRawBytes)} raw / ${format(workerGzipBytes)} gzip`);
@@ -48,6 +50,27 @@ function checkWorkerBundle(filePrefix, label, workerLimits) {
   if (workerRawBytes > workerLimits.rawBytes) workerFailures.push(`raw ${format(workerRawBytes)} > ${format(workerLimits.rawBytes)}`);
   if (workerGzipBytes > workerLimits.gzipBytes) workerFailures.push(`gzip ${format(workerGzipBytes)} > ${format(workerLimits.gzipBytes)}`);
   if (workerFailures.length) throw new Error(`${label} budget exceeded: ${workerFailures.join(', ')}`);
+}
+
+function checkOfflinePrecacheManifest() {
+  const manifestPath = resolve(distRoot, 'precache-assets.js');
+  const source = readFileSync(manifestPath, 'utf8');
+  const manifestMatch = source.match(/self\.__SUIRAM_BUILD_ASSETS__ = (\[[\s\S]*\]);/);
+  const buildIdMatch = source.match(/self\.__SUIRAM_BUILD_ID__ = "([0-9a-f]{16})";/);
+  if (!manifestMatch || !buildIdMatch) throw new Error('Offline precache asset module is invalid');
+  const manifest = JSON.parse(manifestMatch[1]);
+  if (!Array.isArray(manifest) || manifest.some((entry) => typeof entry !== 'string')) {
+    throw new Error('Offline precache manifest is invalid');
+  }
+  const cached = new Set(manifest);
+  const requiredAssets = readdirSync(distAssetsRoot)
+    .filter((name) => /\.(?:css|js)$/.test(name))
+    .map((name) => `/assets/${name}`);
+  const missing = requiredAssets.filter((asset) => !cached.has(asset));
+  if (missing.length) throw new Error(`Offline precache manifest is missing: ${missing.join(', ')}`);
+  const exportChunk = requiredAssets.find((asset) => /\/projectExporter-.*\.js$/.test(asset));
+  if (!exportChunk) throw new Error('Demand-loaded project exporter chunk is missing from the production build');
+  console.log(`Offline precache manifest ${buildIdMatch[1]}: ${manifest.length} build assets (including ${exportChunk})`);
 }
 
 function collectStaticJavaScript(entryPath) {

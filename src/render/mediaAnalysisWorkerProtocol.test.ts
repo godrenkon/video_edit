@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { mediaAnalysisWorkerError, supportsMediaAnalysisWorker } from './mediaAnalysisWorkerProtocol';
+import {
+  mediaAnalysisWorkerError,
+  mediaAnalysisWorkerErrorName,
+  supportsMediaAnalysisWorker,
+} from './mediaAnalysisWorkerProtocol';
 
 describe('media analysis worker protocol', () => {
   it('requires both Worker and OffscreenCanvas', () => {
@@ -12,5 +16,7 @@ describe('media analysis worker protocol', () => {
     expect(mediaAnalysisWorkerError(new Error('decode failed'))).toBe('decode failed');
     expect(mediaAnalysisWorkerError('cancelled')).toBe('cancelled');
     expect(mediaAnalysisWorkerError(null)).toBe('Media analysis worker failed');
+    expect(mediaAnalysisWorkerErrorName(new DOMException('cancelled', 'AbortError'))).toBe('AbortError');
+    expect(mediaAnalysisWorkerErrorName(null)).toBeUndefined();
   });
 });

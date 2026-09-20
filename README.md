@@ -24,7 +24,7 @@
 - 重量級decode / proxy / export runtimeのオンデマンド読み込み
 - production buildの初期bundle容量budget検査
 - 動画thumbnail decode / WebP生成と音声waveform解析を共有Media Analysis Workerへ分離（自動fallback付き）
-- PWA / offline app shell
+- build-versioned PWA app shell（初回install時に遅延読込chunk/Workerもprecache）
 - Vitest回帰テスト
 - GitHub Actions CI: `npm test` → TypeScript check → production build
 - WebCodecs / codec / OPFS / persistent storage / WebGPU / OffscreenCanvas等のbrowser capability診断

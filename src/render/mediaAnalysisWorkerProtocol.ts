@@ -39,7 +39,7 @@ export type MediaAnalysisWorkerRequest =
 export type MediaAnalysisWorkerResponse =
   | { id: number; kind: 'thumbnail'; ok: true; blob: Blob | null }
   | { id: number; kind: 'waveform'; ok: true; peaks: number[] }
-  | { id: number; kind: 'thumbnail' | 'waveform'; ok: false; error: string };
+  | { id: number; kind: 'thumbnail' | 'waveform'; ok: false; error: string; errorName?: string };
 
 export function supportsMediaAnalysisWorker(environment: typeof globalThis = globalThis) {
   return typeof environment.Worker === 'function' && typeof environment.OffscreenCanvas === 'function';
@@ -48,4 +48,8 @@ export function supportsMediaAnalysisWorker(environment: typeof globalThis = glo
 export function mediaAnalysisWorkerError(error: unknown) {
   if (error instanceof Error && error.message) return error.message;
   return typeof error === 'string' && error ? error : 'Media analysis worker failed';
+}
+
+export function mediaAnalysisWorkerErrorName(error: unknown) {
+  return error instanceof Error && error.name ? error.name : undefined;
 }

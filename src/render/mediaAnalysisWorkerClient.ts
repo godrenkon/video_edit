@@ -121,7 +121,7 @@ function ensureWorker() {
     pending.delete(response.id);
     request.cleanup?.();
     if (!response.ok) {
-      request.reject(new Error(response.error));
+      request.reject(workerResponseError(response.error, response.errorName));
       return;
     }
     if (request.kind !== response.kind) {
@@ -163,4 +163,11 @@ function abortError(signal?: AbortSignal) {
 
 function asError(error: unknown) {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+function workerResponseError(message: string, name?: string) {
+  if (name === 'AbortError') return new DOMException(message, 'AbortError');
+  const error = new Error(message);
+  if (name) error.name = name;
+  return error;
 }

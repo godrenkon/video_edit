@@ -1,11 +1,21 @@
+importScripts('/precache-assets.js');
+
 const CACHE_PREFIX = 'suiram-video-edit-shell-';
-const CACHE_NAME = CACHE_PREFIX + 'v1';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/app-icon.svg', '/audio-effects-worklet.js'];
+const CACHE_NAME = CACHE_PREFIX + self.__SUIRAM_BUILD_ID__;
+const APP_SHELL = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/app-icon.svg',
+  '/audio-effects-worklet.js',
+  '/precache-assets.js',
+  ...self.__SUIRAM_BUILD_ASSETS__,
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
+      .then((cache) => cache.addAll([...new Set(APP_SHELL)]))
       .then(() => self.skipWaiting()),
   );
 });
@@ -30,7 +40,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (!['script', 'audioworklet', 'style', 'font', 'image', 'manifest'].includes(request.destination)) return;
+  const buildAsset = url.pathname.startsWith('/assets/');
+  if (!buildAsset && !['script', 'worker', 'sharedworker', 'audioworklet', 'style', 'font', 'image', 'manifest'].includes(request.destination)) return;
   event.respondWith(cacheFirstAsset(request));
 });
 
