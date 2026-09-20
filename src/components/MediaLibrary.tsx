@@ -32,8 +32,11 @@ interface Props {
   onRemoveProxy: (assetId: string) => void;
   silenceAnalysisAssetId?: string | null;
   beatAnalysisAssetId?: string | null;
+  sceneAnalysisAssetId?: string | null;
+  sceneAnalysisProgress?: number | null;
   onDetectSilence: (assetId: string) => void;
   onDetectBeats: (assetId: string) => void;
+  onDetectScenes: (assetId: string) => void;
   onCreateText: () => void;
   onCreateLowerThird: (preset: LowerThirdPreset) => void;
   onCreateSubtitle: () => void;
@@ -77,8 +80,11 @@ export function MediaLibrary({
   onRemoveProxy,
   silenceAnalysisAssetId,
   beatAnalysisAssetId,
+  sceneAnalysisAssetId,
+  sceneAnalysisProgress,
   onDetectSilence,
   onDetectBeats,
+  onDetectScenes,
   onCreateText,
   onCreateLowerThird,
   onCreateSubtitle,
@@ -285,13 +291,13 @@ export function MediaLibrary({
             <div className="assetAnalysis">
               <div>
                 <span>ローカル音声解析</span>
-                <small>波形キャッシュから無音区間を検出し、タイムラインへマーカー化</small>
+                <small>無音/ビートは波形、シーンは低解像度フレームで解析してマーカー化</small>
               </div>
               <div className="assetAnalysisActions">
                 <button
                   type="button"
                   onClick={() => onDetectSilence(selectedAsset.id)}
-                  disabled={silenceAnalysisAssetId === selectedAsset.id || beatAnalysisAssetId === selectedAsset.id}
+                  disabled={Boolean(silenceAnalysisAssetId || beatAnalysisAssetId || sceneAnalysisAssetId)}
                 >
                   <Activity size={12} />
                   {silenceAnalysisAssetId === selectedAsset.id ? '解析中…' : '無音'}
@@ -299,11 +305,23 @@ export function MediaLibrary({
                 <button
                   type="button"
                   onClick={() => onDetectBeats(selectedAsset.id)}
-                  disabled={silenceAnalysisAssetId === selectedAsset.id || beatAnalysisAssetId === selectedAsset.id}
+                  disabled={Boolean(silenceAnalysisAssetId || beatAnalysisAssetId || sceneAnalysisAssetId)}
                 >
                   <Activity size={12} />
                   {beatAnalysisAssetId === selectedAsset.id ? '解析中…' : 'ビート'}
                 </button>
+                {selectedAsset.kind === 'video' && (
+                  <button
+                    type="button"
+                    onClick={() => onDetectScenes(selectedAsset.id)}
+                    disabled={Boolean(silenceAnalysisAssetId || beatAnalysisAssetId || sceneAnalysisAssetId)}
+                  >
+                    <Activity size={12} />
+                    {sceneAnalysisAssetId === selectedAsset.id
+                      ? `シーン ${Math.round((sceneAnalysisProgress ?? 0) * 100)}%`
+                      : 'シーン'}
+                  </button>
+                )}
               </div>
             </div>
           )}
