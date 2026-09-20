@@ -86,7 +86,8 @@ Current implementation branch: `main`.
 - [x] WebCodecs-backed video frame decode path
 - [x] WebCodecs-backed audio decode path for offline mix
 - [x] bounded source cache configuration
-- [ ] decode workers
+- [x] dedicated timeline-thumbnail decode worker with automatic main-thread fallback
+- [ ] general preview/export decode workers
 - [x] streamed OPFS video proxy generation + progress/cancel/remove UI
 - [x] proxy auto-relink on load + manual original media relink
 - [x] bounded memory + OPFS timeline thumbnail cache

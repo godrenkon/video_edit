@@ -1,6 +1,11 @@
 import { readAssetFile, readThumbnailCache, saveThumbnailCache } from '../core/storage';
 import type { AssetMeta } from '../types/editor';
 import { MediabunnyVideoProvider } from './mediabunnyProvider';
+import {
+  canRenderTimelineThumbnailInWorker,
+  clearTimelineThumbnailWorker,
+  renderTimelineThumbnailInWorker,
+} from './thumbnailWorkerClient';
 
 const MAX_THUMBNAILS = 96;
 const MAX_PROVIDERS = 4;
@@ -59,20 +64,14 @@ export function getTimelineThumbnail(asset: AssetMeta, sourceTime: number): Prom
       return url;
     }
 
-    const provider = await getProvider(asset);
-    const sample = await provider.getFrameAt(Math.max(0, Math.min(asset.duration || sourceTime, sourceTime)));
-    if (!sample) return null;
-    try {
-      const blob = await drawSampleToBlob(sample);
-      if (!blob) return null;
-      await saveThumbnailCache(asset.id, key, blob).catch(() => undefined);
-      const url = URL.createObjectURL(blob);
-      thumbnails.set(key, { url, lastUsed: performanceNow() });
-      pruneThumbnails();
-      return url;
-    } finally {
-      sample.close();
-    }
+    const safeTime = Math.max(0, Math.min(asset.duration || sourceTime, sourceTime));
+    const blob = await decodeThumbnail(asset, safeTime);
+    if (!blob) return null;
+    await saveThumbnailCache(asset.id, key, blob).catch(() => undefined);
+    const url = URL.createObjectURL(blob);
+    thumbnails.set(key, { url, lastUsed: performanceNow() });
+    pruneThumbnails();
+    return url;
   });
 
   pending.set(key, task);
@@ -90,12 +89,34 @@ export function clearTimelineThumbnailCache(assetId?: string) {
     }
   }
   if (assetId) {
+    clearTimelineThumbnailWorker(assetId);
     const entry = providers.get(assetId);
     entry?.provider.close();
     providers.delete(assetId);
   } else {
+    clearTimelineThumbnailWorker();
     for (const entry of providers.values()) entry.provider.close();
     providers.clear();
+  }
+}
+
+async function decodeThumbnail(asset: AssetMeta, sourceTime: number) {
+  if (canRenderTimelineThumbnailInWorker()) {
+    try {
+      const file = await readAssetFile(asset.proxyStorageName ?? asset.storageName);
+      return await renderTimelineThumbnailInWorker(videoThumbnailFingerprint(asset), file, sourceTime);
+    } catch (error) {
+      console.warn('Timeline thumbnail worker failed; using the main-thread fallback', error);
+    }
+  }
+
+  const provider = await getProvider(asset);
+  const sample = await provider.getFrameAt(sourceTime);
+  if (!sample) return null;
+  try {
+    return await drawSampleToBlob(sample);
+  } finally {
+    sample.close();
   }
 }
 
