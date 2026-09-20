@@ -54,13 +54,16 @@ export function detectBeatCandidates(
     if (ratio < sensitivity || prominence < minPeak * 0.35) continue;
 
     raw.push({
-      time: (index + 0.5) * binDuration,
+      time: stableTime((index + 0.5) * binDuration),
       peak,
       score: ratio * 0.65 + prominence * 3 + peak * 0.35,
     });
   }
 
-  raw.sort((a, b) => b.score - a.score || b.peak - a.peak || a.time - b.time);
+  // When two transient candidates fall inside the same refractory interval,
+  // keep the physically stronger peak first. Ratio-to-baseline remains a
+  // quality score, but must not let a weaker precursor suppress the actual hit.
+  raw.sort((a, b) => b.peak - a.peak || b.score - a.score || a.time - b.time);
   const selected: BeatCandidate[] = [];
   for (const candidate of raw) {
     if (selected.length >= maxCandidates) break;
@@ -140,6 +143,10 @@ export function estimateBpm(candidates: BeatCandidate[]) {
   while (bpm < 60) bpm *= 2;
   while (bpm > 180) bpm /= 2;
   return Math.round(bpm * 10) / 10;
+}
+
+function stableTime(value: number) {
+  return Number((Number.isFinite(value) ? value : 0).toFixed(9));
 }
 
 function positive(value: number) {
