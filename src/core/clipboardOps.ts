@@ -62,6 +62,7 @@ export function pasteClipAt(
 export function cloneClipWithFreshIds(source: Clip): Clip {
   const copy = structuredClone(source);
   copy.id = freshId('clip');
+  copy.masks = copy.masks?.map((mask) => ({ ...mask, id: freshId('mask') }));
   copy.effects = copy.effects?.map((effect) => ({
     ...effect,
     id: freshId('fx'),
