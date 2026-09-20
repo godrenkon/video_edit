@@ -1,0 +1,61 @@
+name: Build SSD HDD Explainer
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-explainer.yml"
+      - "tools/ssd_hdd_video/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow requests numpy soundfile
+
+      - name: Start VOICEVOX
+        run: |
+          docker pull voicevox/voicevox_engine:cpu-latest
+          docker run -d --rm --name voicevox -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:cpu-latest
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:50021/version >/dev/null; then
+              echo "VOICEVOX ready"
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:50021/speakers | head -c 2000
+
+      - name: Render full video
+        run: |
+          python3 tools/ssd_hdd_video/render.py
+
+      - name: Inspect output
+        run: |
+          ffprobe -v error -show_entries format=duration,size,bit_rate -of json output/ssd_hdd_complete.mp4
+          ls -lah output
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-complete-video
+          path: |
+            output/ssd_hdd_complete.mp4
+            output/ssd_hdd_preview.mp4
+            output/subtitles.srt
+            output/narration.wav
+            output/chapters.txt
+          compression-level: 0
+          retention-days: 7
