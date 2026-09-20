@@ -7,7 +7,7 @@ import numpy as np
 import soundfile as sf
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-W,H,FPS = 1920,1080,30
+W,H,FPS = 1920,1080,60
 ROOT = Path(__file__).resolve().parent
 WORK = ROOT / "_motion_build"
 OUT = Path("output_motion")
@@ -47,50 +47,53 @@ def bg_image(title, caption=""):
     txt(d,(100,76),title,36,MUTED,"la")
     d.line((100,132,430,132),fill=CYAN,width=3)
     if caption:
-        rr(d,(260,858,1660,992),30,(4,8,18,220),outline=(255,255,255,22),width=2)
-        lines=[caption[i:i+27] for i in range(0,len(caption),27)][:2]
-        y0=900 if len(lines)==1 else 884
-        for line in lines:
-            txt(d,(960,y0),line,44,WHITE,"ma",True); y0+=54
+        rr(d,(370,884,1550,978),24,(4,8,18,215),outline=(255,255,255,20),width=2)
+        txt(d,(960,931),caption,40,WHITE,"mm",True)
     return im
 
 def short_caption(s):
-    rules=[
+    pairs=[
         ("電源を切", "電源を切ってもデータは残る"),
         ("RAM", "RAM = 作業中　/　SSD・HDD = 保存"),
         ("メモリ", "メモリとストレージは役割が違う"),
-        ("プラッタ", "HDD = 回転する磁気ディスク"),
-        ("ヘッド", "ヘッドが物理的に移動してデータを探す"),
-        ("NAND", "SSD = NANDフラッシュ + コントローラー"),
-        ("機械的な移動", "SSDにはHDDのような物理的な待ち時間がない"),
+        ("プラッタ", "磁気ディスクにデータを記録"),
+        ("ヘッド", "ヘッドが物理的に移動"),
+        ("回ってくる", "目的の場所が来るまで待つ"),
+        ("NAND", "SSD = NAND + コントローラー"),
+        ("コントローラー", "SSD内部の管理役"),
+        ("機械的な移動", "SSDには物理的な移動待ちがない"),
         ("動作音", "HDDは機械音あり / SSDは機械音なし"),
-        ("衝撃", "可動部品の有無が衝撃耐性にも影響"),
+        ("振動", "可動部品の有無で振動も変わる"),
+        ("衝撃", "可動部品の有無が衝撃耐性に影響"),
         ("シーケンシャル", "大きなデータを順番に読む"),
-        ("ランダム", "細かなデータをいろいろな場所から読む"),
+        ("ランダム", "細かなデータを各所から読む"),
         ("FPS", "ロード時間 ≠ FPS"),
         ("M.2", "M.2 ≠ NVMe"),
         ("NVMe", "M.2は形 / NVMeは通信仕様"),
-        ("TLC", "TLC = 1セル3bit / QLC = 1セル4bit"),
-        ("QLC", "NANDの種類だけでSSD全体の性能は決まらない"),
+        ("TLC", "TLC = 3bit / QLC = 4bit"),
+        ("QLC", "NANDだけで性能は決まらない"),
         ("CMR", "CMRとSMRは記録方式が違う"),
-        ("SMR", "SMRは高密度化しやすいが書き換えに特徴がある"),
-        ("容量あたり", "大容量になるほど1TBあたりの価格が重要"),
+        ("SMR", "高密度化と書き換え特性"),
+        ("容量あたり", "大容量ほど1TBあたりの価格が重要"),
         ("TBW", "TBW ≠ 壊れる瞬間"),
         ("永久", "SSDもHDDも永久ではない"),
         ("3-2-1", "3コピー・2種類・1つは別の場所"),
-        ("一台が壊", "重要なのは『1台壊れても残る状態』"),
+        ("一台が壊", "1台壊れても残る状態を作る"),
         ("Windows", "OS・アプリはSSDと相性がいい"),
-        ("動画編集", "作業中はSSD / 大量保管はHDD"),
-        ("NAS", "大容量のNASではHDDの強みを活かしやすい"),
+        ("ゲーム", "ゲームはロード時間でSSDが有利"),
+        ("動画編集", "作業中はSSD / 保管はHDD"),
+        ("NAS", "NASでは大容量HDDも有力"),
         ("USB", "外付けSSDは接続規格も重要"),
-        ("完全に上", "勝ち負けではなく、用途で使い分ける"),
-        ("使い分け", "SSD + HDD という選択肢"),
+        ("完全に上", "勝ち負けではなく、用途で選ぶ"),
+        ("使い分け", "SSD + HDD という使い分け"),
     ]
-    for k,v in rules:
+    for k,v in pairs:
         if k in s: return v
-    x=s.replace("なのだ。","").replace("のだ。","").replace("なのだ","").replace("のだ","")
-    x=re.sub(r"^[、。\s]+|[、。\s]+$","",x)
-    return x[:34] + ("…" if len(x)>34 else "")
+    # Fallback should stay short and never cut a long sentence mid-way.
+    if "HDD" in s and "SSD" in s: return "SSDとHDDは、仕組みから違う"
+    if "HDD" in s: return "HDDの特徴を仕組みから理解"
+    if "SSD" in s: return "SSDの特徴を仕組みから理解"
+    return ""
 
 def scene_kind(title,s):
     if "HDDとは" in title: return "hdd"
@@ -119,6 +122,11 @@ def make_base(title,s,kind):
         txt(d,(525,400),"RAM",62,CYAN,"mm"); txt(d,(1395,400),"SSD / HDD",58,SSD,"mm")
         txt(d,(525,535),"作業中",42,WHITE,"mm"); txt(d,(1395,535),"保存",42,WHITE,"mm")
         txt(d,(960,520),"≠",76,MUTED,"mm")
+    elif kind=="hdd":
+        txt(d,(960,260),"HDDの内部構造",52,WHITE,"mm")
+        txt(d,(1360,430),"PLATTER",30,HDD,"lm")
+        txt(d,(1360,500),"HEAD / ARM",30,HDD,"lm")
+        txt(d,(1360,570),"磁気で記録",30,MUTED,"lm")
     elif kind=="ssd":
         rr(d,(610,290,1310,735),40,(15,54,60,240),outline=SSD,width=6)
         txt(d,(960,345),"SSD",54,SSD,"mm")
@@ -128,6 +136,12 @@ def make_base(title,s,kind):
     elif kind=="compare":
         txt(d,(500,260),"HDD",48,HDD,"mm"); txt(d,(1420,260),"SSD",48,SSD,"mm"); txt(d,(960,265),"VS",38,MUTED,"mm")
         d.line((960,300,960,760),fill=(255,255,255,26),width=2)
+        rr(d,(1160,365,1660,670),34,(15,54,60,235),outline=SSD,width=5)
+        for x,y in [(1280,455),(1540,455),(1280,585),(1540,585)]:
+            rr(d,(x-82,y-45,x+82,y+45),12,(27,36,51),outline=(68,95,116),width=2)
+            txt(d,(x,y),"NAND",24,WHITE,"mm")
+        rr(d,(1360,500,1460,570),12,(27,82,112),outline=CYAN,width=3)
+        txt(d,(1410,535),"CTRL",22,CYAN,"mm")
     elif kind=="speed":
         txt(d,(960,280),"アクセス速度の違い",52,WHITE,"mm")
         labels=[("HDD",HDD,0.22),("SATA SSD",SSD,0.58),("NVMe SSD",CYAN,0.92)]
@@ -236,7 +250,7 @@ def render_segment(title,s,kind,wav,dur,idx):
         inputs += ["-loop","1","-i",str(SPR["scan"])]
         fc += [f"[{n}:v]format=rgba,colorchannelmixer=aa=0.34[sc]", f"{last}[sc]overlay=x='-120+mod(t*260,{W+240})':y=260:shortest=1[v4]"]; last="[v4]"; n+=1
     fc += [f"{last}fade=t=in:st=0:d=0.18,fade=t=out:st={max(0,dur-0.18):.3f}:d=0.18,format=yuv420p[v]"]
-    cmd=["ffmpeg","-y","-loglevel","error",*inputs,"-i",str(wav),"-filter_complex",";".join(fc),"-map","[v]","-map",f"{n}:a","-t",f"{dur:.3f}","-r",str(FPS),"-c:v","libx264","-preset","veryfast","-crf","17","-c:a","aac","-b:a","192k","-shortest",str(out)]
+    cmd=["ffmpeg","-y","-loglevel","error",*inputs,"-i",str(wav),"-filter_complex",";".join(fc),"-map","[v]","-map",f"{n}:a","-af","apad=pad_dur=0.10","-t",f"{dur:.3f}","-r",str(FPS),"-c:v","libx264","-preset","veryfast","-crf","16","-c:a","aac","-b:a","192k",str(out)]
     run(cmd); return out
 
 def title_segment(title,secidx):
@@ -284,8 +298,8 @@ concat=WORK/"concat.txt"; concat.write_text("\n".join(f"file '{x.resolve()}'" fo
 base=WORK/"base.mp4"; run(["ffmpeg","-y","-loglevel","error","-f","concat","-safe","0","-i",concat,"-c","copy",base])
 bg=WORK/"bgm_sfx.wav"; bgm_with_sfx(current,chapter_times,accent_times,bg)
 final=OUT/"ssd_hdd_motion_complete.mp4"
-run(["ffmpeg","-y","-loglevel","error","-i",base,"-i",bg,"-filter_complex","[1:a]volume=0.20[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[a]","-map","0:v","-map","[a]","-c:v","libx264","-preset","slow","-b:v","14M","-maxrate","18M","-bufsize","36M","-pix_fmt","yuv420p","-c:a","aac","-b:a","256k","-movflags","+faststart",final])
-run(["ffmpeg","-y","-loglevel","error","-i",final,"-vf","scale=1280:720","-c:v","libx264","-preset","veryfast","-crf","23","-c:a","aac","-b:a","160k",OUT/"ssd_hdd_motion_preview.mp4"])
+run(["ffmpeg","-y","-loglevel","error","-i",base,"-i",bg,"-filter_complex","[1:a]volume=0.20[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[a]","-map","0:v","-map","[a]","-c:v","libx264","-preset","medium","-b:v","8M","-minrate","8M","-maxrate","8M","-bufsize","16M","-x264-params","nal-hrd=cbr:force-cfr=1","-pix_fmt","yuv420p","-c:a","aac","-b:a","256k","-movflags","+faststart",final])
+run(["ffmpeg","-y","-loglevel","error","-i",final,"-vf","scale=1280:720","-c:v","libx264","-preset","veryfast","-crf","21","-c:a","aac","-b:a","160k",OUT/"ssd_hdd_motion_preview.mp4"])
 run(["ffmpeg","-y","-loglevel","error","-i",base,"-vn","-c:a","pcm_s16le",OUT/"narration.wav"])
 with open(OUT/"subtitles.srt","w",encoding="utf-8") as f:
     for n,st,en,s in subs: f.write(f"{n}\n{stamp(st)} --> {stamp(en)}\n{s}\n\n")
