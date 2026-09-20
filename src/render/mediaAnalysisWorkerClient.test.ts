@@ -120,6 +120,25 @@ describe('media analysis worker client', () => {
     expect(instance.terminated).toBe(false);
   });
 
+  it('can clear thumbnail resources without cancelling waveform analysis', async () => {
+    const client = await import('./mediaAnalysisWorkerClient');
+    const request = client.analyzeWaveformInWorker('asset:waveform:key', new Blob(['a']), {
+      duration: 2,
+      samplesPerSecond: 10,
+      maxBins: 100,
+      chunkSeconds: 30,
+    });
+    const instance = FakeWorker.instances[0];
+    const sent = instance.sent[0] as { id: number };
+
+    client.clearMediaAnalysisWorker('asset', 'thumbnail');
+    expect(instance.sent[1]).toEqual({ kind: 'clear', assetId: 'asset', mediaKind: 'thumbnail' });
+    instance.onmessage?.({
+      data: { id: sent.id, kind: 'waveform', ok: true, peaks: [0.5] },
+    } as MessageEvent);
+    await expect(request).resolves.toEqual([0.5]);
+  });
+
   it('rejects pending work and disables the worker after a crash', async () => {
     const client = await import('./mediaAnalysisWorkerClient');
     const request = client.renderTimelineThumbnailInWorker('asset:a', new Blob(['a']), 1);

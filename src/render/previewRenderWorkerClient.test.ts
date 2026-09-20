@@ -60,7 +60,8 @@ describe('preview render worker client', () => {
       },
     } as MessageEvent);
 
-    await expect(request).resolves.toEqual({
+    const frame = await request;
+    expect(frame).toMatchObject({
       bitmap,
       width: 640,
       height: 360,
@@ -68,6 +69,9 @@ describe('preview render worker client', () => {
       time: 1.25,
       cached: false,
     });
+    frame.release();
+    frame.release();
+    expect(bitmap.close).toHaveBeenCalledOnce();
     expect(FakeWorker.instances).toHaveLength(1);
     expect(instance.sent.slice(0, 2)).toMatchObject([
       { kind: 'init', sessionId: 1, options: { maxWidth: 640 } },

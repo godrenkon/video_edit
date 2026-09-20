@@ -1,5 +1,6 @@
 export const TIMELINE_THUMBNAIL_WIDTH = 192;
 export const TIMELINE_THUMBNAIL_HEIGHT = 108;
+export type MediaAnalysisKind = 'thumbnail' | 'waveform';
 
 export interface MediaThumbnailRequest {
   id: number;
@@ -28,6 +29,7 @@ export interface MediaCancelRequest {
 export interface MediaClearRequest {
   kind: 'clear';
   assetId?: string;
+  mediaKind?: MediaAnalysisKind;
 }
 
 export type MediaAnalysisWorkerRequest =
@@ -52,4 +54,14 @@ export function mediaAnalysisWorkerError(error: unknown) {
 
 export function mediaAnalysisWorkerErrorName(error: unknown) {
   return error instanceof Error && error.name ? error.name : undefined;
+}
+
+export function mediaAnalysisClearMatches(
+  request: MediaClearRequest,
+  assetKey: string,
+  mediaKind: MediaAnalysisKind,
+) {
+  const assetMatches = !request.assetId || assetKey.startsWith(`${request.assetId}:`);
+  const kindMatches = !request.mediaKind || request.mediaKind === mediaKind;
+  return assetMatches && kindMatches;
 }

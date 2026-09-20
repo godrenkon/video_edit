@@ -2,6 +2,7 @@ importScripts('/precache-assets.js');
 
 const CACHE_PREFIX = 'suiram-video-edit-shell-';
 const CACHE_NAME = CACHE_PREFIX + self.__SUIRAM_BUILD_ID__;
+const clientBuilds = new Map();
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -22,10 +23,20 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim()),
+    self.clients.claim()
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then((clients) => {
+        if (clients.length === 0) return cleanupObsoleteCaches();
+        for (const client of clients) client.postMessage({ kind: 'request-client-build' });
+      }),
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.kind !== 'client-build' || !/^[0-9a-f]{16}$/.test(event.data.buildId)) return;
+  if (!event.source?.id) return;
+  clientBuilds.set(event.source.id, event.data.buildId);
+  event.waitUntil(cleanupObsoleteCaches());
 });
 
 self.addEventListener('fetch', (event) => {
@@ -68,4 +79,20 @@ async function cacheFirstAsset(request) {
     await cache.put(request, response.clone());
   }
   return response;
+}
+
+async function cleanupObsoleteCaches() {
+  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const liveClientIds = new Set(clients.map((client) => client.id));
+  for (const clientId of clientBuilds.keys()) {
+    if (!liveClientIds.has(clientId)) clientBuilds.delete(clientId);
+  }
+  if (clients.some((client) => !clientBuilds.has(client.id))) return;
+
+  const keep = new Set([CACHE_NAME]);
+  for (const buildId of clientBuilds.values()) keep.add(CACHE_PREFIX + buildId);
+  const keys = await caches.keys();
+  await Promise.all(keys
+    .filter((key) => key.startsWith(CACHE_PREFIX) && !keep.has(key))
+    .map((key) => caches.delete(key)));
 }

@@ -16,6 +16,10 @@ function buildFingerprint(value: string) {
 function offlinePrecacheAssets(): Plugin {
   return {
     name: 'offline-precache-manifest',
+    apply: 'build',
+    transformIndexHtml() {
+      return [{ tag: 'script', attrs: { src: '/precache-assets.js' }, injectTo: 'head-prepend' }];
+    },
     generateBundle(_options, bundle) {
       const assets = Object.values(bundle)
         .map((entry) => `/${entry.fileName}`)

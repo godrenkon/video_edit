@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   mediaAnalysisWorkerError,
   mediaAnalysisWorkerErrorName,
+  mediaAnalysisClearMatches,
   supportsMediaAnalysisWorker,
 } from './mediaAnalysisWorkerProtocol';
 
@@ -18,5 +19,13 @@ describe('media analysis worker protocol', () => {
     expect(mediaAnalysisWorkerError(null)).toBe('Media analysis worker failed');
     expect(mediaAnalysisWorkerErrorName(new DOMException('cancelled', 'AbortError'))).toBe('AbortError');
     expect(mediaAnalysisWorkerErrorName(null)).toBeUndefined();
+  });
+
+  it('matches resource clearing by both asset boundary and media kind', () => {
+    const thumbnails = { kind: 'clear' as const, assetId: 'asset', mediaKind: 'thumbnail' as const };
+    expect(mediaAnalysisClearMatches(thumbnails, 'asset:thumb:1', 'thumbnail')).toBe(true);
+    expect(mediaAnalysisClearMatches(thumbnails, 'asset:waveform:1', 'waveform')).toBe(false);
+    expect(mediaAnalysisClearMatches(thumbnails, 'asset-two:thumb:1', 'thumbnail')).toBe(false);
+    expect(mediaAnalysisClearMatches({ kind: 'clear' }, 'anything:waveform:1', 'waveform')).toBe(true);
   });
 });

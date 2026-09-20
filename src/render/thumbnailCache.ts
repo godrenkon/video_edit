@@ -89,7 +89,7 @@ export function clearTimelineThumbnailCache(assetId?: string) {
     }
   }
   if (assetId) {
-    clearMediaAnalysisWorker(assetId);
+    clearMediaAnalysisWorker(assetId, 'thumbnail');
     const entry = providers.get(assetId);
     entry?.provider.close();
     providers.delete(assetId);

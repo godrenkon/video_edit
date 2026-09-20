@@ -40,7 +40,8 @@ export class PreviewRenderEngine {
       }
     }
     const cache = await this.getLocalCache();
-    return cache.frame(project, timeSeconds, signal);
+    const frame = await cache.frame(project, timeSeconds, signal);
+    return { ...frame, release() {} };
   }
 
   async close() {

@@ -71,6 +71,14 @@ function checkOfflinePrecacheManifest() {
   if (missing.length) throw new Error(`Offline precache manifest is missing: ${missing.join(', ')}`);
   const exportChunk = requiredAssets.find((asset) => /\/projectExporter-.*\.js$/.test(asset));
   if (!exportChunk) throw new Error('Demand-loaded project exporter chunk is missing from the production build');
+  const builtHtml = readFileSync(resolve(distRoot, 'index.html'), 'utf8');
+  if (!builtHtml.includes('<script src="/precache-assets.js">')) {
+    throw new Error('Production HTML does not capture its build-specific precache id');
+  }
+  const serviceWorker = readFileSync(resolve(distRoot, 'sw.js'), 'utf8');
+  if (!serviceWorker.includes('request-client-build') || !serviceWorker.includes('cleanupObsoleteCaches')) {
+    throw new Error('Service worker does not preserve caches used by live clients');
+  }
   console.log(`Offline precache manifest ${buildIdMatch[1]}: ${manifest.length} build assets (including ${exportChunk})`);
 }
 

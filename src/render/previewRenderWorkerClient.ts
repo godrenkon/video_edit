@@ -13,6 +13,7 @@ export interface PreviewWorkerFrame {
   frameIndex: number;
   time: number;
   cached: boolean;
+  release(): void;
 }
 
 interface PendingRequest {
@@ -142,6 +143,7 @@ function ensureWorker() {
       request.reject(new Error(response.error));
       return;
     }
+    let released = false;
     request.resolve({
       bitmap: response.bitmap,
       width: response.width,
@@ -149,6 +151,11 @@ function ensureWorker() {
       frameIndex: response.frameIndex,
       time: response.time,
       cached: response.cached,
+      release() {
+        if (released) return;
+        released = true;
+        response.bitmap.close();
+      },
     });
   };
   worker.onerror = (event) => failWorker(new Error(event.message || 'Preview render worker crashed'));

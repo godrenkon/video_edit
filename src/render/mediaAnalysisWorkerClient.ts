@@ -52,9 +52,9 @@ export function analyzeWaveformInWorker(
   }, options.signal);
 }
 
-export function clearMediaAnalysisWorker(assetId?: string) {
+export function clearMediaAnalysisWorker(assetId?: string, mediaKind?: 'thumbnail' | 'waveform') {
   if (!worker) return;
-  const request: MediaAnalysisWorkerRequest = { kind: 'clear', assetId };
+  const request: MediaAnalysisWorkerRequest = { kind: 'clear', assetId, mediaKind };
   worker.postMessage(request);
   if (!assetId) disposeMediaAnalysisWorker();
 }

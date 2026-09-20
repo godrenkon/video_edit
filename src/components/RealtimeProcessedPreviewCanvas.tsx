@@ -72,22 +72,29 @@ export function RealtimeProcessedPreviewCanvas({
       if (targetFrame !== lastFrameIndex) {
         try {
           const frame = await cache.frame(project, targetTime, controller.signal);
-          if (!active || controller.signal.aborted) return;
-          const canvas = canvasRef.current;
-          if (!canvas) return;
-          if (canvas.width !== frame.width) canvas.width = frame.width;
-          if (canvas.height !== frame.height) canvas.height = frame.height;
-          const context = canvas.getContext('2d');
-          if (!context) return;
-          context.save();
-          context.resetTransform();
-          context.globalAlpha = 1;
-          context.globalCompositeOperation = 'copy';
-          context.filter = 'none';
-          context.drawImage(frame.bitmap, 0, 0, frame.width, frame.height);
-          context.restore();
-          lastFrameIndex = frame.frameIndex;
-          setVisible(true);
+          try {
+            if (!active || controller.signal.aborted) return;
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            if (canvas.width !== frame.width) canvas.width = frame.width;
+            if (canvas.height !== frame.height) canvas.height = frame.height;
+            const context = canvas.getContext('2d');
+            if (!context) return;
+            context.save();
+            try {
+              context.resetTransform();
+              context.globalAlpha = 1;
+              context.globalCompositeOperation = 'copy';
+              context.filter = 'none';
+              context.drawImage(frame.bitmap, 0, 0, frame.width, frame.height);
+            } finally {
+              context.restore();
+            }
+            lastFrameIndex = frame.frameIndex;
+            setVisible(true);
+          } finally {
+            frame.release();
+          }
         } catch (error) {
           const aborted = error instanceof Error && error.name === 'AbortError';
           if (!active || controller.signal.aborted || aborted) return;

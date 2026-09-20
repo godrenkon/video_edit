@@ -63,21 +63,28 @@ export function PausedPreviewCanvas({
 
     cache.frame(project, time, controller.signal)
       .then((frame) => {
-        if (!active || controller.signal.aborted) return;
-        const current = canvasRef.current;
-        if (!current) return;
-        if (current.width !== frame.width) current.width = frame.width;
-        if (current.height !== frame.height) current.height = frame.height;
-        const context = current.getContext('2d');
-        if (!context) return;
-        context.save();
-        context.resetTransform();
-        context.globalAlpha = 1;
-        context.globalCompositeOperation = 'copy';
-        context.filter = 'none';
-        context.drawImage(frame.bitmap, 0, 0, frame.width, frame.height);
-        context.restore();
-        setVisible(true);
+        try {
+          if (!active || controller.signal.aborted) return;
+          const current = canvasRef.current;
+          if (!current) return;
+          if (current.width !== frame.width) current.width = frame.width;
+          if (current.height !== frame.height) current.height = frame.height;
+          const context = current.getContext('2d');
+          if (!context) return;
+          context.save();
+          try {
+            context.resetTransform();
+            context.globalAlpha = 1;
+            context.globalCompositeOperation = 'copy';
+            context.filter = 'none';
+            context.drawImage(frame.bitmap, 0, 0, frame.width, frame.height);
+          } finally {
+            context.restore();
+          }
+          setVisible(true);
+        } finally {
+          frame.release();
+        }
       })
       .catch((error) => {
         const aborted = error instanceof Error && error.name === 'AbortError';

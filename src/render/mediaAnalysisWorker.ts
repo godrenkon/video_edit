@@ -4,10 +4,12 @@ import { pruneIdleMediaProviders, type MediaProviderEntry } from './mediaAnalysi
 import {
   TIMELINE_THUMBNAIL_HEIGHT,
   TIMELINE_THUMBNAIL_WIDTH,
+  mediaAnalysisClearMatches,
   mediaAnalysisWorkerError,
   mediaAnalysisWorkerErrorName,
   type MediaAnalysisWorkerRequest,
   type MediaAnalysisWorkerResponse,
+  type MediaAnalysisKind,
   type MediaThumbnailRequest,
   type MediaWaveformRequest,
 } from './mediaAnalysisWorkerProtocol';
@@ -17,7 +19,11 @@ const MAX_VIDEO_PROVIDERS = 4;
 const MAX_AUDIO_PROVIDERS = 4;
 const videoProviders = new Map<string, MediaProviderEntry<MediabunnyVideoProvider>>();
 const audioProviders = new Map<string, MediaProviderEntry<MediabunnyAudioProvider>>();
-const active = new Map<number, { assetKey: string; controller: AbortController }>();
+const active = new Map<number, {
+  assetKey: string;
+  mediaKind: MediaAnalysisKind;
+  controller: AbortController;
+}>();
 const scope = self as unknown as {
   onmessage: ((event: MessageEvent<MediaAnalysisWorkerRequest>) => void) | null;
   postMessage: (response: MediaAnalysisWorkerResponse) => void;
@@ -30,12 +36,12 @@ scope.onmessage = (event) => {
     return;
   }
   if (request.kind === 'clear') {
-    clearResources(request.assetId);
+    clearResources(request.assetId, request.mediaKind);
     return;
   }
 
   const controller = new AbortController();
-  active.set(request.id, { assetKey: request.assetKey, controller });
+  active.set(request.id, { assetKey: request.assetKey, mediaKind: request.kind, controller });
   const task = request.kind === 'thumbnail'
     ? renderThumbnail(request, controller.signal)
     : analyzeWaveform(request, controller.signal);
@@ -182,15 +188,15 @@ function providerLease<T extends { close(): void }>(
   };
 }
 
-function clearResources(assetId?: string) {
+function clearResources(assetId?: string, mediaKind?: MediaAnalysisKind) {
   for (const [id, request] of active) {
-    if (!assetId || request.assetKey.startsWith(`${assetId}:`)) {
+    if (mediaAnalysisClearMatches({ kind: 'clear', assetId, mediaKind }, request.assetKey, request.mediaKind)) {
       request.controller.abort('Media analysis resources cleared');
       active.delete(id);
     }
   }
-  clearProviders(videoProviders, assetId);
-  clearProviders(audioProviders, assetId);
+  if (!mediaKind || mediaKind === 'thumbnail') clearProviders(videoProviders, assetId);
+  if (!mediaKind || mediaKind === 'waveform') clearProviders(audioProviders, assetId);
 }
 
 function clearProviders<T extends { close(): void }>(providers: Map<string, MediaProviderEntry<T>>, assetId?: string) {
