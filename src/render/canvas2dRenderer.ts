@@ -5,6 +5,7 @@ import { buildVisualFramePlan, type VisualFrameLayerPlan } from './framePlan';
 import { activeSubtitleHighlight, normalizeSubtitleHighlightColor, type SubtitleHighlightRange } from './subtitleHighlight';
 import { RenderAssetStore, type RenderAssetFrame } from './renderAssetStore';
 import { applyPixelEffects, hasPixelEffects } from './pixelEffects';
+import { applyClipMasks, hasEnabledMasks } from './clipMasks';
 import {
   deterministicNoiseByte,
   generatorColor,
@@ -75,7 +76,8 @@ export class Canvas2DProjectRenderer {
         context.save();
         applyLayerTransform(context, project, layer);
         applyLayerReveal(context, layer, dx, dy, drawWidth, drawHeight);
-        if (hasPixelEffects(layer.effects)) {
+        const masked = hasEnabledMasks(layer.masks);
+        if (hasPixelEffects(layer.effects) || masked) {
           drawPixelProcessedFrame(
             context,
             this.pixelCanvas,
@@ -87,14 +89,18 @@ export class Canvas2DProjectRenderer {
             drawWidth,
             drawHeight,
             layer.effects,
+            layer.masks,
             layer.clipLocalTime,
+            masked,
           );
         } else if (frame.kind === 'video') {
           frame.sample.draw(context, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight);
         } else {
           context.drawImage(frame.bitmap, crop.x, crop.y, crop.width, crop.height, dx, dy, drawWidth, drawHeight);
         }
-        drawVisualOverlayEffects(context, layer.effects, layer.clipLocalTime, dx, dy, drawWidth, drawHeight);
+        if (!masked) {
+          drawVisualOverlayEffects(context, layer.effects, layer.clipLocalTime, dx, dy, drawWidth, drawHeight);
+        }
         context.restore();
       } finally {
         this.assets.releaseFrame(frame);
@@ -114,7 +120,9 @@ function drawPixelProcessedFrame(
   drawWidth: number,
   drawHeight: number,
   effects: VisualFrameLayerPlan['effects'],
+  masks: VisualFrameLayerPlan['masks'],
   clipLocalTime: number,
+  includeOverlaysInRaster: boolean,
 ) {
   const outputWidth = Math.max(1, Math.round(Math.abs(drawWidth)));
   const outputHeight = Math.max(1, Math.round(Math.abs(drawHeight)));
@@ -135,9 +143,16 @@ function drawPixelProcessedFrame(
   } else {
     scratchContext.drawImage(frame.bitmap, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
   }
-  const image = scratchContext.getImageData(0, 0, width, height);
+  let image = scratchContext.getImageData(0, 0, width, height);
   applyPixelEffects(image, effects, clipLocalTime);
   scratchContext.putImageData(image, 0, 0);
+
+  if (includeOverlaysInRaster) {
+    drawVisualOverlayEffects(scratchContext, effects, clipLocalTime, 0, 0, width, height);
+    image = scratchContext.getImageData(0, 0, width, height);
+    applyClipMasks(image, masks);
+    scratchContext.putImageData(image, 0, 0);
+  }
   scratchContext.restore();
 
   context.drawImage(scratch as CanvasImageSource, 0, 0, width, height, dx, dy, drawWidth, drawHeight);
