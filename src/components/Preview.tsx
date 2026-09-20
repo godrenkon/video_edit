@@ -25,6 +25,7 @@ import { PlaybackDiagnostics } from './PlaybackDiagnostics';
 import { PausedPreviewCanvas } from './PausedPreviewCanvas';
 import { RealtimeProcessedPreviewCanvas } from './RealtimeProcessedPreviewCanvas';
 import { hasPixelEffects } from '../render/pixelEffects';
+import { hasEnabledMasks } from '../render/clipMasks';
 import { PreviewAudioMeter } from './PreviewAudioMeter';
 import '../preview-synthetic.css';
 
@@ -358,7 +359,7 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
   const audios = useMemo(() => audioTimelineItems(project, time), [project, time]);
   const assetsById = useMemo(() => new Map(project.assets.map((asset) => [asset.id, asset] as const)), [project.assets]);
   const requiresProcessedPreview = useMemo(
-    () => visuals.some(({ clip }) => hasPixelEffects(clip.effects)),
+    () => visuals.some(({ clip }) => hasPixelEffects(clip.effects) || hasEnabledMasks(clip.masks)),
     [visuals],
   );
   const aspect = `${project.width} / ${project.height}`;
