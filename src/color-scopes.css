@@ -1,0 +1,57 @@
+.colorScopesPanel {
+  overflow: hidden;
+}
+
+.colorScopesHeader {
+  display: grid;
+  gap: 7px;
+  padding: 9px 10px 7px;
+  border-bottom: 1px solid var(--line);
+}
+
+.colorScopesHeader > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.colorScopesHeader strong {
+  font-size: 10px;
+}
+
+.colorScopesHeader span {
+  color: var(--muted);
+  font-size: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.colorScopeTabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 4px;
+}
+
+.colorScopeTabs button {
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #0d1419;
+  color: var(--muted);
+  font-size: 7px;
+  cursor: pointer;
+}
+
+.colorScopeTabs button.active {
+  color: var(--text);
+  border-color: rgba(95,216,255,.5);
+  background: rgba(95,216,255,.08);
+}
+
+.colorScopeCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: #080d10;
+}
