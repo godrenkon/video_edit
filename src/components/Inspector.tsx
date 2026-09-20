@@ -6,6 +6,7 @@ import { clipSourceTime } from '../render/timelineEvaluation';
 import { generateEvenSubtitleWords, normalizeSubtitleHighlightColor } from '../render/subtitleHighlight';
 import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker, TrackKind, TransitionKind } from '../types/editor';
 import { EffectsPanel } from './EffectsPanel';
+import { MaskEditor } from './MaskEditor';
 import { ProjectExportSettingsPanel } from './ProjectExportSettingsPanel';
 import { ProjectTemplatesPanel } from './ProjectTemplatesPanel';
 import { SubtitleExchangePanel } from './SubtitleExchangePanel';
@@ -329,6 +330,16 @@ export function Inspector({
                 <NumberField label="下 %" value={crop.bottom * 100} step={0.5} onChange={(v) => patchCrop('bottom', v)} />
                 <NumberField label="左 %" value={crop.left * 100} step={0.5} onChange={(v) => patchCrop('left', v)} />
               </div>
+            </>
+          )}
+
+          {(
+            selectedClip.kind === 'zundamon'
+            || (selectedClip.kind === 'asset' && selectedAsset?.kind !== 'audio')
+          ) && (
+            <>
+              <h3>マスク</h3>
+              <MaskEditor clip={selectedClip} onClip={onClip} />
             </>
           )}
 
