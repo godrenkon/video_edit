@@ -169,6 +169,78 @@
       "license": "CC BY 4.0",
       "credit": "Mellowtron — Kevin MacLeod (incompetech.com)",
       "use": "opening / transitions"
+    },
+    {
+      "id": "ram_ddr4",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:RAM_Module_(SDRAM-DDR4).jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/RAM_Module_(SDRAM-DDR4).jpg?width=1600",
+      "license": "CC BY-SA 4.0",
+      "credit": "ElooKoN",
+      "use": "RAM vs storage explanation"
+    },
+    {
+      "id": "m2_installed",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Samsung_960_EVO_in_M.2_slot_02.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Samsung_960_EVO_in_M.2_slot_02.jpg?width=1600",
+      "license": "CC BY-SA 4.0",
+      "credit": "Ilya Plekhanov",
+      "use": "M.2 SSD installed on motherboard"
+    },
+    {
+      "id": "pc_m2_hdd_inside",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Dell_Inspiron_3880_motherboard_%2B_PSU.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Dell_Inspiron_3880_motherboard_%2B_PSU.jpg?width=1600",
+      "license": "CC BY-SA 4.0",
+      "credit": "Evan0512",
+      "use": "PC interior with M.2 SSD and HDD"
+    },
+    {
+      "id": "external_hdds",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:External_hard_drives.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/External_hard_drives.jpg?width=1600",
+      "license": "CC BY-SA 3.0",
+      "credit": "TonyTheTiger",
+      "use": "external HDD examples"
+    },
+    {
+      "id": "external_ssd",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Samsung_T5_Portable_External_SSD_(Solid_State_Drive)_(43544308485).jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Samsung_T5_Portable_External_SSD_(Solid_State_Drive)_(43544308485).jpg?width=1600",
+      "license": "CC BY 2.0",
+      "credit": "Tony Webster",
+      "use": "portable external SSD"
+    },
+    {
+      "id": "sata_connector",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:SATA_connector.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/SATA_connector.jpg?width=1600",
+      "license": "CC0",
+      "credit": "hystiff",
+      "use": "SATA connector"
+    },
+    {
+      "id": "sata_data_power",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:SATA_data_and_power_connectors.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/SATA_data_and_power_connectors.jpg?width=1600",
+      "license": "CC BY-SA 4.0",
+      "credit": "Bubba73",
+      "use": "SATA data and power connectors"
+    },
+    {
+      "id": "external_hdd_usb_box",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Harddisk_in_USB_external_box.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Harddisk_in_USB_external_box.jpg?width=1600",
+      "license": "Public domain",
+      "credit": "Vojtěch Brzek",
+      "use": "HDD inside USB external enclosure"
     }
   ]
 }
