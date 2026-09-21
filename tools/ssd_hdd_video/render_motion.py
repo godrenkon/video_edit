@@ -6,6 +6,7 @@ import requests
 import numpy as np
 import soundfile as sf
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from janome.tokenizer import Tokenizer
 
 W,H,FPS = 1920,1080,60
 ROOT = Path(__file__).resolve().parent
@@ -34,6 +35,7 @@ def load_sections():
     raise RuntimeError("SECTIONS not found")
 SECTIONS=load_sections()
 TOTAL_SENT=sum(len(s) for _,s in SECTIONS)
+JP_TOKENIZER = Tokenizer()
 
 _grad = np.linspace(np.array(BG0,dtype=np.float32), np.array(BG1,dtype=np.float32), H, dtype=np.float32)[:,None,:]
 _grad = np.repeat(_grad, W, axis=1).astype(np.uint8)
@@ -454,101 +456,109 @@ def ass_time(t):
     h=int(t//3600); m=int((t%3600)//60); s=t%60
     return f"{h}:{m:02d}:{s:05.2f}"
 
-def split_caption_phrases(text, target=17, maxlen=23):
-    """YouTube-style semantic caption splitting.
-    Never split inside ASCII/English terms such as "Solid State Drive" or "M.2 NVMe".
-    Prefer clause boundaries, particles and connective phrases over raw character counts.
+def split_caption_phrases(text, target=16, maxlen=24):
+    """Split captions on Japanese token / grammatical boundaries.
+
+    Never cut inside a Japanese lexical token or an English/ASCII phrase.
+    Keep Japanese commas for readability; drop only terminal full stops.
     """
     text=text.strip()
     if not text:
         return []
 
-    # First split at explicit punctuation. Keep each punctuation mark with the previous phrase.
-    rough=[p.strip() for p in re.split(r"(?<=[、。！？!?])",text) if p.strip()]
-    out=[]
+    ascii_pat=re.compile(r"[A-Za-z0-9.+/:-]+(?:[ \u3000]+[A-Za-z0-9.+/:-]+)*")
 
-    connectives=[
-        "けれど","けど","なので","ので","だから","から","そして","さらに","つまり",
-        "一方で","一方","ただし","例えば","また","そのため","という","ため","すると",
-        "なら","場合には","場合","時には","時"
-    ]
-    particles=[
-        "では","には","とは","へは","からは","までは","として","によって","について",
-        "は","が","を","に","で","へ","と","も"
-    ]
+    def tokenize_mixed(segment):
+        out=[]
+        pos=0
+        for m in ascii_pat.finditer(segment):
+            if m.start()>pos:
+                for tok in JP_TOKENIZER.tokenize(segment[pos:m.start()]):
+                    if tok.surface:
+                        out.append((tok.surface, tok.part_of_speech.split(",")[0], False))
+            out.append((m.group(0), "ASCII", True))
+            pos=m.end()
+        if pos<len(segment):
+            for tok in JP_TOKENIZER.tokenize(segment[pos:]):
+                if tok.surface:
+                    out.append((tok.surface, tok.part_of_speech.split(",")[0], False))
+        return out
 
-    def latin_spans(s):
-        return [(m.start(),m.end()) for m in re.finditer(r"[A-Za-z0-9.+/:-]+(?:[ 　]+[A-Za-z0-9.+/:-]+)*",s)]
+    def boundary_rank(tok):
+        surf,pos,protected=tok
+        if surf in ("。","！","？","!","?"):
+            return 0.0
+        if surf in ("、","，",",","：",":","；",";"):
+            return 0.3
+        if pos=="接続詞":
+            return 0.7
+        if pos=="助詞":
+            return 1.0
+        if pos=="助動詞" and surf in ("だ","です","ます","た","ない","ぬ","たい","れる","られる"):
+            return 1.5
+        if protected:
+            return 2.5
+        return None
 
-    def inside_latin(pos,spans):
-        return any(a < pos < b for a,b in spans)
+    pieces=[]
+    # Keep punctuation in the source chunks.
+    sentences=[p for p in re.split(r"(?<=[。！？!?])",text) if p]
+    for sentence in sentences:
+        toks=tokenize_mixed(sentence)
+        i=0
+        while i<len(toks):
+            rem="".join(t[0] for t in toks[i:]).strip()
+            if len(rem)<=maxlen:
+                if rem:
+                    pieces.append(rem.rstrip("。"))
+                break
 
-    def candidates(s,lo,hi):
-        spans=latin_spans(s)
-        scored=[]
-        # Very strong: punctuation and whitespace outside English phrases.
-        for i,ch in enumerate(s[:hi],1):
-            if i < lo or inside_latin(i,spans):
-                continue
-            if ch in "、，：:；;":
-                scored.append((0,i))
-            elif ch in " 　":
-                scored.append((1,i))
-        # Strong: connective phrase boundaries.
-        for w in connectives:
-            for m in re.finditer(re.escape(w),s[:hi]):
-                for p in (m.start(),m.end()):
-                    if lo <= p <= hi and not inside_latin(p,spans):
-                        scored.append((2,p))
-        # Natural Japanese particle boundaries.
-        for w in particles:
-            for m in re.finditer(re.escape(w),s[:hi]):
-                p=m.end()
-                if lo <= p <= hi and not inside_latin(p,spans):
-                    scored.append((3,p))
-        # Safe boundaries before/after whole ASCII terms.
-        for a,b in spans:
-            if lo <= a <= hi: scored.append((4,a))
-            if lo <= b <= hi: scored.append((4,b))
-        return scored
+            total=0
+            candidates=[]
+            j=i
+            while j<len(toks):
+                total += len(toks[j][0])
+                rank=boundary_rank(toks[j])
+                if total>=7 and rank is not None:
+                    candidates.append((abs(total-target)+rank*2.0,j,total))
+                if total>=maxlen:
+                    break
+                j+=1
 
-    for part in rough:
-        part=part.strip()
-        while len(part)>maxlen:
-            lo=max(7,target-7)
-            hi=min(maxlen,len(part)-1)
-            cand=candidates(part,lo,hi)
-            if cand:
-                # Prefer semantic score, then distance to target.
-                _,cut=min(cand,key=lambda x:(x[0],abs(x[1]-target)))
+            if candidates:
+                _,cut_j,_=min(candidates,key=lambda x:x[0])
             else:
-                # Last resort: avoid cutting inside an ASCII term and use the nearest script boundary.
-                spans=latin_spans(part)
-                safe=[]
-                for p in range(lo,hi+1):
-                    if inside_latin(p,spans):
-                        continue
-                    a=part[p-1] if p>0 else ""
-                    b=part[p] if p<len(part) else ""
-                    if (a.isascii() != b.isascii()) or (a in "ぁあア一" or b in "ぁあア一"):
-                        safe.append(p)
-                cut=min(safe,key=lambda p:abs(p-target)) if safe else hi
-            left=part[:cut].strip(" 、，。")
-            part=part[cut:].lstrip(" 、，。")
-            if left:
-                out.append(left)
-        tail=part.strip(" 、，。")
-        if tail:
-            out.append(tail)
+                # Look a little farther for a grammatical boundary instead of
+                # cutting a word in half.
+                k=j+1
+                far_total=total
+                farther=[]
+                while k<len(toks) and far_total<=maxlen+10:
+                    far_total += len(toks[k][0])
+                    rank=boundary_rank(toks[k])
+                    if rank is not None:
+                        farther.append((abs(far_total-target)+rank*2.0,k,far_total))
+                    k+=1
+                if farther:
+                    _,cut_j,_=min(farther,key=lambda x:x[0])
+                else:
+                    # Absolute last resort: token boundary only.
+                    cut_j=max(i,j-1 if j>i else j)
 
-    # Merge tiny fragments only when it keeps a clean, short caption.
+            phrase="".join(t[0] for t in toks[i:cut_j+1]).strip()
+            if phrase:
+                pieces.append(phrase.rstrip("。"))
+            i=cut_j+1
+
     merged=[]
-    for p in out:
-        if merged and len(p)<=3 and len(merged[-1])+len(p)<=maxlen:
+    for p in pieces:
+        # Preserve comma punctuation and never merge over an explicit clause break.
+        if merged and len(p)<=3 and not merged[-1].endswith(("、","，",",","！","？","!","?")) and len(merged[-1])+len(p)<=maxlen:
             merged[-1]+=p
         else:
             merged.append(p)
-    return merged or [text]
+
+    return [p for p in merged if p] or [text.rstrip("。")]
 
 ASS_COLORS={
     "SSD":"&H00FF8935&","NVMe":"&H00E0DC46&","M.2":"&H00FF8935&","NAND":"&H00FF8935&",
@@ -622,10 +632,13 @@ base=WORK/"base.mp4"; run(["ffmpeg","-y","-loglevel","error","-f","concat","-saf
 ass_path=OUT/"subtitles.ass"; make_ass(caption_events,ass_path)
 bg=OUT/"bgm_stem.wav"; se=OUT/"se_stem.wav"; bgm_with_sfx(current,chapter_times,accent_times,bg,se)
 mix=WORK/"bgm_se_mix.wav"
-run(["ffmpeg","-y","-loglevel","error","-i",bg,"-i",se,"-filter_complex","[0:a]volume=1.0[b];[1:a]volume=1.0[s];[b][s]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0, loudnorm=I=-27:TP=-6:LRA=10[m]","-map","[m]","-c:a","pcm_s24le",mix])
+run(["ffmpeg","-y","-loglevel","error","-i",bg,"-i",se,"-filter_complex","[0:a]volume=1.0[b];[1:a]volume=1.0[s];[b][s]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,loudnorm=I=-27:TP=-6:LRA=10,aresample=48000[m]","-map","[m]","-ar","48000","-c:a","pcm_s24le",mix])
+mix_out=OUT/"bgm_se_mix.wav"; run(["ffmpeg","-y","-loglevel","error","-i",mix,"-c:a","pcm_s24le","-ar","48000",mix_out])
+clean=OUT/"SSD_HDD_CLEAN_NO_NARRATION.mp4"
+run(["ffmpeg","-y","-loglevel","error","-i",base,"-i",mix,"-map","0:v","-map","1:a","-t",f"{current:.3f}","-c:v","copy","-c:a","aac","-ar","48000","-b:a","256k","-movflags","+faststart",clean])
 final=OUT/"SSD_HDD_MASTER_NO_NARRATION.mp4"
 ass_filter=f"ass={ass_path.as_posix()}:fontsdir=/usr/share/fonts/opentype/noto"
-run(["ffmpeg","-y","-loglevel","error","-i",base,"-i",mix,"-vf",ass_filter,"-map","0:v","-map","1:a","-t",f"{current:.3f}","-c:v","libx264","-preset","medium","-b:v","10M","-minrate","10M","-maxrate","10M","-bufsize","20M","-x264-params","nal-hrd=cbr:force-cfr=1","-pix_fmt","yuv420p","-c:a","aac","-b:a","256k","-movflags","+faststart",final])
+run(["ffmpeg","-y","-loglevel","error","-i",base,"-i",mix,"-vf",ass_filter,"-map","0:v","-map","1:a","-t",f"{current:.3f}","-c:v","libx264","-preset","medium","-b:v","10M","-minrate","10M","-maxrate","10M","-bufsize","20M","-x264-params","nal-hrd=cbr:force-cfr=1","-pix_fmt","yuv420p","-c:a","aac","-ar","48000","-b:a","256k","-movflags","+faststart",final])
 run(["ffmpeg","-y","-loglevel","error","-i",final,"-vf","scale=1280:720","-c:v","libx264","-preset","veryfast","-crf","21","-c:a","aac","-b:a","160k",OUT/"SSD_HDD_PREVIEW_NO_NARRATION.mp4"])
 with open(OUT/"subtitles.srt","w",encoding="utf-8") as f:
     for n,(st,en,p) in enumerate(caption_events,1): f.write(f"{n}\n{stamp(st)} --> {stamp(en)}\n{p}\n\n")
