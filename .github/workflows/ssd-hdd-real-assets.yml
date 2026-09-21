@@ -1,0 +1,41 @@
+name: Fetch Real SSD HDD Assets
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-assets.yml"
+      - "tools/ssd_hdd_video/real_assets.json"
+      - "tools/ssd_hdd_video/fetch_real_assets.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install asset tools
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install requests beautifulsoup4 yt-dlp
+      - name: Fetch and verify real assets
+        run: |
+          python3 tools/ssd_hdd_video/fetch_real_assets.py
+      - name: Inspect
+        if: always()
+        run: |
+          find real_assets -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          echo '---'
+          cat real_assets/fetch_report.tsv || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ssd-hdd-real-assets
+          path: real_assets
+          compression-level: 0
+          retention-days: 7
