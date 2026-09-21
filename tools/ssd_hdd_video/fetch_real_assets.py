@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import json, re, subprocess, sys
+import json, re, subprocess, sys, time
 from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
@@ -23,12 +23,21 @@ def ext_from_ct(ct, default):
     return default
 
 def download_url(asset):
-    r=requests.get(asset["download"],headers=UA,timeout=180,allow_redirects=True)
-    r.raise_for_status()
-    ext=ext_from_ct(r.headers.get("content-type"),Path(asset["download"]).suffix or ".bin")
-    p=OUT/(asset["id"]+ext)
-    p.write_bytes(r.content)
-    return p
+    last=None
+    for attempt in range(5):
+        try:
+            # Wikimedia asks automated clients to pace requests and prefer thumbnails.
+            time.sleep(1.8 if "wikimedia" in asset["download"] else 0.4)
+            r=requests.get(asset["download"],headers={**UA,"Accept":"*/*"},timeout=180,allow_redirects=True)
+            r.raise_for_status()
+            ext=ext_from_ct(r.headers.get("content-type"),Path(asset["download"].split("?")[0]).suffix or ".bin")
+            p=OUT/(asset["id"]+ext)
+            p.write_bytes(r.content)
+            return p
+        except Exception as e:
+            last=e
+            time.sleep(3*(attempt+1))
+    raise last
 
 def yt_dlp(asset):
     target=str(OUT/(asset["id"]+".%(ext)s"))
