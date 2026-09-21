@@ -1,6 +1,10 @@
 import { gzipSync } from 'node:zlib';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
+import { init, parse } from 'es-module-lexer';
+
+await init;
+assertJavaScriptGraphParser();
 
 const root = resolve(import.meta.dirname, '..');
 const html = readFileSync(resolve(root, 'dist/index.html'), 'utf8');
@@ -142,11 +146,6 @@ function collectStaticJavaScript(entryPath) {
 function collectJavaScriptGraph(entryPath, includeDynamicImports) {
   const queue = [entryPath];
   const files = new Set();
-  const importPatterns = [
-    /(?:^|[;\n])\s*import\s*(?:[^"'()]*?\s*from\s*)?["']([^"']+\.js)["']/g,
-    /(?:^|[;\n])\s*export\s+[^"'()]*?\s*from\s*["']([^"']+\.js)["']/g,
-  ];
-  if (includeDynamicImports) importPatterns.push(/\bimport\(\s*["']([^"']+\.js)["']\s*\)/g);
 
   while (queue.length) {
     const file = queue.pop();
@@ -156,16 +155,37 @@ function collectJavaScriptGraph(entryPath, includeDynamicImports) {
     files.add(file);
 
     const source = readFileSync(file, 'utf8');
-    for (const pattern of importPatterns) {
-      pattern.lastIndex = 0;
-      for (const match of source.matchAll(pattern)) {
-        const specifier = match[1];
-        if (!specifier.startsWith('.')) continue;
-        queue.push(resolve(dirname(file), specifier));
-      }
+    for (const specifier of javascriptSpecifiers(source, includeDynamicImports)) {
+      if (!specifier.startsWith('.') || !specifier.endsWith('.js')) continue;
+      queue.push(resolve(dirname(file), specifier));
     }
   }
   return [...files];
+}
+
+function javascriptSpecifiers(source, includeDynamicImports) {
+  const [imports] = parse(source);
+  return imports
+    .filter((entry) => typeof entry.n === 'string' && (includeDynamicImports || entry.d === -1))
+    .map((entry) => entry.n);
+}
+
+function assertJavaScriptGraphParser() {
+  const fixture = [
+    'import"./import.js";',
+    'export{value}from"./named.js";',
+    'export*from"./star.js";',
+    'export*as namespace from"./namespace.js";',
+    'import("./dynamic.js");',
+  ].join('');
+  const staticSpecifiers = javascriptSpecifiers(fixture, false);
+  const allSpecifiers = javascriptSpecifiers(fixture, true);
+  const expectedStatic = ['./import.js', './named.js', './star.js', './namespace.js'];
+  if (expectedStatic.some((specifier) => !staticSpecifiers.includes(specifier))
+    || staticSpecifiers.includes('./dynamic.js')
+    || !allSpecifiers.includes('./dynamic.js')) {
+    throw new Error('JavaScript graph parser does not cover minified imports, re-exports and dynamic imports');
+  }
 }
 
 function buildFingerprint(value) {
