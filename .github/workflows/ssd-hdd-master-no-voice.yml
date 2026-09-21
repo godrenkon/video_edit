@@ -1,12 +1,6 @@
 name: Build SSD HDD No-Narration Master
 
 on:
-  push:
-    branches:
-      - video-build/ssd-hdd-explainer
-    paths:
-      - ".github/workflows/ssd-hdd-master-no-voice.yml"
-      - "tools/ssd_hdd_video/render_motion.py"
   workflow_dispatch:
 
 permissions:
