@@ -301,7 +301,9 @@ for a in [x for x in ["hdd_open_photo","ssd_controller","nvme_m2","sata_ssd"] if
     en=min(total,cur+2.0)
     events.append({"n":n,"st":cur,"en":en,"asset":a,"slot":0,"row":ending_row}); n+=1; cur=en
 if cur<total:
-    a=next((x for x in ["nvme_m2","sata_ssd","hdd_open_photo","pc_m2_hdd_inside"] if optional_asset(x)),None)\n    if not a:\n        raise RuntimeError("no real-media asset available for ending")
+    a=next((x for x in ["nvme_m2","sata_ssd","hdd_open_photo","pc_m2_hdd_inside"] if optional_asset(x)),None)
+    if not a:
+        raise RuntimeError("no real-media asset available for ending")
     events.append({"n":n,"st":cur,"en":total,"asset":a,"slot":0,"row":ending_row})
 
 # QA guard: no visual event longer than 4.05 s except if total ending cannot be split.
