@@ -1,0 +1,84 @@
+name: Final Subtitle Polish SSD HDD
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-final-polish.yml"
+      - "tools/ssd_hdd_video/polish_subtitles.py"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  polish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download clean master bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-no-narration-master
+          path: source
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35571269562
+
+      - name: Install ffmpeg and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+
+      - name: Polish semantic subtitle boundaries
+        run: |
+          mkdir -p final qa/frames
+          python3 tools/ssd_hdd_video/polish_subtitles.py             source/subtitles.srt             final/subtitles.srt             final/subtitles.ass
+
+      - name: Burn final subtitles onto clean no-narration master
+        run: |
+          ffmpeg -y -loglevel error             -i source/SSD_HDD_CLEAN_NO_NARRATION.mp4             -vf "ass=final/subtitles.ass:fontsdir=/usr/share/fonts/opentype/noto"             -map 0:v:0 -map 0:a:0             -c:v libx264 -preset medium -b:v 10M -minrate 10M -maxrate 10M -bufsize 20M             -x264-params "nal-hrd=cbr:force-cfr=1" -pix_fmt yuv420p             -c:a copy -movflags +faststart             final/SSD_HDD_FINAL_NO_NARRATION.mp4
+
+          cp source/chapters.txt final/
+          cp source/bgm_stem.wav final/
+          cp source/se_stem.wav final/
+          cp source/bgm_se_mix.wav final/
+          cp source/SSD_HDD_CLEAN_NO_NARRATION.mp4 final/
+
+      - name: Final QA
+        run: |
+          ffprobe -v error -show_streams -show_format -of json final/SSD_HDD_FINAL_NO_NARRATION.mp4 > qa/ffprobe.json
+          cp final/subtitles.srt qa/
+          cp final/subtitles.ass qa/
+          cp final/chapters.txt qa/
+          for T in 15 90 180 300 420 540 660 780 900 1020 1140; do
+            ffmpeg -y -loglevel error -ss "$T" -i final/SSD_HDD_FINAL_NO_NARRATION.mp4 -frames:v 1 "qa/frames/frame_${T}.png"
+          done
+          ffmpeg -y -loglevel error -ss 180 -i final/SSD_HDD_FINAL_NO_NARRATION.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/sample_hdd.mp4
+          ffmpeg -y -loglevel error -ss 500 -i final/SSD_HDD_FINAL_NO_NARRATION.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/sample_types.mp4
+          ffmpeg -y -loglevel error -ss 860 -i final/SSD_HDD_FINAL_NO_NARRATION.mp4 -t 12 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/sample_backup.mp4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-final-no-narration
+          path: |
+            final/SSD_HDD_FINAL_NO_NARRATION.mp4
+            final/SSD_HDD_CLEAN_NO_NARRATION.mp4
+            final/subtitles.ass
+            final/subtitles.srt
+            final/bgm_stem.wav
+            final/se_stem.wav
+            final/bgm_se_mix.wav
+            final/chapters.txt
+          compression-level: 0
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-final-polish-qa
+          path: qa
+          compression-level: 0
+          retention-days: 7
