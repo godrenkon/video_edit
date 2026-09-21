@@ -139,21 +139,21 @@ def pool_for(section,text):
     if "何が違う" in sec:
         return ["hdd_open_photo","sata_ssd","hdd_head_macro","nvme_m2","motherboard"]
     if "速度" in sec:
-        return ["startup_video","browser_demo_video","nvme_m2","sata_ssd","hdd_working_video"]
+        return ["browser_demo_video","computer_components_video","nvme_m2","m2_installed","sata_ssd","hdd_working_video"]
     if "種類" in sec:
-        return ["sata_ssd","nvme_m2","sata_vs_nvme","hdd_side","ssd_controller"]
+        return ["sata_ssd","nvme_m2","m2_installed","sata_vs_nvme","sata_connector","sata_data_power","hdd_side","ssd_controller"]
     if "容量" in sec:
-        return ["hdd_side","sata_ssd","nas","server_rack","nvme_m2"]
+        return ["hdd_side","external_hdds","external_ssd","external_hdd_usb_box","sata_ssd","nas","server_rack","nvme_m2"]
     if "寿命" in sec:
         return ["ssd_nand","ssd_controller","hdd_head_macro","hdd_open_photo"]
     if "バックアップ" in sec:
         return ["nas","server_rack","motherboard","sata_ssd"]
     if "用途" in sec:
-        return ["motherboard","ssd_install","nas","server_rack","browser_demo_video","nvme_m2"]
+        return ["motherboard","pc_m2_hdd_inside","ssd_install","m2_installed","nas","server_rack","browser_demo_video","nvme_m2","external_ssd","external_hdds"]
     if "最終" in sec:
         return ["nvme_m2","hdd_open_photo","sata_ssd","nas","motherboard"]
     if "第1章" in sec:
-        return ["motherboard","ssd_install","sata_ssd","hdd_side","browser_demo_video"]
+        return ["ram_ddr4","motherboard","pc_m2_hdd_inside","ssd_install","sata_ssd","hdd_side","browser_demo_video"]
     return ["hdd_open_photo","sata_ssd","nvme_m2","motherboard","zundamon_official"]
 
 def is_video(p):
