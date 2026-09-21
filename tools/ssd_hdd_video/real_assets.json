@@ -144,15 +144,6 @@
       "use": "browser / app screen B-roll"
     },
     {
-      "id": "startup_video",
-      "kind": "video",
-      "source": "https://commons.wikimedia.org/wiki/File:Start.webm",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Start.webm",
-      "license": "CC BY-SA 4.0",
-      "credit": "Bohdan Mashko",
-      "use": "startup/loading B-roll"
-    },
-    {
       "id": "bgm_pamgaea",
       "kind": "audio",
       "source": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300036",
