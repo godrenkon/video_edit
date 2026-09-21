@@ -232,15 +232,6 @@
       "license": "CC BY-SA 4.0",
       "credit": "Bubba73",
       "use": "SATA data and power connectors"
-    },
-    {
-      "id": "external_hdd_usb_box",
-      "kind": "image",
-      "source": "https://commons.wikimedia.org/wiki/File:Harddisk_in_USB_external_box.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Harddisk_in_USB_external_box.jpg?width=1600",
-      "license": "Public domain",
-      "credit": "Vojtěch Brzek",
-      "use": "HDD inside USB external enclosure"
     }
   ]
 }
