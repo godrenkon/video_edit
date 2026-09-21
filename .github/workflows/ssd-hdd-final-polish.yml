@@ -1,12 +1,6 @@
 name: Final Subtitle Polish SSD HDD
 
 on:
-  push:
-    branches:
-      - video-build/ssd-hdd-explainer
-    paths:
-      - ".github/workflows/ssd-hdd-final-polish.yml"
-      - "tools/ssd_hdd_video/polish_subtitles.py"
   workflow_dispatch:
 
 permissions:
