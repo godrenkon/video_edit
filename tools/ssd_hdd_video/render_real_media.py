@@ -143,7 +143,7 @@ def pool_for(section,text):
     if "種類" in sec:
         return ["sata_ssd","nvme_m2","m2_installed","sata_vs_nvme","sata_connector","sata_data_power","hdd_side","ssd_controller"]
     if "容量" in sec:
-        return ["hdd_side","external_hdds","external_ssd","external_hdd_usb_box","sata_ssd","nas","server_rack","nvme_m2"]
+        return ["hdd_side","external_hdds","external_ssd","sata_ssd","nas","server_rack","nvme_m2"]
     if "寿命" in sec:
         return ["ssd_nand","ssd_controller","hdd_head_macro","hdd_open_photo"]
     if "バックアップ" in sec:
@@ -228,7 +228,7 @@ def render_event(ev,out,zundamon):
       "[base]drawbox=x=0:y=0:w=iw:h=ih:color=black@0.10:t=fill[b0]",
       f"[1:v]format=rgba[ov];[b0][ov]overlay=0:0[b1]",
       "[2:v]format=rgba,scale=-1:390[z]",
-      f"[b1][z]overlay=x='{zx}':y='{zy}':format=auto,fade=t=in:st=0:d=.10,fade=t=out:st={max(0,dur-.10):.3f}:d=.10,format=yuv420p[v]"
+      f"[b1][z]overlay=x='{zx}':y='{zy}':format=auto,fade=t=in:st=0:d=0.10,fade=t=out:st={max(0,dur-.10):.3f}:d=0.10,format=yuv420p[v]"
     ]
     cmd += ["-filter_complex",";".join(fc),"-map","[v]","-t",f"{dur:.3f}","-r",str(FPS),
             "-an","-c:v","libx264","-preset","ultrafast","-crf","15",out]
