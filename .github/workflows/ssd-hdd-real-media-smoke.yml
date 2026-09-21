@@ -1,0 +1,73 @@
+name: Smoke Test Real SSD HDD Video
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-media-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download known-good real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets
+          path: real_assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35667663490
+
+      - name: Download known-good narration for smoke test
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-zundamon-narration
+          path: voice
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35586114199
+
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow janome
+
+      - name: Render 30 second smoke test
+        env:
+          SSD_HDD_SMOKE_SECONDS: "30"
+        run: |
+          python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
+          python3 tools/ssd_hdd_video/render_real_media.py
+
+      - name: Inspect smoke output
+        run: |
+          ffprobe -v error -show_streams -show_format -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
+          python3 - <<'PY'
+          import csv
+          rows=list(csv.DictReader(open("real_video_output/storyboard.tsv",encoding="utf-8"),delimiter="\t"))
+          assert rows
+          assert max(float(r["duration"]) for r in rows) <= 4.05
+          assert len({r["asset"] for r in rows}) >= 2
+          print("events",len(rows),"unique_assets",len({r["asset"] for r in rows}),"max_hold",max(float(r["duration"]) for r in rows))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-smoke
+          path: |
+            real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4
+            real_video_output/storyboard.tsv
+            real_video_output/frame_15.png
+          compression-level: 0
+          retention-days: 3
