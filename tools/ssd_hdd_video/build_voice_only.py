@@ -23,10 +23,32 @@ def load_sections():
                     return ast.literal_eval(node.value)
     raise RuntimeError("SECTIONS not found")
 
+def normalize_for_voice(text: str) -> str:
+    replacements = [
+        ("NVMe", "エヌブイエムイー"),
+        ("M.2", "エムドットツー"),
+        ("PCIe", "ピーシーアイイー"),
+        ("HDD", "エイチディーディー"),
+        ("SSD", "エスエスディー"),
+        ("SATA", "サタ"),
+        ("NAND", "ナンド"),
+        ("CMR", "シーエムアール"),
+        ("SMR", "エスエムアール"),
+        ("TBW", "ティービーダブリュー"),
+        ("FPS", "エフピーエス"),
+        ("RAM", "ラム"),
+        ("NAS", "ナス"),
+    ]
+    for src, dst in replacements:
+        text = text.replace(src, dst)
+    text = re.sub(r"(\d+)TB", r"\1テラバイト", text)
+    text = re.sub(r"(\d+)GB", r"\1ギガバイト", text)
+    return text
+
 def tts(text: str, path: Path):
     q = requests.post(
         "http://127.0.0.1:50021/audio_query",
-        params={"text": text, "speaker": 3},
+        params={"text": normalize_for_voice(text), "speaker": 3},
         timeout=120,
     )
     q.raise_for_status()
