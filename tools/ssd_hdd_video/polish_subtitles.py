@@ -95,7 +95,7 @@ rules=[
  ["M.2なら必ず高速なNVMe SSDという","わけではないのだ"]),
 
 (["ただし実際のSSD性能はNANDだけ","ではなく、コントローラーやキャッシュ、","ファームウェアなどにも左右されるので、"],
- ["ただし実際のSSD性能はNANDだけではなく、","コントローラーやキャッシュ、ファームウェアなどにも左右されるので、"]),
+ ["ただし実際のSSD性能はNANDだけではなく、","コントローラーやキャッシュ、","ファームウェアなどにも左右されるので、"]),
 
 (["これはプラッタが1分間に何回転するのか","を表しているのだ"],
  ["これはプラッタが1分間に何回転するのかを","表しているのだ"]),
@@ -107,10 +107,13 @@ rules=[
  ["けど何TBものデータを保存する用途では、","HDDの容量あたりの価格の安さが今でも大きな強みなのだ"]),
 
 (["SSDで使われているNANDフラッシュに","は、データの書き換えを繰り返すことで","少しずつ劣化していく性質があるのだ"],
- ["SSDで使われているNANDフラッシュには、","データの書き換えを繰り返すことで少しずつ劣化していく性質があるのだ"]),
+ ["SSDで使われているNANDフラッシュには、","データの書き換えを繰り返すことで、","少しずつ劣化していく性質があるのだ"]),
 
 (["故障する可能性もあるので、SSDに","もHDDにもそれぞれ違った故障要因があるのだ"],
  ["故障する可能性もあるので、","SSDにもHDDにもそれぞれ違った故障要因があるのだ"]),
+
+(["本当に大切なデータはストレージ一台だけ","へ置かないことが重要なのだ"],
+ ["本当に大切なデータは、","ストレージ一台だけへ置かないことが重要なのだ"]),
 
 (["つまりSSDかHDDかを選んだだけ","では、バックアップにはならないのだ"],
  ["つまりSSDかHDDかを選んだだけでは、","バックアップにはならないのだ"]),
@@ -140,6 +143,20 @@ while i<len(cues):
             cues[i]["en"]=cues[i+1]["en"]
             del cues[i+1]; continue
     i+=1
+
+# Hard QA guards: fail the build rather than ship broken subtitles.
+too_long=[(i+1,c["text"]) for i,c in enumerate(cues) if len(c["text"])>30]
+bad_fragments=[(i+1,c["text"]) for i,c in enumerate(cues)
+               if c["text"].startswith(("へ置かない","を表している","は性能が","もHDDにも"))]
+joined="\n".join(c["text"] for c in cues)
+required=["Solid State Drive","Hard Disk Drive","分からない","一時的"]
+missing=[x for x in required if x not in joined]
+if too_long or bad_fragments or missing:
+    print("SUBTITLE_QA_FAILED")
+    print("too_long=",too_long)
+    print("bad_fragments=",bad_fragments)
+    print("missing_required_terms=",missing)
+    sys.exit(2)
 
 # SRT
 with OUT_SRT.open("w",encoding="utf-8") as f:
@@ -179,4 +196,4 @@ with OUT_ASS.open("w",encoding="utf-8-sig") as f:
         tags="{\\fad(65,75)\\fscx94\\fscy94\\t(0,120,\\fscx100\\fscy100)}"
         f.write(f"Dialogue: 0,{ass_ts(c['st'])},{ass_ts(c['en'])},Main,,0,0,0,,{tags}{ass_text(c['text'])}\n")
 
-print(f"cues={len(cues)} explicit_rule_hits={hits}")
+print(f"cues={len(cues)} explicit_rule_hits={hits} max_chars={max(len(c['text']) for c in cues)}")
