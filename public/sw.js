@@ -47,23 +47,24 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  const clientId = event.clientId || event.resultingClientId;
+  const clientId = event.clientId;
+  const resultingClientId = event.resultingClientId;
 
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirstNavigation(request, clientId));
+    event.respondWith(networkFirstNavigation(request, clientId, resultingClientId));
     return;
   }
 
   const buildAsset = url.pathname.startsWith('/assets/');
   if (!buildAsset && !['script', 'worker', 'sharedworker', 'audioworklet', 'style', 'font', 'image', 'manifest'].includes(request.destination)) return;
-  event.respondWith(cacheFirstAsset(request, clientId));
+  event.respondWith(cacheFirstAsset(request, clientId, resultingClientId));
 });
 
-async function networkFirstNavigation(request, clientId) {
+async function networkFirstNavigation(request, clientId, resultingClientId) {
   try {
     return await fetch(request);
   } catch {
-    const { cache, cacheName } = await cacheForClient(clientId);
+    const { cache, cacheName } = await cacheForClient(clientId, resultingClientId);
     const cached = (await cache.match('/index.html')) || (await cache.match('/'));
     if (cached) return cached;
     if (cacheName !== CACHE_NAME) {
@@ -74,8 +75,8 @@ async function networkFirstNavigation(request, clientId) {
   }
 }
 
-async function cacheFirstAsset(request, clientId) {
-  const { cache } = await cacheForClient(clientId);
+async function cacheFirstAsset(request, clientId, resultingClientId) {
+  const { cache } = await cacheForClient(clientId, resultingClientId);
   const cached = await cache.match(request);
   if (cached) return cached;
 
@@ -86,13 +87,13 @@ async function cacheFirstAsset(request, clientId) {
   return response;
 }
 
-async function clientCacheName(clientId) {
-  const buildId = await clientBuildId(clientId);
-  return buildId ? CACHE_PREFIX + buildId : CACHE_NAME;
-}
-
-async function cacheForClient(clientId) {
-  const cacheName = await clientCacheName(clientId);
+async function cacheForClient(clientId, resultingClientId) {
+  const buildId = await clientBuildId(clientId) || await clientBuildId(resultingClientId);
+  if (buildId && resultingClientId && resultingClientId !== clientId) {
+    clientBuilds.set(resultingClientId, buildId);
+    await persistClientBuild(resultingClientId, buildId);
+  }
+  const cacheName = buildId ? CACHE_PREFIX + buildId : CACHE_NAME;
   return { cacheName, cache: await caches.open(cacheName) };
 }
 
@@ -116,11 +117,15 @@ async function clientBuildId(clientId) {
 }
 
 async function recordClientBuild(clientId, buildId) {
+  await persistClientBuild(clientId, buildId);
+  await cleanupObsoleteCaches();
+}
+
+async function persistClientBuild(clientId, buildId) {
   const stateCache = await caches.open(CLIENT_BUILD_STATE_CACHE);
   await stateCache.put(clientBuildStateKey(clientId), new Response(buildId, {
     headers: { 'content-type': 'text/plain' },
   }));
-  await cleanupObsoleteCaches();
 }
 
 function clientBuildStateKey(clientId) {
@@ -128,7 +133,7 @@ function clientBuildStateKey(clientId) {
 }
 
 async function cleanupObsoleteCaches() {
-  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const clients = await self.clients.matchAll({ type: 'all', includeUncontrolled: true });
   const liveClientIds = new Set(clients.map((client) => client.id));
   for (const clientId of clientBuilds.keys()) {
     if (!liveClientIds.has(clientId)) clientBuilds.delete(clientId);

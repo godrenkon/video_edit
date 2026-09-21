@@ -24,6 +24,7 @@ function buildFingerprint(value: string) {
 
 function offlinePrecacheAssets(): Plugin {
   let generatedBuildId: string | undefined;
+  const htmlRevision = buildFingerprint(readFileSync(resolve(import.meta.dirname, 'index.html'), 'utf8'));
   return {
     name: 'offline-precache-manifest',
     apply: 'build',
@@ -47,12 +48,12 @@ function offlinePrecacheAssets(): Plugin {
         url,
         revision: buildFingerprint(readFileSync(resolve(import.meta.dirname, 'public', url.slice(1)), 'utf8')),
       }));
-      const buildId = buildFingerprint(JSON.stringify({ assets, fixedAssets }));
+      const buildId = buildFingerprint(JSON.stringify({ assets, fixedAssets, htmlRevision }));
       generatedBuildId = buildId;
       this.emitFile({
         type: 'asset',
         fileName: 'precache-assets.js',
-        source: `self.__SUIRAM_FIXED_ASSET_REVISIONS__ = ${JSON.stringify(fixedAssets, null, 2)};\nself.__SUIRAM_BUILD_ID__ = ${JSON.stringify(buildId)};\nself.__SUIRAM_BUILD_ASSETS__ = ${JSON.stringify(assets, null, 2)};\n`,
+        source: `self.__SUIRAM_HTML_REVISION__ = ${JSON.stringify(htmlRevision)};\nself.__SUIRAM_FIXED_ASSET_REVISIONS__ = ${JSON.stringify(fixedAssets, null, 2)};\nself.__SUIRAM_BUILD_ID__ = ${JSON.stringify(buildId)};\nself.__SUIRAM_BUILD_ASSETS__ = ${JSON.stringify(assets, null, 2)};\n`,
       });
     },
   };
@@ -63,5 +64,6 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: true,
+    emptyOutDir: true,
   },
 });

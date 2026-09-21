@@ -67,8 +67,11 @@ function checkOfflinePrecacheManifest() {
   const source = readFileSync(manifestPath, 'utf8');
   const manifestMatch = source.match(/self\.__SUIRAM_BUILD_ASSETS__ = (\[[\s\S]*\]);/);
   const fixedAssetsMatch = source.match(/self\.__SUIRAM_FIXED_ASSET_REVISIONS__ = (\[[\s\S]*?\]);/);
+  const htmlRevisionMatch = source.match(/self\.__SUIRAM_HTML_REVISION__ = "([0-9a-f]{16})";/);
   const buildIdMatch = source.match(/self\.__SUIRAM_BUILD_ID__ = "([0-9a-f]{16})";/);
-  if (!manifestMatch || !fixedAssetsMatch || !buildIdMatch) throw new Error('Offline precache asset module is invalid');
+  if (!manifestMatch || !fixedAssetsMatch || !htmlRevisionMatch || !buildIdMatch) {
+    throw new Error('Offline precache asset module is invalid');
+  }
   const manifest = JSON.parse(manifestMatch[1]);
   const fixedAssets = JSON.parse(fixedAssetsMatch[1]);
   if (!Array.isArray(manifest) || manifest.some((entry) => typeof entry !== 'string')) {
@@ -85,7 +88,15 @@ function checkOfflinePrecacheManifest() {
       throw new Error(`Offline fixed asset is not fingerprinted: ${url}`);
     }
   }
-  const expectedBuildId = buildFingerprint(JSON.stringify({ assets: manifest, fixedAssets }));
+  const expectedHtmlRevision = buildFingerprint(readFileSync(resolve(root, 'index.html'), 'utf8'));
+  if (htmlRevisionMatch[1] !== expectedHtmlRevision) {
+    throw new Error('Offline build id does not fingerprint the source HTML shell');
+  }
+  const expectedBuildId = buildFingerprint(JSON.stringify({
+    assets: manifest,
+    fixedAssets,
+    htmlRevision: expectedHtmlRevision,
+  }));
   if (buildIdMatch[1] !== expectedBuildId) {
     throw new Error('Offline build id does not cover every generated and fixed asset revision');
   }
@@ -114,7 +125,8 @@ function checkOfflinePrecacheManifest() {
   if (serviceWorker.includes('caches.match(')) {
     throw new Error('Service worker performs an ambiguous read across retained build caches');
   }
-  if (!serviceWorker.includes('event.clientId || event.resultingClientId') || !serviceWorker.includes('cacheForClient(clientId)')) {
+  if (!serviceWorker.includes('cacheForClient(clientId, resultingClientId)')
+    || !serviceWorker.includes('persistClientBuild(resultingClientId, buildId)')) {
     throw new Error('Service worker does not route retained-cache reads by requesting client build');
   }
   if (!serviceWorker.includes('CLIENT_BUILD_STATE_CACHE') || !serviceWorker.includes('clientBuildId(clientId)')) {

@@ -104,15 +104,19 @@ describe('project export worker client', () => {
     const request = client.exportProjectVideoInWorker(project, { signal: controller.signal });
     const instance = FakeWorker.instances[0];
     const sent = instance.sent[0] as { id: number };
+    const settled = vi.fn();
+    void request.catch(settled);
     controller.abort('stop export');
 
-    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
     expect(instance.sent).toContainEqual({ kind: 'cancel', id: sent.id });
     expect(instance.terminated).toBe(false);
+    await Promise.resolve();
+    expect(settled).not.toHaveBeenCalled();
 
     instance.onmessage?.({
       data: { kind: 'error', id: sent.id, error: 'Project export cancelled', errorName: 'AbortError' },
     } as MessageEvent);
+    await expect(request).rejects.toMatchObject({ name: 'AbortError', message: 'stop export' });
     expect(instance.terminated).toBe(true);
   });
 
@@ -123,10 +127,12 @@ describe('project export worker client', () => {
     const request = client.exportProjectVideoInWorker(project, { signal: controller.signal });
     const instance = FakeWorker.instances[0];
     controller.abort();
-    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    const result = request.catch((error) => error);
 
     await vi.advanceTimersByTimeAsync(30_000);
+    await expect(result).resolves.toMatchObject({ name: 'AbortError' });
     expect(instance.terminated).toBe(true);
+    expect(client.canUseProjectExportWorker()).toBe(false);
   });
 
   it('preserves worker-unavailable errors so the facade can use its fallback', async () => {

@@ -32,7 +32,7 @@ describe('asset relink lifecycle', () => {
     mocks.events.length = 0;
     mocks.saveAssetFile.mockImplementation(async () => { mocks.events.push('save'); });
     mocks.clearMediaAnalysisWorker.mockImplementation(() => { mocks.events.push('clear'); });
-    mocks.deleteAssetFile.mockImplementation(async () => { mocks.events.push('delete-proxy'); });
+    mocks.deleteAssetFile.mockImplementation(async (storageName: string) => { mocks.events.push(`delete:${storageName}`); });
     mocks.deleteWaveformCache.mockImplementation(async () => { mocks.events.push('delete-waveform'); });
     mocks.deleteThumbnailCachesForAsset.mockImplementation(async () => { mocks.events.push('delete-thumbnails'); });
   });
@@ -54,7 +54,31 @@ describe('asset relink lifecycle', () => {
     expect(mocks.events).toEqual([
       'save',
       'clear',
-      'delete-proxy',
+      'delete:asset.proxy.mp4',
+      'delete-waveform',
+      'delete-thumbnails',
+    ]);
+  });
+
+  it('does not cancel analysis when deleting the primary asset fails', async () => {
+    mocks.deleteAssetFile.mockRejectedValueOnce(new Error('storage unavailable'));
+    const { deleteAssetStorageBeforeInvalidation } = await import('./assetRelinkLifecycle');
+
+    await expect(deleteAssetStorageBeforeInvalidation(asset, 'waveform', true))
+      .rejects.toThrow('storage unavailable');
+    expect(mocks.clearMediaAnalysisWorker).not.toHaveBeenCalled();
+    expect(mocks.deleteWaveformCache).not.toHaveBeenCalled();
+    expect(mocks.deleteThumbnailCachesForAsset).not.toHaveBeenCalled();
+  });
+
+  it('cancels analysis only after primary asset deletion commits', async () => {
+    const { deleteAssetStorageBeforeInvalidation } = await import('./assetRelinkLifecycle');
+
+    await deleteAssetStorageBeforeInvalidation(asset, 'waveform', true);
+    expect(mocks.events).toEqual([
+      'delete:asset.mp4',
+      'clear',
+      'delete:asset.proxy.mp4',
       'delete-waveform',
       'delete-thumbnails',
     ]);

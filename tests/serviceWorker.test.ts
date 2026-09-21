@@ -106,4 +106,56 @@ describe('service worker build routing', () => {
 
     expect(await (await response)?.text()).toBe('retained');
   });
+
+  it('persists a parent window build for the dedicated worker client it creates', async () => {
+    const caches = new MemoryCacheStorage();
+    const currentBuild = '2222222222222222';
+    const retainedBuild = '1111111111111111';
+    const windowId = 'old-window';
+    const workerId = 'old-worker';
+    const retained = await caches.open(`suiram-video-edit-shell-${retainedBuild}`);
+    const current = await caches.open(`suiram-video-edit-shell-${currentBuild}`);
+    await retained.put('/assets/preview-worker.js', new Response('retained worker'));
+    await retained.put('/assets/mediabunny-old.js', new Response('retained dependency'));
+    await current.put('/assets/preview-worker.js', new Response('current worker'));
+    await current.put('/assets/mediabunny-old.js', new Response('current dependency'));
+
+    const first = createServiceWorker(caches, currentBuild, [windowId, workerId]);
+    let persisted: Promise<unknown> | undefined;
+    first.get('message')?.({
+      data: { kind: 'client-build', buildId: retainedBuild },
+      source: { id: windowId },
+      waitUntil: (promise: Promise<unknown>) => { persisted = promise; },
+    });
+    await persisted;
+
+    let workerResponse: Promise<Response> | undefined;
+    first.get('fetch')?.({
+      request: {
+        method: 'GET',
+        url: `${origin}/assets/preview-worker.js`,
+        mode: 'cors',
+        destination: 'worker',
+      },
+      clientId: windowId,
+      resultingClientId: workerId,
+      respondWith: (promise: Promise<Response>) => { workerResponse = promise; },
+    });
+    expect(await (await workerResponse)?.text()).toBe('retained worker');
+
+    const restarted = createServiceWorker(caches, currentBuild, [windowId, workerId]);
+    let dependencyResponse: Promise<Response> | undefined;
+    restarted.get('fetch')?.({
+      request: {
+        method: 'GET',
+        url: `${origin}/assets/mediabunny-old.js`,
+        mode: 'cors',
+        destination: 'script',
+      },
+      clientId: workerId,
+      resultingClientId: '',
+      respondWith: (promise: Promise<Response>) => { dependencyResponse = promise; },
+    });
+    expect(await (await dependencyResponse)?.text()).toBe('retained dependency');
+  });
 });

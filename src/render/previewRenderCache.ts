@@ -41,6 +41,7 @@ export class PreviewRenderCache {
   private readonly maxBytes: number;
   private readonly entries = new Map<number, CacheEntry>();
   private readonly pending = new Map<number, Promise<PreviewCachedFrame>>();
+  private readonly lifecycle = new AbortController();
   private closed = false;
 
   constructor(project: Pick<Project, 'assets'>, options: PreviewRenderCacheOptions = {}) {
@@ -74,16 +75,18 @@ export class PreviewRenderCache {
     }
 
     const existing = this.pending.get(frameIndex);
-    if (existing) return existing;
+    if (existing) return awaitSharedPreviewTask(existing, signal);
 
-    const task = this.renderFrame(project, frameIndex, frameTime, signal);
+    // A cached render can have multiple callers. Keep its lifetime tied to the
+    // cache session rather than whichever caller happened to request it first.
+    const task = this.renderFrame(project, frameIndex, frameTime, this.lifecycle.signal);
     this.pending.set(frameIndex, task);
     void task
       .finally(() => {
         if (this.pending.get(frameIndex) === task) this.pending.delete(frameIndex);
       })
       .catch(() => undefined);
-    return task;
+    return awaitSharedPreviewTask(task, signal);
   }
 
   clear() {
@@ -94,6 +97,7 @@ export class PreviewRenderCache {
   async close() {
     if (this.closed) return;
     this.closed = true;
+    this.lifecycle.abort('Preview render cache closed');
     this.clear();
     this.pending.clear();
     await this.assets.close();
@@ -168,6 +172,37 @@ export class PreviewRenderCache {
   private assertOpen() {
     if (this.closed) throw new Error('Preview render cache is closed');
   }
+}
+
+export function awaitSharedPreviewTask<T>(task: Promise<T>, signal?: AbortSignal): Promise<T> {
+  throwIfAborted(signal);
+  if (!signal) return task;
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => {
+      cleanup();
+      try {
+        throwIfAborted(signal);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    const cleanup = () => signal.removeEventListener('abort', abort);
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) {
+      abort();
+      return;
+    }
+    void task.then(
+      (value) => {
+        cleanup();
+        resolve(value);
+      },
+      (error) => {
+        cleanup();
+        reject(error);
+      },
+    );
+  });
 }
 
 function createRenderCanvas(width: number, height: number): RenderCanvas {

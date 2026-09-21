@@ -14,6 +14,7 @@ interface PendingExport {
   reject: (error: Error) => void;
   onProgress?: (progress: RenderProgress) => void;
   cleanup?: () => void;
+  cancellationError?: Error;
 }
 
 let worker: Worker | null = null;
@@ -49,20 +50,20 @@ export function exportProjectVideoInWorker(
   return new Promise<ProjectVideoExportResult>((resolve, reject) => {
     const abort = () => {
       const request = pending.get(id);
-      if (!request) return;
-      pending.delete(id);
+      if (!request || request.cancellationError) return;
       request.cleanup?.();
+      request.cleanup = undefined;
+      request.cancellationError = abortError(signal);
       try {
         activeWorker.postMessage({ kind: 'cancel', id } satisfies ProjectExportWorkerRequest);
       } catch (error) {
+        pending.delete(id);
+        request.reject(request.cancellationError);
         failWorker(projectExportWorkerUnavailable(errorMessage(error)));
-        reject(abortError(signal));
         return;
       }
-      reject(abortError(signal));
       const timer = setTimeout(() => {
-        cancellationTimers.delete(id);
-        if (pending.size === 0) terminateWorker();
+        forceCancellationTimeout(id);
       }, 30_000);
       cancellationTimers.set(id, timer);
     };
@@ -112,7 +113,7 @@ function handleWorkerMessage(event: MessageEvent<ProjectExportWorkerResponse>) {
   const response = event.data;
   const request = pending.get(response.id);
   if (response.kind === 'progress') {
-    request?.onProgress?.(response.progress);
+    if (!request?.cancellationError) request?.onProgress?.(response.progress);
     return;
   }
 
@@ -123,7 +124,8 @@ function handleWorkerMessage(event: MessageEvent<ProjectExportWorkerResponse>) {
   }
   pending.delete(response.id);
   request.cleanup?.();
-  if (response.kind === 'error') request.reject(workerResponseError(response.error, response.errorName));
+  if (request.cancellationError) request.reject(request.cancellationError);
+  else if (response.kind === 'error') request.reject(workerResponseError(response.error, response.errorName));
   else request.resolve(response.result);
   releaseWorkerIfIdle();
 }
@@ -132,6 +134,17 @@ function failWorker(error: Error) {
   workerFailed = true;
   terminateWorker();
   rejectPending(error);
+}
+
+function forceCancellationTimeout(id: number) {
+  const request = pending.get(id);
+  if (!request?.cancellationError) return;
+  pending.delete(id);
+  request.reject(request.cancellationError);
+  workerFailed = true;
+  const timeoutError = projectExportWorkerUnavailable('Project export worker did not acknowledge cancellation');
+  terminateWorker();
+  rejectPending(timeoutError);
 }
 
 function terminateWorker() {

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { awaitSharedPreviewTask } from './previewRenderCache';
 import { previewCacheDimensions, previewCacheFrameIndex } from './previewRenderPlanning';
 
 describe('preview render cache planning', () => {
@@ -21,5 +22,23 @@ describe('preview render cache planning', () => {
   it('fits portrait and small projects inside cache bounds without upscaling', () => {
     expect(previewCacheDimensions(1080, 1920)).toEqual({ width: 304, height: 540 });
     expect(previewCacheDimensions(640, 360)).toEqual({ width: 640, height: 360 });
+  });
+
+  it('does not let one caller cancel shared preview work for another caller', async () => {
+    let finish: ((value: string) => void) | undefined;
+    const shared = new Promise<string>((resolve) => { finish = resolve; });
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    const first = awaitSharedPreviewTask(shared, firstController.signal);
+    const second = awaitSharedPreviewTask(shared, secondController.signal);
+    const firstResult = vi.fn();
+    void first.catch(firstResult);
+
+    firstController.abort('superseded');
+    await vi.waitFor(() => expect(firstResult).toHaveBeenCalled());
+    expect(firstResult.mock.calls[0][0]).toMatchObject({ name: 'AbortError' });
+
+    finish?.('rendered');
+    await expect(second).resolves.toBe('rendered');
   });
 });
