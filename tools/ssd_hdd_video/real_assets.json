@@ -1,0 +1,153 @@
+{
+  "assets": [
+    {
+      "id": "hdd_working_video",
+      "kind": "video",
+      "source": "https://commons.wikimedia.org/wiki/File:How_a_Hard_Drive_Works_-_By_Nick_Parlante.webm",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/How_a_Hard_Drive_Works_-_By_Nick_Parlante.webm",
+      "license": "CC BY-SA 3.0",
+      "credit": "Nick Parlante",
+      "use": "HDD platter/head movement and mechanism"
+    },
+    {
+      "id": "hdd_open_photo",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Hard_disk_platters_and_head.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Hard_disk_platters_and_head.jpg",
+      "license": "CC BY-SA 3.0",
+      "credit": "Wikimedia Commons contributor",
+      "use": "HDD platter and actuator close-up"
+    },
+    {
+      "id": "hdd_head_macro",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Hard_disk_head_on_platter.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Hard_disk_head_on_platter.jpg",
+      "license": "CC BY-SA 3.0",
+      "credit": "Matthew Field",
+      "use": "HDD head macro"
+    },
+    {
+      "id": "hdd_side",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:3.5_inch_hard_disk_drive,_side_view.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/3.5_inch_hard_disk_drive,_side_view.jpg",
+      "license": "CC BY-SA 4.0",
+      "credit": "Wikimedia Commons contributor",
+      "use": "3.5-inch HDD form factor"
+    },
+    {
+      "id": "sata_ssd",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:OCPC_SATA_SSD.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/OCPC_SATA_SSD.jpg",
+      "license": "CC0",
+      "credit": "KMBDENNISTRIDENT",
+      "use": "2.5-inch SATA SSD"
+    },
+    {
+      "id": "nvme_m2",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:20260522_스캔디스크_NVMe_M.2형_SSD.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/20260522_스캔디스크_NVMe_M.2형_SSD.jpg",
+      "license": "CC0",
+      "credit": "Striker9498",
+      "use": "M.2 NVMe SSD"
+    },
+    {
+      "id": "ssd_controller",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Intel_SSD.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Intel_SSD.jpg",
+      "license": "CC0",
+      "credit": "User5515",
+      "use": "SSD controller / PCB"
+    },
+    {
+      "id": "ssd_nand",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Intel_SSD_330_Series_NAND_flash_PCB.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Intel_SSD_330_Series_NAND_flash_PCB.jpg",
+      "license": "CC BY-SA 4.0",
+      "credit": "Phiarc",
+      "use": "NAND flash chips"
+    },
+    {
+      "id": "sata_vs_nvme",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:MSATA_SATA_M.2_NVMeSSD.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/MSATA_SATA_M.2_NVMeSSD.jpg",
+      "license": "CC BY-SA 4.0",
+      "credit": "Wikimedia Commons contributor",
+      "use": "SSD form-factor comparison"
+    },
+    {
+      "id": "motherboard",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Computer_motherboard.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Computer_motherboard.jpg",
+      "license": "CC0",
+      "credit": "Kurt Kaiser",
+      "use": "PC motherboard context"
+    },
+    {
+      "id": "ssd_install",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Pemasangan_SSD.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Pemasangan_SSD.jpg",
+      "license": "CC BY 4.0",
+      "credit": "Citralestari39",
+      "use": "SSD installation"
+    },
+    {
+      "id": "nas",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Synology_Disk_Station_DS223J_-_NAS-Server.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Synology_Disk_Station_DS223J_-_NAS-Server.jpg",
+      "license": "CC BY-SA 4.0",
+      "credit": "DYVER",
+      "use": "NAS example"
+    },
+    {
+      "id": "server_rack",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Servers_in_a_Rack.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Servers_in_a_Rack.jpg",
+      "license": "CC BY-SA 3.0",
+      "credit": "Abigor",
+      "use": "server/storage context"
+    },
+    {
+      "id": "motherboard_video",
+      "kind": "video_page",
+      "source": "https://pixabay.com/videos/circuit-board-motherboard-technology-13462/",
+      "license": "Pixabay Content License",
+      "credit": "onijake",
+      "use": "hardware B-roll"
+    },
+    {
+      "id": "linux_boot_video",
+      "kind": "video_page",
+      "source": "https://www.pexels.com/video/close-up-shot-of-a-laptop-screen-4578336/",
+      "license": "Pexels License / Free to use",
+      "credit": "Markus Winkler",
+      "use": "OS boot / storage responsiveness B-roll"
+    },
+    {
+      "id": "bgm_technology",
+      "kind": "audio_page",
+      "source": "https://pixabay.com/music/electronic-technology-background-500108/",
+      "license": "Pixabay Content License",
+      "credit": "MiroMaxMusic",
+      "use": "main technology BGM"
+    },
+    {
+      "id": "zundamon_official",
+      "kind": "web_image",
+      "source": "https://voicevox.hiroshiba.jp/product/zundamon/",
+      "license": "VOICEVOX / ずんずんPJ character guidelines",
+      "credit": "VOICEVOX / ずんだもん",
+      "use": "character standing visual"
+    }
+  ]
+}
