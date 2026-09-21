@@ -1,0 +1,110 @@
+name: Build Full Real-Media SSD HDD Video
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-media-full.yml"
+      - "tools/ssd_hdd_video/render_real_media.py"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download verified real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets
+          path: real_assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35668057188
+
+      - name: Download corrected Zundamon narration
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-zundamon-narration
+          path: voice
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35667383665
+
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow janome
+
+      - name: Render full real-media explainer
+        run: |
+          python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
+          python3 tools/ssd_hdd_video/render_real_media.py
+
+      - name: Hard QA
+        run: |
+          ffprobe -v error -show_streams -show_format -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > real_video_output/ffprobe.json
+          python3 - <<'PY'
+          import csv, json
+          rows=list(csv.DictReader(open("real_video_output/storyboard.tsv",encoding="utf-8"),delimiter="\t"))
+          assert rows, "empty storyboard"
+          durations=[float(r["duration"]) for r in rows]
+          assets={r["asset"] for r in rows}
+          assert max(durations) <= 4.05, max(durations)
+          assert "zundamon_official" not in assets, "Zundamon used as background media"
+          assert len(assets) >= 14, len(assets)
+          assert len(rows) >= 250, len(rows)
+          probe=json.load(open("real_video_output/ffprobe.json"))
+          fmt=probe["format"]
+          assert float(fmt["duration"]) > 1100, fmt["duration"]
+          video=next(x for x in probe["streams"] if x["codec_type"]=="video")
+          audio=next(x for x in probe["streams"] if x["codec_type"]=="audio")
+          assert video["width"]==1920 and video["height"]==1080
+          assert video["r_frame_rate"]=="60/1"
+          assert audio["sample_rate"]=="48000"
+          print("events",len(rows),"unique_assets",len(assets),"max_hold",max(durations),"duration",fmt["duration"])
+          print("assets",sorted(assets))
+          PY
+
+      - name: Build QA samples
+        run: |
+          mkdir -p qa
+          cp real_video_output/storyboard.tsv qa/
+          cp real_video_output/ffprobe.json qa/
+          cp real_video_output/ATTRIBUTION.md qa/
+          cp real_video_output/subtitles_green.ass qa/
+          for T in 15 90 180 300 420 540 660 780 900 1020 1140; do
+            cp "real_video_output/frame_${T}.png" qa/
+          done
+          ffmpeg -y -loglevel error -ss 0 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 35 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/opening_35s.mp4
+          ffmpeg -y -loglevel error -ss 180 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 25 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/hdd_25s.mp4
+          ffmpeg -y -loglevel error -ss 390 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 25 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/speed_25s.mp4
+          ffmpeg -y -loglevel error -ss 620 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 25 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/types_25s.mp4
+          ffmpeg -y -loglevel error -ss 900 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 25 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/backup_25s.mp4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-final
+          path: |
+            real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4
+            real_video_output/storyboard.tsv
+            real_video_output/subtitles_green.ass
+            real_video_output/ATTRIBUTION.md
+            real_video_output/ffprobe.json
+          compression-level: 0
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-qa
+          path: qa
+          compression-level: 0
+          retention-days: 7
