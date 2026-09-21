@@ -10,6 +10,8 @@ import {
 const supportedEnvironment = {
   Worker: class {},
   OffscreenCanvas: class {},
+  AudioEncoder: class {},
+  AudioDecoder: class {},
   VideoEncoder: class {},
   VideoDecoder: class {},
   navigator: { storage: { getDirectory() {} } },
@@ -22,6 +24,8 @@ describe('project export worker protocol', () => {
     expect(supportsProjectExportWorker({ ...supportedEnvironment, OffscreenCanvas: undefined } as unknown as typeof globalThis)).toBe(false);
     expect(supportsProjectExportWorker({ ...supportedEnvironment, VideoEncoder: undefined } as unknown as typeof globalThis)).toBe(false);
     expect(supportsProjectExportWorker({ ...supportedEnvironment, VideoDecoder: undefined } as unknown as typeof globalThis)).toBe(false);
+    expect(supportsProjectExportWorker({ ...supportedEnvironment, AudioEncoder: undefined } as unknown as typeof globalThis)).toBe(false);
+    expect(supportsProjectExportWorker({ ...supportedEnvironment, AudioDecoder: undefined } as unknown as typeof globalThis)).toBe(false);
     expect(supportsProjectExportWorker({ ...supportedEnvironment, navigator: {} } as unknown as typeof globalThis)).toBe(false);
   });
 

@@ -57,7 +57,8 @@ function assertWorkerRuntime(project: Parameters<typeof projectHasAudibleAudio>[
   if (typeof navigator.storage?.getDirectory !== 'function') {
     throw projectExportWorkerUnavailable('OPFS is unavailable in the export worker');
   }
-  if (includeAudio && projectHasAudibleAudio(project) && typeof AudioBuffer !== 'function') {
-    throw projectExportWorkerUnavailable('AudioBuffer is unavailable in the export worker');
+  if (includeAudio && projectHasAudibleAudio(project)
+    && (typeof AudioEncoder !== 'function' || typeof AudioDecoder !== 'function')) {
+    throw projectExportWorkerUnavailable('WebCodecs audio APIs are unavailable in the export worker');
   }
 }

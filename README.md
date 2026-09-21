@@ -70,11 +70,12 @@
 - H.264 + AACのMP4 video encode / mux
 - VP9 / VP8 / AV1 capabilityに応じたWebM video encode
 - audio trackをchunk単位でdecode / mix
+- `AudioSampleSink` + planar Float32 PCMにより音声decode / mix / encodeもWorker内で完結
 - mute / solo / clip volume / speed / reverseを考慮する初期audio mixer
 - Opus音声をWebMへmux
 - in/out range対応
 - render progress / cancellation / error reporting
-- decode / composite / audio mix / encode / muxを専用Export Workerへ分離（自動fallback付き）
+- decode / composite / planar PCM audio mix / encode / muxを専用Export Workerへ分離（自動fallback付き）
 - 長時間向けOPFS direct output
 - OPFS非対応時のmemory output fallback
 - WAV / PNG still / PNG sequence出力

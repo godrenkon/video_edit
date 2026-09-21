@@ -84,11 +84,11 @@ Current implementation branch: `main`.
 
 - [x] initial demux/decode layer via Mediabunny
 - [x] WebCodecs-backed video frame decode path
-- [x] WebCodecs-backed audio decode path for offline mix
+- [x] WebCodecs `AudioSample` + worker-safe planar PCM audio decode path for offline mix
 - [x] bounded source cache configuration
 - [x] shared thumbnail/waveform media-analysis worker with cancellation and automatic main-thread fallback
 - [x] paused/effect-preview composition worker with cancellation and automatic main-thread fallback
-- [x] export decode/render/encode worker with progress, cancellation and automatic main-thread fallback
+- [x] export decode/render/PCM audio mix/encode worker with progress, cancellation and automatic main-thread fallback
 - [x] streamed OPFS video proxy generation + progress/cancel/remove UI
 - [x] proxy auto-relink on load + manual original media relink
 - [x] bounded memory + OPFS timeline thumbnail cache
@@ -122,7 +122,7 @@ Current implementation branch: `main`.
 - [x] Opus audio encode / mux where supported
 - [x] AAC MP4 audio encode / mux where supported
 - [x] automatic MP4 -> WebM capability fallback
-- [x] chunked audio-track decode and mix
+- [x] worker-safe planar PCMによるchunked audio-track decode and mix
 - [x] mute / solo / clip volume handling in offline audio mix
 - [x] speed / reverse mapping in offline audio mix
 - [x] clip fade envelope in offline audio mix

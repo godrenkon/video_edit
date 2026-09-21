@@ -61,6 +61,8 @@ describe('project export worker client', () => {
     vi.resetModules();
     vi.stubGlobal('Worker', FakeWorker);
     vi.stubGlobal('OffscreenCanvas', class {});
+    vi.stubGlobal('AudioEncoder', class {});
+    vi.stubGlobal('AudioDecoder', class {});
     vi.stubGlobal('VideoEncoder', class {});
     vi.stubGlobal('VideoDecoder', class {});
     vi.stubGlobal('navigator', { storage: { getDirectory: vi.fn() } });
@@ -136,14 +138,14 @@ describe('project export worker client', () => {
       data: {
         kind: 'error',
         id: sent.id,
-        error: 'AudioBuffer is unavailable',
+        error: 'WebCodecs audio APIs are unavailable',
         errorName: PROJECT_EXPORT_WORKER_UNAVAILABLE,
       },
     } as MessageEvent);
 
     await expect(request).rejects.toMatchObject({
       name: PROJECT_EXPORT_WORKER_UNAVAILABLE,
-      message: 'AudioBuffer is unavailable',
+      message: 'WebCodecs audio APIs are unavailable',
     });
   });
 

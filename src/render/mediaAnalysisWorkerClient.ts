@@ -1,5 +1,7 @@
 import {
+  mediaAnalysisClearMatches,
   supportsMediaAnalysisWorker,
+  type MediaAnalysisKind,
   type MediaThumbnailRequest,
   type MediaAnalysisWorkerRequest,
   type MediaAnalysisWorkerResponse,
@@ -9,8 +11,8 @@ import {
 type WorkerJobPayload = Omit<MediaThumbnailRequest, 'id'> | Omit<MediaWaveformRequest, 'id'>;
 
 type PendingRequest =
-  | { kind: 'thumbnail'; resolve: (blob: Blob | null) => void; reject: (error: Error) => void; cleanup?: () => void }
-  | { kind: 'waveform'; resolve: (peaks: number[]) => void; reject: (error: Error) => void; cleanup?: () => void };
+  | { kind: 'thumbnail'; assetKey: string; resolve: (blob: Blob | null) => void; reject: (error: Error) => void; cleanup?: () => void }
+  | { kind: 'waveform'; assetKey: string; resolve: (peaks: number[]) => void; reject: (error: Error) => void; cleanup?: () => void };
 
 let worker: Worker | null = null;
 let nextRequestId = 1;
@@ -52,9 +54,16 @@ export function analyzeWaveformInWorker(
   }, options.signal);
 }
 
-export function clearMediaAnalysisWorker(assetId?: string, mediaKind?: 'thumbnail' | 'waveform') {
+export function clearMediaAnalysisWorker(assetId?: string, mediaKind?: MediaAnalysisKind) {
   if (!worker) return;
   const request: MediaAnalysisWorkerRequest = { kind: 'clear', assetId, mediaKind };
+  const cancellation = new DOMException('Media analysis resources cleared', 'AbortError');
+  for (const [id, entry] of pending) {
+    if (!mediaAnalysisClearMatches(request, entry.assetKey, entry.kind)) continue;
+    pending.delete(id);
+    entry.cleanup?.();
+    entry.reject(cancellation);
+  }
   worker.postMessage(request);
   if (!assetId) disposeMediaAnalysisWorker();
 }
@@ -91,8 +100,8 @@ function requestWorker<T>(
     const cleanup = signal ? () => signal.removeEventListener('abort', abort) : undefined;
     if (signal) signal.addEventListener('abort', abort, { once: true });
     const entry = kind === 'thumbnail'
-      ? { kind, resolve: resolve as (blob: Blob | null) => void, reject, cleanup }
-      : { kind, resolve: resolve as (peaks: number[]) => void, reject, cleanup };
+      ? { kind, assetKey: payload.assetKey, resolve: resolve as (blob: Blob | null) => void, reject, cleanup }
+      : { kind, assetKey: payload.assetKey, resolve: resolve as (peaks: number[]) => void, reject, cleanup };
     pending.set(id, entry as PendingRequest);
     if (signal?.aborted) {
       abort();

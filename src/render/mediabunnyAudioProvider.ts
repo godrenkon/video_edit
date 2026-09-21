@@ -1,7 +1,14 @@
-import type { AudioBufferSink, BlobSource, Input, WrappedAudioBuffer } from 'mediabunny';
+import type { AudioSampleSink, BlobSource, Input } from 'mediabunny';
+import { copyAudioSampleToPcm, type PcmAudioBuffer } from './pcmAudio';
 
 export interface MediabunnyAudioProviderOptions {
   maxCacheSize?: number;
+}
+
+export interface WrappedPcmAudioBuffer {
+  buffer: PcmAudioBuffer;
+  timestamp: number;
+  duration: number;
 }
 
 /**
@@ -12,7 +19,7 @@ export class MediabunnyAudioProvider {
   private readonly blob: Blob;
   private readonly options: MediabunnyAudioProviderOptions;
   private input: Input<BlobSource> | null = null;
-  private sink: AudioBufferSink | null = null;
+  private sink: AudioSampleSink | null = null;
   private opened = false;
 
   constructor(blob: Blob, options: MediabunnyAudioProviderOptions = {}) {
@@ -24,7 +31,7 @@ export class MediabunnyAudioProvider {
     if (this.opened) return;
     throwIfAborted(signal);
 
-    const { ALL_FORMATS, AudioBufferSink, BlobSource, Input } = await import('mediabunny');
+    const { ALL_FORMATS, AudioSampleSink, BlobSource, Input } = await import('mediabunny');
     throwIfAborted(signal);
 
     const input = new Input({
@@ -45,7 +52,7 @@ export class MediabunnyAudioProvider {
       throwIfAborted(signal);
 
       this.input = input;
-      this.sink = new AudioBufferSink(track);
+      this.sink = new AudioSampleSink(track);
       this.opened = true;
     } catch (error) {
       input.dispose();
@@ -53,7 +60,7 @@ export class MediabunnyAudioProvider {
     }
   }
 
-  async readRange(startSeconds: number, endSeconds: number, signal?: AbortSignal): Promise<WrappedAudioBuffer[]> {
+  async readRange(startSeconds: number, endSeconds: number, signal?: AbortSignal): Promise<WrappedPcmAudioBuffer[]> {
     if (!this.opened || !this.sink) throw new Error('MediabunnyAudioProvider is not open');
     if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds) || endSeconds < startSeconds) {
       throw new RangeError('Invalid audio range');
@@ -62,20 +69,30 @@ export class MediabunnyAudioProvider {
 
     const start = Math.max(0, startSeconds);
     const end = Math.max(start, endSeconds);
-    const result: WrappedAudioBuffer[] = [];
+    const result: WrappedPcmAudioBuffer[] = [];
     const timestamps = new Set<number>();
 
-    const leading = await this.sink.getBuffer(start);
-    if (leading && leading.timestamp + leading.duration > start) {
-      result.push(leading);
-      timestamps.add(leading.timestamp);
+    const leading = await this.sink.getSample(start);
+    if (leading) {
+      try {
+        if (leading.timestamp + leading.duration > start) {
+          result.push(wrapSample(leading));
+          timestamps.add(leading.timestamp);
+        }
+      } finally {
+        leading.close();
+      }
     }
 
-    for await (const wrapped of this.sink.buffers(start, end)) {
-      throwIfAborted(signal);
-      if (timestamps.has(wrapped.timestamp)) continue;
-      result.push(wrapped);
-      timestamps.add(wrapped.timestamp);
+    for await (const sample of this.sink.samples(start, end)) {
+      try {
+        throwIfAborted(signal);
+        if (timestamps.has(sample.timestamp)) continue;
+        result.push(wrapSample(sample));
+        timestamps.add(sample.timestamp);
+      } finally {
+        sample.close();
+      }
     }
 
     result.sort((a, b) => a.timestamp - b.timestamp);
@@ -88,6 +105,14 @@ export class MediabunnyAudioProvider {
     this.sink = null;
     this.opened = false;
   }
+}
+
+function wrapSample(sample: Parameters<typeof copyAudioSampleToPcm>[0]): WrappedPcmAudioBuffer {
+  return {
+    buffer: copyAudioSampleToPcm(sample),
+    timestamp: sample.timestamp,
+    duration: sample.duration,
+  };
 }
 
 function throwIfAborted(signal?: AbortSignal) {

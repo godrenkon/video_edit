@@ -332,7 +332,7 @@ Dedicated workers should handle:
 - export rendering
 - audio analysis / offline mix where practical
 
-Current deterministic video export executes decode, composition, audio mixing, encode and mux inside a dedicated Worker when the required browser APIs are available. Unsupported Worker runtimes use the same renderer through an automatic main-thread fallback.
+Current deterministic video export executes decode, composition, planar Float32 PCM audio mixing, `AudioSample` encoding and mux inside a dedicated Worker when the required browser APIs are available. It does not depend on the window-only Web Audio `AudioBuffer` constructor. Unsupported Worker runtimes use the same renderer through an automatic main-thread fallback.
 
 GPU path:
 

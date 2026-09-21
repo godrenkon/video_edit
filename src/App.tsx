@@ -44,6 +44,7 @@ import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSe
 import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
 import { clearWaveformMemoryCache, waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
+import { clearMediaAnalysisWorker } from './render/mediaAnalysisWorkerClient';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
@@ -516,6 +517,8 @@ export default function App() {
         return;
       }
 
+      clearMediaAnalysisWorker(assetId);
+
       if (capabilities.opfs) {
         await saveAssetFile(current.storageName, file);
         if (current.proxyStorageName) await deleteAssetFile(current.proxyStorageName).catch(() => undefined);
@@ -620,6 +623,7 @@ export default function App() {
     if (rendering) return;
     const asset = project.assets.find((a) => a.id === assetId);
     if (!asset) return;
+    clearMediaAnalysisWorker(assetId);
     if (capabilities.opfs) {
       await deleteAssetFile(asset.storageName);
       if (asset.proxyStorageName) await deleteAssetFile(asset.proxyStorageName).catch(() => undefined);

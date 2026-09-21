@@ -44,7 +44,7 @@ Implemented already:
 - lazy-loaded decode, proxy and export runtime chunks
 - shared thumbnail/waveform analysis worker with cancellation and fallback
 - paused/effect-preview composition worker with cancellation and fallback
-- video export decode/render/audio-mix/encode worker with cancellation and fallback
+- video export decode/render/worker-safe planar PCM audio-mix/encode worker with cancellation and fallback
 - Zundamon PNG-based mouth/blink/bob prototype
 - Amplify static hosting configuration
 - regression tests and GitHub Actions CI on `main`

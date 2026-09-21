@@ -79,6 +79,9 @@ function checkOfflinePrecacheManifest() {
   if (!serviceWorker.includes('request-client-build') || !serviceWorker.includes('cleanupObsoleteCaches')) {
     throw new Error('Service worker does not preserve caches used by live clients');
   }
+  if (!serviceWorker.includes("url.pathname === '/precache-assets.js'") || !serviceWorker.includes('currentCacheFirst(request)')) {
+    throw new Error('Service worker can resolve the build manifest from an obsolete retained cache');
+  }
   console.log(`Offline precache manifest ${buildIdMatch[1]}: ${manifest.length} build assets (including ${exportChunk})`);
 }
 

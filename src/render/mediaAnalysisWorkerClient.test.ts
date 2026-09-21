@@ -107,7 +107,7 @@ describe('media analysis worker client', () => {
     await expect(request).rejects.toMatchObject({ name: 'AbortError', message: 'resources cleared' });
   });
 
-  it('clears only resources belonging to the requested asset', async () => {
+  it('cancels pending work belonging to a cleared asset immediately', async () => {
     const client = await import('./mediaAnalysisWorkerClient');
     const request = client.renderTimelineThumbnailInWorker('asset:a', new Blob(['a']), 1);
     const instance = FakeWorker.instances[0];
@@ -116,7 +116,7 @@ describe('media analysis worker client', () => {
     client.clearMediaAnalysisWorker('asset');
     expect(instance.sent[1]).toEqual({ kind: 'clear', assetId: 'asset' });
     instance.onmessage?.({ data: { id: sent.id, kind: 'thumbnail', ok: true, blob: null } } as MessageEvent);
-    await expect(request).resolves.toBeNull();
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
     expect(instance.terminated).toBe(false);
   });
 
@@ -137,6 +137,24 @@ describe('media analysis worker client', () => {
       data: { id: sent.id, kind: 'waveform', ok: true, peaks: [0.5] },
     } as MessageEvent);
     await expect(request).resolves.toEqual([0.5]);
+  });
+
+  it('does not cancel pending work for a different asset', async () => {
+    const client = await import('./mediaAnalysisWorkerClient');
+    const request = client.analyzeWaveformInWorker('asset-two:waveform:key', new Blob(['a']), {
+      duration: 2,
+      samplesPerSecond: 10,
+      maxBins: 100,
+      chunkSeconds: 30,
+    });
+    const instance = FakeWorker.instances[0];
+    const sent = instance.sent[0] as { id: number };
+
+    client.clearMediaAnalysisWorker('asset-one');
+    instance.onmessage?.({
+      data: { id: sent.id, kind: 'waveform', ok: true, peaks: [0.75] },
+    } as MessageEvent);
+    await expect(request).resolves.toEqual([0.75]);
   });
 
   it('rejects pending work and disables the worker after a crash', async () => {

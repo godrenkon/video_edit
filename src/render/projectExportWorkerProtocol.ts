@@ -25,6 +25,8 @@ export const PROJECT_EXPORT_WORKER_UNAVAILABLE = 'ProjectExportWorkerUnavailable
 
 export function supportsProjectExportWorker(environment: typeof globalThis = globalThis) {
   const codecEnvironment = environment as typeof globalThis & {
+    AudioEncoder?: unknown;
+    AudioDecoder?: unknown;
     VideoEncoder?: unknown;
     VideoDecoder?: unknown;
   };
@@ -32,6 +34,8 @@ export function supportsProjectExportWorker(environment: typeof globalThis = glo
     && typeof environment.OffscreenCanvas === 'function'
     && typeof codecEnvironment.VideoEncoder === 'function'
     && typeof codecEnvironment.VideoDecoder === 'function'
+    && typeof codecEnvironment.AudioEncoder === 'function'
+    && typeof codecEnvironment.AudioDecoder === 'function'
     && typeof environment.navigator?.storage?.getDirectory === 'function';
 }
 
