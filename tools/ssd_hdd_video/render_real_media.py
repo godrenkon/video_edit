@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import csv, json, math, re, subprocess, sys
+import csv, json, math, os, re, subprocess, sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from janome.tokenizer import Tokenizer
@@ -258,7 +258,16 @@ def make_bgm(total):
 
 rows=read_timestamps()
 voice=VOICE_DIR/"SSD_HDD_NARRATION_ZUNDAMON_48k.wav"
-total=probe_duration(voice)
+full_total=probe_duration(voice)
+SMOKE_SECONDS=float(os.environ.get("SSD_HDD_SMOKE_SECONDS","0") or 0)
+total=min(full_total,SMOKE_SECONDS) if SMOKE_SECONDS>0 else full_total
+if SMOKE_SECONDS>0:
+    clipped=[]
+    for r in rows:
+        if r["st"]>=total: break
+        x=dict(r); x["en"]=min(x["en"],total)
+        clipped.append(x)
+    rows=clipped
 zundamon=asset("zundamon_official")
 
 # Build global subtitles from the corrected narration timings.
