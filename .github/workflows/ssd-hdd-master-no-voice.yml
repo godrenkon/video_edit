@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-noto-cjk
           python3 -m pip install --upgrade pip
-          python3 -m pip install pillow requests numpy soundfile
+          python3 -m pip install pillow requests numpy soundfile janome
 
       - name: Start VOICEVOX timing engine
         run: |
@@ -68,10 +68,12 @@ jobs:
           path: |
             output_motion/SSD_HDD_MASTER_NO_NARRATION.mp4
             output_motion/SSD_HDD_PREVIEW_NO_NARRATION.mp4
+            output_motion/SSD_HDD_CLEAN_NO_NARRATION.mp4
             output_motion/subtitles.ass
             output_motion/subtitles.srt
             output_motion/bgm_stem.wav
             output_motion/se_stem.wav
+            output_motion/bgm_se_mix.wav
             output_motion/chapters.txt
           compression-level: 0
           retention-days: 7
