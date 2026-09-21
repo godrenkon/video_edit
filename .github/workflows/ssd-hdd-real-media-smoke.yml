@@ -6,6 +6,7 @@ on:
       - video-build/ssd-hdd-explainer
     paths:
       - ".github/workflows/ssd-hdd-real-media-smoke.yml"
+      - "tools/ssd_hdd_video/render_real_media.py"
   workflow_dispatch:
 
 permissions:
