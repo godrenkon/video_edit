@@ -2,6 +2,8 @@ importScripts('/precache-assets.js');
 
 const CACHE_PREFIX = 'suiram-video-edit-shell-';
 const CACHE_NAME = CACHE_PREFIX + self.__SUIRAM_BUILD_ID__;
+const CLIENT_BUILD_STATE_CACHE = 'suiram-video-edit-client-builds-v1';
+const CLIENT_BUILD_STATE_PATH = '/__suiram-client-build/';
 const clientBuilds = new Map();
 const APP_SHELL = [
   '/',
@@ -36,7 +38,7 @@ self.addEventListener('message', (event) => {
   if (event.data?.kind !== 'client-build' || !/^[0-9a-f]{16}$/.test(event.data.buildId)) return;
   if (!event.source?.id) return;
   clientBuilds.set(event.source.id, event.data.buildId);
-  event.waitUntil(cleanupObsoleteCaches());
+  event.waitUntil(recordClientBuild(event.source.id, event.data.buildId));
 });
 
 self.addEventListener('fetch', (event) => {
@@ -61,10 +63,10 @@ async function networkFirstNavigation(request, clientId) {
   try {
     return await fetch(request);
   } catch {
-    const cache = await cacheForClient(clientId);
+    const { cache, cacheName } = await cacheForClient(clientId);
     const cached = (await cache.match('/index.html')) || (await cache.match('/'));
     if (cached) return cached;
-    if (clientCacheName(clientId) !== CACHE_NAME) {
+    if (cacheName !== CACHE_NAME) {
       const currentCache = await caches.open(CACHE_NAME);
       return (await currentCache.match('/index.html')) || (await currentCache.match('/')) || Response.error();
     }
@@ -73,7 +75,7 @@ async function networkFirstNavigation(request, clientId) {
 }
 
 async function cacheFirstAsset(request, clientId) {
-  const cache = await cacheForClient(clientId);
+  const { cache } = await cacheForClient(clientId);
   const cached = await cache.match(request);
   if (cached) return cached;
 
@@ -84,13 +86,45 @@ async function cacheFirstAsset(request, clientId) {
   return response;
 }
 
-function clientCacheName(clientId) {
-  const buildId = clientId && clientBuilds.get(clientId);
+async function clientCacheName(clientId) {
+  const buildId = await clientBuildId(clientId);
   return buildId ? CACHE_PREFIX + buildId : CACHE_NAME;
 }
 
-function cacheForClient(clientId) {
-  return caches.open(clientCacheName(clientId));
+async function cacheForClient(clientId) {
+  const cacheName = await clientCacheName(clientId);
+  return { cacheName, cache: await caches.open(cacheName) };
+}
+
+async function clientBuildId(clientId) {
+  if (!clientId) return undefined;
+  const active = clientBuilds.get(clientId);
+  if (active) return active;
+
+  const stateCache = await caches.open(CLIENT_BUILD_STATE_CACHE);
+  const persisted = await stateCache.match(clientBuildStateKey(clientId));
+  if (!persisted) return undefined;
+  const buildId = await persisted.text();
+  if (!/^[0-9a-f]{16}$/.test(buildId)) {
+    await stateCache.delete(clientBuildStateKey(clientId));
+    return undefined;
+  }
+  const current = clientBuilds.get(clientId);
+  if (current) return current;
+  clientBuilds.set(clientId, buildId);
+  return buildId;
+}
+
+async function recordClientBuild(clientId, buildId) {
+  const stateCache = await caches.open(CLIENT_BUILD_STATE_CACHE);
+  await stateCache.put(clientBuildStateKey(clientId), new Response(buildId, {
+    headers: { 'content-type': 'text/plain' },
+  }));
+  await cleanupObsoleteCaches();
+}
+
+function clientBuildStateKey(clientId) {
+  return new URL(CLIENT_BUILD_STATE_PATH + encodeURIComponent(clientId), self.location.origin).href;
 }
 
 async function cleanupObsoleteCaches() {
@@ -99,6 +133,8 @@ async function cleanupObsoleteCaches() {
   for (const clientId of clientBuilds.keys()) {
     if (!liveClientIds.has(clientId)) clientBuilds.delete(clientId);
   }
+  await Promise.all(clients.map((client) => clientBuildId(client.id)));
+  await cleanupClientBuildState(liveClientIds);
   if (clients.some((client) => !clientBuilds.has(client.id))) return;
 
   const keep = new Set([CACHE_NAME]);
@@ -107,4 +143,15 @@ async function cleanupObsoleteCaches() {
   await Promise.all(keys
     .filter((key) => key.startsWith(CACHE_PREFIX) && !keep.has(key))
     .map((key) => caches.delete(key)));
+}
+
+async function cleanupClientBuildState(liveClientIds) {
+  const stateCache = await caches.open(CLIENT_BUILD_STATE_CACHE);
+  const keys = await stateCache.keys();
+  await Promise.all(keys.map((request) => {
+    const pathname = new URL(request.url).pathname;
+    if (!pathname.startsWith(CLIENT_BUILD_STATE_PATH)) return undefined;
+    const clientId = decodeURIComponent(pathname.slice(CLIENT_BUILD_STATE_PATH.length));
+    return liveClientIds.has(clientId) ? undefined : stateCache.delete(request);
+  }));
 }

@@ -1,5 +1,14 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const FIXED_PRECACHE_ASSETS = [
+  '/sw.js',
+  '/manifest.webmanifest',
+  '/app-icon.svg',
+  '/audio-effects-worklet.js',
+] as const;
 
 function buildFingerprint(value: string) {
   const hash = (seed: number) => {
@@ -34,12 +43,16 @@ function offlinePrecacheAssets(): Plugin {
         .map((entry) => `/${entry.fileName}`)
         .filter((fileName) => /\.(?:css|js)$/.test(fileName))
         .sort();
-      const buildId = buildFingerprint(JSON.stringify(assets));
+      const fixedAssets = FIXED_PRECACHE_ASSETS.map((url) => ({
+        url,
+        revision: buildFingerprint(readFileSync(resolve(import.meta.dirname, 'public', url.slice(1)), 'utf8')),
+      }));
+      const buildId = buildFingerprint(JSON.stringify({ assets, fixedAssets }));
       generatedBuildId = buildId;
       this.emitFile({
         type: 'asset',
         fileName: 'precache-assets.js',
-        source: `self.__SUIRAM_BUILD_ID__ = ${JSON.stringify(buildId)};\nself.__SUIRAM_BUILD_ASSETS__ = ${JSON.stringify(assets, null, 2)};\n`,
+        source: `self.__SUIRAM_FIXED_ASSET_REVISIONS__ = ${JSON.stringify(fixedAssets, null, 2)};\nself.__SUIRAM_BUILD_ID__ = ${JSON.stringify(buildId)};\nself.__SUIRAM_BUILD_ASSETS__ = ${JSON.stringify(assets, null, 2)};\n`,
       });
     },
   };

@@ -34,8 +34,6 @@ export function supportsProjectExportWorker(environment: typeof globalThis = glo
     && typeof environment.OffscreenCanvas === 'function'
     && typeof codecEnvironment.VideoEncoder === 'function'
     && typeof codecEnvironment.VideoDecoder === 'function'
-    && typeof codecEnvironment.AudioEncoder === 'function'
-    && typeof codecEnvironment.AudioDecoder === 'function'
     && typeof environment.navigator?.storage?.getDirectory === 'function';
 }
 

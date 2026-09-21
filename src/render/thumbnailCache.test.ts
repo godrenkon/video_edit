@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   readAssetFile: vi.fn(),
   readThumbnailCache: vi.fn(),
   saveThumbnailCache: vi.fn(),
+  deleteThumbnailCachesForAsset: vi.fn(),
   renderTimelineThumbnailInWorker: vi.fn(),
 }));
 
@@ -12,6 +13,7 @@ vi.mock('../core/storage', () => ({
   readAssetFile: mocks.readAssetFile,
   readThumbnailCache: mocks.readThumbnailCache,
   saveThumbnailCache: mocks.saveThumbnailCache,
+  deleteThumbnailCachesForAsset: mocks.deleteThumbnailCachesForAsset,
 }));
 
 vi.mock('./mediaAnalysisWorkerClient', () => ({
@@ -43,6 +45,8 @@ describe('timeline thumbnail cache', () => {
     vi.clearAllMocks();
     mocks.readThumbnailCache.mockResolvedValue(null);
     mocks.readAssetFile.mockResolvedValue(new Blob(['video']));
+    mocks.saveThumbnailCache.mockResolvedValue(undefined);
+    mocks.deleteThumbnailCachesForAsset.mockResolvedValue(undefined);
   });
 
   it('preserves worker cancellation instead of retrying the decode on the main thread', async () => {
@@ -59,5 +63,20 @@ describe('timeline thumbnail cache', () => {
 
     await expect(getTimelineThumbnail(asset, 2)).resolves.toBeNull();
     expect(mocks.readAssetFile).toHaveBeenCalledTimes(2);
+  });
+
+  it('removes a persistent thumbnail written after its asset was cleared', async () => {
+    let finishSave: (() => void) | undefined;
+    mocks.renderTimelineThumbnailInWorker.mockResolvedValue(new Blob(['thumbnail'], { type: 'image/webp' }));
+    mocks.saveThumbnailCache.mockImplementation(() => new Promise<void>((resolve) => { finishSave = resolve; }));
+    const { clearTimelineThumbnailCache, getTimelineThumbnail } = await import('./thumbnailCache');
+    const request = getTimelineThumbnail(asset, 3);
+
+    await vi.waitFor(() => expect(mocks.saveThumbnailCache).toHaveBeenCalledOnce());
+    clearTimelineThumbnailCache(asset.id);
+    finishSave?.();
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(mocks.deleteThumbnailCachesForAsset).toHaveBeenCalledWith(asset.id);
   });
 });

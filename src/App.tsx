@@ -45,6 +45,7 @@ import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
 import { clearWaveformMemoryCache, waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
 import { clearMediaAnalysisWorker } from './render/mediaAnalysisWorkerClient';
+import { replaceRelinkedAssetStorage } from './render/assetRelinkLifecycle';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
@@ -517,14 +518,7 @@ export default function App() {
         return;
       }
 
-      clearMediaAnalysisWorker(assetId);
-
-      if (capabilities.opfs) {
-        await saveAssetFile(current.storageName, file);
-        if (current.proxyStorageName) await deleteAssetFile(current.proxyStorageName).catch(() => undefined);
-        await deleteWaveformCache(waveformCacheKey(current)).catch(() => undefined);
-        await deleteThumbnailCachesForAsset(assetId).catch(() => undefined);
-      }
+      await replaceRelinkedAssetStorage(current, file, waveformCacheKey(current), capabilities.opfs);
 
       proxyAbort.current.get(assetId)?.abort('Original media relinked');
       if (current.objectUrl) URL.revokeObjectURL(current.objectUrl);

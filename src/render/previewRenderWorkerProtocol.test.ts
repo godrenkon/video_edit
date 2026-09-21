@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { previewRenderWorkerError, supportsPreviewRenderWorker } from './previewRenderWorkerProtocol';
+import {
+  previewRenderWorkerError,
+  previewRenderWorkerErrorName,
+  supportsPreviewRenderWorker,
+} from './previewRenderWorkerProtocol';
 
 const supportedEnvironment = {
   Worker: class {},
@@ -21,5 +25,7 @@ describe('preview render worker protocol', () => {
     expect(previewRenderWorkerError(new Error('render failed'))).toBe('render failed');
     expect(previewRenderWorkerError('cancelled')).toBe('cancelled');
     expect(previewRenderWorkerError(null)).toBe('Preview render worker failed');
+    expect(previewRenderWorkerErrorName(new DOMException('cancelled', 'AbortError'))).toBe('AbortError');
+    expect(previewRenderWorkerErrorName(null)).toBeUndefined();
   });
 });

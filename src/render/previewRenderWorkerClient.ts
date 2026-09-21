@@ -140,7 +140,7 @@ function ensureWorker() {
     pending.delete(response.requestId);
     request.cleanup?.();
     if (!response.ok) {
-      request.reject(new Error(response.error));
+      request.reject(workerResponseError(response.error, response.errorName));
       return;
     }
     let released = false;
@@ -161,6 +161,13 @@ function ensureWorker() {
   worker.onerror = (event) => failWorker(new Error(event.message || 'Preview render worker crashed'));
   worker.onmessageerror = () => failWorker(new Error('Preview render worker returned unreadable data'));
   return worker;
+}
+
+function workerResponseError(message: string, name?: string) {
+  if (name === 'AbortError') return new DOMException(message, 'AbortError');
+  const error = new Error(message);
+  if (name) error.name = name;
+  return error;
 }
 
 function failWorker(error: Error) {

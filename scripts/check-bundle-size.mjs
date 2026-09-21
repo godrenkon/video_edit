@@ -13,6 +13,12 @@ if (!entryMatch) {
 const relativeEntry = entryMatch[1].replace(/^\//, '');
 const distRoot = resolve(root, 'dist');
 const distAssetsRoot = resolve(distRoot, 'assets');
+const fixedPrecacheAssets = [
+  '/sw.js',
+  '/manifest.webmanifest',
+  '/app-icon.svg',
+  '/audio-effects-worklet.js',
+];
 const initialFiles = collectStaticJavaScript(resolve(distRoot, relativeEntry));
 const rawBytes = initialFiles.reduce((total, file) => total + readFileSync(file).byteLength, 0);
 const gzipBytes = initialFiles.reduce((total, file) => total + gzipSync(readFileSync(file), { level: 9 }).byteLength, 0);
@@ -42,10 +48,13 @@ function checkWorkerBundle(filePrefix, label, workerLimits) {
     .find((name) => new RegExp(`^${filePrefix}-.*\\.js$`).test(name));
   if (!workerName) throw new Error(`${label} bundle is missing from the production build`);
 
-  const workerSource = readFileSync(resolve(distAssetsRoot, workerName));
-  const workerRawBytes = workerSource.byteLength;
-  const workerGzipBytes = gzipSync(workerSource, { level: 9 }).byteLength;
-  console.log(`${label}: ${format(workerRawBytes)} raw / ${format(workerGzipBytes)} gzip`);
+  const workerFiles = collectJavaScriptGraph(resolve(distAssetsRoot, workerName), true);
+  const workerRawBytes = workerFiles.reduce((total, file) => total + readFileSync(file).byteLength, 0);
+  const workerGzipBytes = workerFiles.reduce(
+    (total, file) => total + gzipSync(readFileSync(file), { level: 9 }).byteLength,
+    0,
+  );
+  console.log(`${label} graph (${workerFiles.length} chunks): ${format(workerRawBytes)} raw / ${format(workerGzipBytes)} gzip`);
 
   const workerFailures = [];
   if (workerRawBytes > workerLimits.rawBytes) workerFailures.push(`raw ${format(workerRawBytes)} > ${format(workerLimits.rawBytes)}`);
@@ -57,11 +66,28 @@ function checkOfflinePrecacheManifest() {
   const manifestPath = resolve(distRoot, 'precache-assets.js');
   const source = readFileSync(manifestPath, 'utf8');
   const manifestMatch = source.match(/self\.__SUIRAM_BUILD_ASSETS__ = (\[[\s\S]*\]);/);
+  const fixedAssetsMatch = source.match(/self\.__SUIRAM_FIXED_ASSET_REVISIONS__ = (\[[\s\S]*?\]);/);
   const buildIdMatch = source.match(/self\.__SUIRAM_BUILD_ID__ = "([0-9a-f]{16})";/);
-  if (!manifestMatch || !buildIdMatch) throw new Error('Offline precache asset module is invalid');
+  if (!manifestMatch || !fixedAssetsMatch || !buildIdMatch) throw new Error('Offline precache asset module is invalid');
   const manifest = JSON.parse(manifestMatch[1]);
+  const fixedAssets = JSON.parse(fixedAssetsMatch[1]);
   if (!Array.isArray(manifest) || manifest.some((entry) => typeof entry !== 'string')) {
     throw new Error('Offline precache manifest is invalid');
+  }
+  if (!Array.isArray(fixedAssets)
+    || fixedAssets.some((entry) => typeof entry?.url !== 'string' || !/^[0-9a-f]{16}$/.test(entry?.revision))) {
+    throw new Error('Offline fixed-asset revisions are invalid');
+  }
+  for (const url of fixedPrecacheAssets) {
+    const entry = fixedAssets.find((candidate) => candidate.url === url);
+    const expectedRevision = buildFingerprint(readFileSync(resolve(distRoot, url.slice(1)), 'utf8'));
+    if (!entry || entry.revision !== expectedRevision) {
+      throw new Error(`Offline fixed asset is not fingerprinted: ${url}`);
+    }
+  }
+  const expectedBuildId = buildFingerprint(JSON.stringify({ assets: manifest, fixedAssets }));
+  if (buildIdMatch[1] !== expectedBuildId) {
+    throw new Error('Offline build id does not cover every generated and fixed asset revision');
   }
   const cached = new Set(manifest);
   const requiredAssets = readdirSync(distAssetsRoot)
@@ -91,22 +117,30 @@ function checkOfflinePrecacheManifest() {
   if (!serviceWorker.includes('event.clientId || event.resultingClientId') || !serviceWorker.includes('cacheForClient(clientId)')) {
     throw new Error('Service worker does not route retained-cache reads by requesting client build');
   }
+  if (!serviceWorker.includes('CLIENT_BUILD_STATE_CACHE') || !serviceWorker.includes('clientBuildId(clientId)')) {
+    throw new Error('Service worker does not restore client build routing after worker restarts');
+  }
   console.log(`Offline precache manifest ${buildIdMatch[1]}: ${manifest.length} build assets (including ${exportChunk})`);
 }
 
 function collectStaticJavaScript(entryPath) {
+  return collectJavaScriptGraph(entryPath, false);
+}
+
+function collectJavaScriptGraph(entryPath, includeDynamicImports) {
   const queue = [entryPath];
   const files = new Set();
   const importPatterns = [
     /(?:^|[;\n])\s*import\s*(?:[^"'()]*?\s*from\s*)?["']([^"']+\.js)["']/g,
     /(?:^|[;\n])\s*export\s+[^"'()]*?\s*from\s*["']([^"']+\.js)["']/g,
   ];
+  if (includeDynamicImports) importPatterns.push(/\bimport\(\s*["']([^"']+\.js)["']\s*\)/g);
 
   while (queue.length) {
     const file = queue.pop();
     if (!file || files.has(file)) continue;
     const outsideDist = relative(distRoot, file).startsWith('..');
-    if (outsideDist) throw new Error(`Initial bundle import escaped dist: ${file}`);
+    if (outsideDist) throw new Error(`JavaScript graph import escaped dist: ${file}`);
     files.add(file);
 
     const source = readFileSync(file, 'utf8');
@@ -120,4 +154,16 @@ function collectStaticJavaScript(entryPath) {
     }
   }
   return [...files];
+}
+
+function buildFingerprint(value) {
+  const hash = (seed) => {
+    let result = seed;
+    for (let index = 0; index < value.length; index += 1) {
+      result ^= value.charCodeAt(index);
+      result = Math.imul(result, 16_777_619);
+    }
+    return (result >>> 0).toString(16).padStart(8, '0');
+  };
+  return `${hash(2_166_136_261)}${hash(2_654_435_769)}`;
 }

@@ -1,4 +1,9 @@
-import { readAssetFile, readThumbnailCache, saveThumbnailCache } from '../core/storage';
+import {
+  deleteThumbnailCachesForAsset,
+  readAssetFile,
+  readThumbnailCache,
+  saveThumbnailCache,
+} from '../core/storage';
 import type { AssetMeta } from '../types/editor';
 import { MediabunnyVideoProvider } from './mediabunnyProvider';
 import {
@@ -25,6 +30,8 @@ interface CachedProvider {
 const thumbnails = new Map<string, CachedThumbnail>();
 const providers = new Map<string, CachedProvider>();
 const pending = new Map<string, Promise<string | null>>();
+const assetGenerations = new Map<string, number>();
+let globalGeneration = 0;
 let queue = Promise.resolve();
 
 export function videoThumbnailFingerprint(asset: AssetMeta) {
@@ -48,8 +55,10 @@ export function getTimelineThumbnail(asset: AssetMeta, sourceTime: number): Prom
 
   const existing = pending.get(key);
   if (existing) return existing;
+  const generation = thumbnailGeneration(asset.id);
 
   const task = enqueue(async () => {
+    throwIfThumbnailInvalidated(asset.id, generation);
     const secondRead = thumbnails.get(key);
     if (secondRead) {
       secondRead.lastUsed = performanceNow();
@@ -57,6 +66,7 @@ export function getTimelineThumbnail(asset: AssetMeta, sourceTime: number): Prom
     }
 
     const persisted = await readThumbnailCache(asset.id, key).catch(() => null);
+    throwIfThumbnailInvalidated(asset.id, generation);
     if (persisted) {
       const url = URL.createObjectURL(persisted);
       thumbnails.set(key, { url, lastUsed: performanceNow() });
@@ -66,8 +76,13 @@ export function getTimelineThumbnail(asset: AssetMeta, sourceTime: number): Prom
 
     const safeTime = Math.max(0, Math.min(asset.duration || sourceTime, sourceTime));
     const blob = await decodeThumbnail(asset, safeTime);
+    throwIfThumbnailInvalidated(asset.id, generation);
     if (!blob) return null;
     await saveThumbnailCache(asset.id, key, blob).catch(() => undefined);
+    if (!isThumbnailGenerationCurrent(asset.id, generation)) {
+      await deleteThumbnailCachesForAsset(asset.id).catch(() => undefined);
+      throw thumbnailAbortError();
+    }
     const url = URL.createObjectURL(blob);
     thumbnails.set(key, { url, lastUsed: performanceNow() });
     pruneThumbnails();
@@ -84,6 +99,16 @@ export function getTimelineThumbnail(asset: AssetMeta, sourceTime: number): Prom
 }
 
 export function clearTimelineThumbnailCache(assetId?: string) {
+  if (assetId) {
+    assetGenerations.set(assetId, (assetGenerations.get(assetId) ?? 0) + 1);
+    for (const key of pending.keys()) {
+      if (key.startsWith(`${assetId}:`)) pending.delete(key);
+    }
+  } else {
+    globalGeneration += 1;
+    assetGenerations.clear();
+    pending.clear();
+  }
   for (const [key, cached] of thumbnails) {
     if (!assetId || key.startsWith(`${assetId}:`)) {
       URL.revokeObjectURL(cached.url);
@@ -210,4 +235,20 @@ function performanceNow() {
 
 function isAbortError(error: unknown) {
   return typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError';
+}
+
+function thumbnailGeneration(assetId: string) {
+  return { global: globalGeneration, asset: assetGenerations.get(assetId) ?? 0 };
+}
+
+function isThumbnailGenerationCurrent(assetId: string, generation: ReturnType<typeof thumbnailGeneration>) {
+  return generation.global === globalGeneration && generation.asset === (assetGenerations.get(assetId) ?? 0);
+}
+
+function throwIfThumbnailInvalidated(assetId: string, generation: ReturnType<typeof thumbnailGeneration>) {
+  if (!isThumbnailGenerationCurrent(assetId, generation)) throw thumbnailAbortError();
+}
+
+function thumbnailAbortError() {
+  return new DOMException('Timeline thumbnail request was invalidated', 'AbortError');
 }

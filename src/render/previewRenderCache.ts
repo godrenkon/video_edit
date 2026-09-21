@@ -78,9 +78,11 @@ export class PreviewRenderCache {
 
     const task = this.renderFrame(project, frameIndex, frameTime, signal);
     this.pending.set(frameIndex, task);
-    void task.finally(() => {
-      if (this.pending.get(frameIndex) === task) this.pending.delete(frameIndex);
-    });
+    void task
+      .finally(() => {
+        if (this.pending.get(frameIndex) === task) this.pending.delete(frameIndex);
+      })
+      .catch(() => undefined);
     return task;
   }
 

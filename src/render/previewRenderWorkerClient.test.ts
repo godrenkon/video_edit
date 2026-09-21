@@ -114,6 +114,30 @@ describe('preview render worker client', () => {
     session.close();
   });
 
+  it('preserves cancellation returned by a shared worker render', async () => {
+    const client = await import('./previewRenderWorkerClient');
+    const session = new client.PreviewRenderWorkerSession(project);
+    const request = session.frame(2);
+    const instance = FakeWorker.instances[0];
+    const render = instance.sent[1] as { requestId: number };
+
+    instance.onmessage?.({
+      data: {
+        requestId: render.requestId,
+        ok: false,
+        error: 'A shared preview render was cancelled',
+        errorName: 'AbortError',
+      },
+    } as MessageEvent);
+
+    await expect(request).rejects.toMatchObject({
+      name: 'AbortError',
+      message: 'A shared preview render was cancelled',
+    });
+    expect(instance.terminated).toBe(false);
+    session.close();
+  });
+
   it('rejects pending work and disables the worker after a crash', async () => {
     const client = await import('./previewRenderWorkerClient');
     const session = new client.PreviewRenderWorkerSession(project);

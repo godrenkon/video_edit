@@ -1,6 +1,7 @@
 import { PreviewRenderCache } from './previewRenderCache';
 import {
   previewRenderWorkerError,
+  previewRenderWorkerErrorName,
   type PreviewRenderWorkerRequest,
   type PreviewRenderWorkerResponse,
 } from './previewRenderWorkerProtocol';
@@ -47,7 +48,12 @@ scope.onmessage = (event) => {
     })
     .catch((error) => {
       if (controller.signal.aborted) return;
-      scope.postMessage({ requestId: request.requestId, ok: false, error: previewRenderWorkerError(error) });
+      scope.postMessage({
+        requestId: request.requestId,
+        ok: false,
+        error: previewRenderWorkerError(error),
+        errorName: previewRenderWorkerErrorName(error),
+      });
     })
     .finally(() => active.delete(request.requestId));
 };

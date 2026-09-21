@@ -18,14 +18,17 @@ const supportedEnvironment = {
 } as unknown as typeof globalThis;
 
 describe('project export worker protocol', () => {
-  it('requires every platform primitive needed by the worker export pipeline', () => {
+  it('requires the platform primitives shared by every worker export', () => {
     expect(supportsProjectExportWorker(supportedEnvironment)).toBe(true);
     expect(supportsProjectExportWorker({ ...supportedEnvironment, Worker: undefined } as unknown as typeof globalThis)).toBe(false);
     expect(supportsProjectExportWorker({ ...supportedEnvironment, OffscreenCanvas: undefined } as unknown as typeof globalThis)).toBe(false);
     expect(supportsProjectExportWorker({ ...supportedEnvironment, VideoEncoder: undefined } as unknown as typeof globalThis)).toBe(false);
     expect(supportsProjectExportWorker({ ...supportedEnvironment, VideoDecoder: undefined } as unknown as typeof globalThis)).toBe(false);
-    expect(supportsProjectExportWorker({ ...supportedEnvironment, AudioEncoder: undefined } as unknown as typeof globalThis)).toBe(false);
-    expect(supportsProjectExportWorker({ ...supportedEnvironment, AudioDecoder: undefined } as unknown as typeof globalThis)).toBe(false);
+    expect(supportsProjectExportWorker({
+      ...supportedEnvironment,
+      AudioEncoder: undefined,
+      AudioDecoder: undefined,
+    } as unknown as typeof globalThis)).toBe(true);
     expect(supportsProjectExportWorker({ ...supportedEnvironment, navigator: {} } as unknown as typeof globalThis)).toBe(false);
   });
 

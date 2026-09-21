@@ -45,6 +45,7 @@ Implemented already:
 - shared thumbnail/waveform analysis worker with cancellation and fallback
 - paused/effect-preview composition worker with cancellation and fallback
 - video export decode/render/worker-safe planar PCM audio-mix/encode worker with cancellation and fallback
+- build-versioned offline shell with full chunk precaching and restart-safe live-client cache routing
 - Zundamon PNG-based mouth/blink/bob prototype
 - Amplify static hosting configuration
 - regression tests and GitHub Actions CI on `main`

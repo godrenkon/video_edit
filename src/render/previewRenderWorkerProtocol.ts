@@ -34,7 +34,7 @@ export type PreviewRenderWorkerResponse =
       time: number;
       cached: boolean;
     }
-  | { requestId: number; ok: false; error: string };
+  | { requestId: number; ok: false; error: string; errorName?: string };
 
 export function supportsPreviewRenderWorker(environment: typeof globalThis = globalThis) {
   return typeof environment.Worker === 'function'
@@ -46,4 +46,8 @@ export function supportsPreviewRenderWorker(environment: typeof globalThis = glo
 export function previewRenderWorkerError(error: unknown) {
   if (error instanceof Error && error.message) return error.message;
   return typeof error === 'string' && error ? error : 'Preview render worker failed';
+}
+
+export function previewRenderWorkerErrorName(error: unknown) {
+  return error instanceof Error && error.name ? error.name : undefined;
 }
