@@ -72,15 +72,18 @@ function checkOfflinePrecacheManifest() {
   const exportChunk = requiredAssets.find((asset) => /\/projectExporter-.*\.js$/.test(asset));
   if (!exportChunk) throw new Error('Demand-loaded project exporter chunk is missing from the production build');
   const builtHtml = readFileSync(resolve(distRoot, 'index.html'), 'utf8');
-  if (!builtHtml.includes('<script src="/precache-assets.js">')) {
-    throw new Error('Production HTML does not capture its build-specific precache id');
+  if (!builtHtml.includes(`globalThis.__SUIRAM_BUILD_ID__ = ${JSON.stringify(buildIdMatch[1])};`)) {
+    throw new Error('Production HTML does not inline its matching build id');
+  }
+  if (builtHtml.includes('src="/precache-assets.js"')) {
+    throw new Error('Production HTML can load a stale build id through a controlling service worker');
   }
   const serviceWorker = readFileSync(resolve(distRoot, 'sw.js'), 'utf8');
   if (!serviceWorker.includes('request-client-build') || !serviceWorker.includes('cleanupObsoleteCaches')) {
     throw new Error('Service worker does not preserve caches used by live clients');
   }
-  if (!serviceWorker.includes("url.pathname === '/precache-assets.js'") || !serviceWorker.includes('currentCacheFirst(request)')) {
-    throw new Error('Service worker can resolve the build manifest from an obsolete retained cache');
+  if (serviceWorker.includes("url.pathname === '/precache-assets.js'")) {
+    throw new Error('Service worker can intercept the page build id with an obsolete manifest');
   }
   console.log(`Offline precache manifest ${buildIdMatch[1]}: ${manifest.length} build assets (including ${exportChunk})`);
 }

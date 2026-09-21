@@ -14,11 +14,20 @@ function buildFingerprint(value: string) {
 }
 
 function offlinePrecacheAssets(): Plugin {
+  let generatedBuildId: string | undefined;
   return {
     name: 'offline-precache-manifest',
     apply: 'build',
-    transformIndexHtml() {
-      return [{ tag: 'script', attrs: { src: '/precache-assets.js' }, injectTo: 'head-prepend' }];
+    transformIndexHtml: {
+      order: 'post',
+      handler() {
+        if (!generatedBuildId) this.error('Unable to inject the build id into index.html');
+        return [{
+          tag: 'script',
+          children: `globalThis.__SUIRAM_BUILD_ID__ = ${JSON.stringify(generatedBuildId)};`,
+          injectTo: 'head-prepend',
+        }];
+      },
     },
     generateBundle(_options, bundle) {
       const assets = Object.values(bundle)
@@ -26,6 +35,7 @@ function offlinePrecacheAssets(): Plugin {
         .filter((fileName) => /\.(?:css|js)$/.test(fileName))
         .sort();
       const buildId = buildFingerprint(JSON.stringify(assets));
+      generatedBuildId = buildId;
       this.emitFile({
         type: 'asset',
         fileName: 'precache-assets.js',

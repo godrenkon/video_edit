@@ -51,11 +51,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (url.pathname === '/precache-assets.js') {
-    event.respondWith(currentCacheFirst(request));
-    return;
-  }
-
   const buildAsset = url.pathname.startsWith('/assets/');
   if (!buildAsset && !['script', 'worker', 'sharedworker', 'audioworklet', 'style', 'font', 'image', 'manifest'].includes(request.destination)) return;
   event.respondWith(cacheFirstAsset(request));
@@ -83,16 +78,6 @@ async function cacheFirstAsset(request) {
     const cache = await caches.open(CACHE_NAME);
     await cache.put(request, response.clone());
   }
-  return response;
-}
-
-async function currentCacheFirst(request) {
-  const cache = await caches.open(CACHE_NAME);
-  const cached = await cache.match(request);
-  if (cached) return cached;
-
-  const response = await fetch(request);
-  if (response.ok && response.type === 'basic') await cache.put(request, response.clone());
   return response;
 }
 
