@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { awaitSharedPreviewTask } from './previewRenderCache';
+import { awaitSharedPreviewTask, PreviewRenderTaskQueue } from './previewRenderCache';
 import { previewCacheDimensions, previewCacheFrameIndex } from './previewRenderPlanning';
 
 describe('preview render cache planning', () => {
@@ -39,6 +39,35 @@ describe('preview render cache planning', () => {
     expect(firstResult.mock.calls[0][0]).toMatchObject({ name: 'AbortError' });
 
     finish?.('rendered');
+    await expect(second).resolves.toBe('rendered');
+  });
+
+  it('serializes distinct preview renders that share the same canvases', async () => {
+    const queue = new PreviewRenderTaskQueue();
+    let finishFirst: (() => void) | undefined;
+    const events: string[] = [];
+    const first = queue.run(async () => {
+      events.push('first:start');
+      await new Promise<void>((resolve) => { finishFirst = resolve; });
+      events.push('first:end');
+    });
+    const second = queue.run(async () => {
+      events.push('second:start');
+      events.push('second:end');
+    });
+
+    await vi.waitFor(() => expect(events).toEqual(['first:start']));
+    finishFirst?.();
+    await Promise.all([first, second]);
+    expect(events).toEqual(['first:start', 'first:end', 'second:start', 'second:end']);
+  });
+
+  it('continues the preview render queue after a cancelled task', async () => {
+    const queue = new PreviewRenderTaskQueue();
+    const first = queue.run(async () => { throw new DOMException('cancelled', 'AbortError'); });
+    const second = queue.run(async () => 'rendered');
+
+    await expect(first).rejects.toMatchObject({ name: 'AbortError' });
     await expect(second).resolves.toBe('rendered');
   });
 });

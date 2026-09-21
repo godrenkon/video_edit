@@ -15,6 +15,12 @@ interface CacheEntry {
   lastUsed: number;
 }
 
+interface PendingFrame {
+  task: Promise<PreviewCachedFrame>;
+  controller: AbortController;
+  subscribers: number;
+}
+
 export interface PreviewRenderCacheOptions {
   maxWidth?: number;
   maxHeight?: number;
@@ -40,8 +46,8 @@ export class PreviewRenderCache {
   private readonly maxHeight: number;
   private readonly maxBytes: number;
   private readonly entries = new Map<number, CacheEntry>();
-  private readonly pending = new Map<number, Promise<PreviewCachedFrame>>();
-  private readonly lifecycle = new AbortController();
+  private readonly pending = new Map<number, PendingFrame>();
+  private readonly scheduler = new PreviewRenderTaskQueue();
   private closed = false;
 
   constructor(project: Pick<Project, 'assets'>, options: PreviewRenderCacheOptions = {}) {
@@ -75,18 +81,21 @@ export class PreviewRenderCache {
     }
 
     const existing = this.pending.get(frameIndex);
-    if (existing) return awaitSharedPreviewTask(existing, signal);
+    if (existing) return this.subscribe(frameIndex, existing, signal);
 
-    // A cached render can have multiple callers. Keep its lifetime tied to the
-    // cache session rather than whichever caller happened to request it first.
-    const task = this.renderFrame(project, frameIndex, frameTime, this.lifecycle.signal);
-    this.pending.set(frameIndex, task);
-    void task
+    const controller = new AbortController();
+    const pending: PendingFrame = {
+      task: this.scheduler.run(() => this.renderFrame(project, frameIndex, frameTime, controller.signal)),
+      controller,
+      subscribers: 0,
+    };
+    this.pending.set(frameIndex, pending);
+    void pending.task
       .finally(() => {
-        if (this.pending.get(frameIndex) === task) this.pending.delete(frameIndex);
+        if (this.pending.get(frameIndex) === pending) this.pending.delete(frameIndex);
       })
       .catch(() => undefined);
-    return awaitSharedPreviewTask(task, signal);
+    return this.subscribe(frameIndex, pending, signal);
   }
 
   clear() {
@@ -97,10 +106,28 @@ export class PreviewRenderCache {
   async close() {
     if (this.closed) return;
     this.closed = true;
-    this.lifecycle.abort('Preview render cache closed');
+    const pendingTasks = [...this.pending.values()].map((pending) => {
+      pending.controller.abort('Preview render cache closed');
+      return pending.task;
+    });
     this.clear();
     this.pending.clear();
+    await Promise.allSettled(pendingTasks);
+    await this.scheduler.drain();
     await this.assets.close();
+  }
+
+  private subscribe(frameIndex: number, pending: PendingFrame, signal?: AbortSignal) {
+    pending.subscribers += 1;
+    let released = false;
+    return awaitSharedPreviewTask(pending.task, signal, () => {
+      if (released) return;
+      released = true;
+      pending.subscribers = Math.max(0, pending.subscribers - 1);
+      if (pending.subscribers > 0 || this.pending.get(frameIndex) !== pending) return;
+      this.pending.delete(frameIndex);
+      pending.controller.abort('Preview frame is no longer requested');
+    });
   }
 
   private async renderFrame(
@@ -174,19 +201,54 @@ export class PreviewRenderCache {
   }
 }
 
-export function awaitSharedPreviewTask<T>(task: Promise<T>, signal?: AbortSignal): Promise<T> {
-  throwIfAborted(signal);
-  if (!signal) return task;
+export class PreviewRenderTaskQueue {
+  private tail: Promise<void> = Promise.resolve();
+
+  run<T>(task: () => Promise<T>): Promise<T> {
+    const result = this.tail.then(task);
+    this.tail = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  drain(): Promise<void> {
+    return this.tail;
+  }
+}
+
+export function awaitSharedPreviewTask<T>(
+  task: Promise<T>,
+  signal?: AbortSignal,
+  onSettled: () => void = () => undefined,
+): Promise<T> {
+  if (!signal) {
+    return task.then(
+      (value) => {
+        onSettled();
+        return value;
+      },
+      (error) => {
+        onSettled();
+        throw error;
+      },
+    );
+  }
   return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const settle = () => {
+      if (settled) return false;
+      settled = true;
+      signal.removeEventListener('abort', abort);
+      onSettled();
+      return true;
+    };
     const abort = () => {
-      cleanup();
+      if (!settle()) return;
       try {
         throwIfAborted(signal);
       } catch (error) {
         reject(error);
       }
     };
-    const cleanup = () => signal.removeEventListener('abort', abort);
     signal.addEventListener('abort', abort, { once: true });
     if (signal.aborted) {
       abort();
@@ -194,11 +256,11 @@ export function awaitSharedPreviewTask<T>(task: Promise<T>, signal?: AbortSignal
     }
     void task.then(
       (value) => {
-        cleanup();
+        if (!settle()) return;
         resolve(value);
       },
       (error) => {
-        cleanup();
+        if (!settle()) return;
         reject(error);
       },
     );
