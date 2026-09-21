@@ -154,7 +154,7 @@ def pool_for(section,text):
         return ["nvme_m2","hdd_open_photo","sata_ssd","nas","motherboard"]
     if "第1章" in sec:
         return ["ram_ddr4","motherboard","pc_m2_hdd_inside","ssd_install","sata_ssd","hdd_side","browser_demo_video"]
-    return ["hdd_open_photo","sata_ssd","nvme_m2","motherboard","zundamon_official"]
+    return ["pc_m2_hdd_inside","hdd_open_photo","nvme_m2","sata_ssd","motherboard","external_ssd","external_hdds"]
 
 def is_video(p):
     return p.suffix.lower() in (".mp4",".webm",".mov",".mkv")
@@ -301,7 +301,7 @@ for a in [x for x in ["hdd_open_photo","ssd_controller","nvme_m2","sata_ssd"] if
     en=min(total,cur+2.0)
     events.append({"n":n,"st":cur,"en":en,"asset":a,"slot":0,"row":ending_row}); n+=1; cur=en
 if cur<total:
-    a=next((x for x in ["nvme_m2","sata_ssd","hdd_open_photo"] if optional_asset(x)),"zundamon_official")
+    a=next((x for x in ["nvme_m2","sata_ssd","hdd_open_photo","pc_m2_hdd_inside"] if optional_asset(x)),None)\n    if not a:\n        raise RuntimeError("no real-media asset available for ending")
     events.append({"n":n,"st":cur,"en":total,"asset":a,"slot":0,"row":ending_row})
 
 # QA guard: no visual event longer than 4.05 s except if total ending cannot be split.
