@@ -1,0 +1,62 @@
+name: Build SSD HDD Narration Only
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-voice-only.yml"
+      - "tools/ssd_hdd_video/build_voice_only.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  voice:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install audio dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python3 -m pip install --upgrade pip
+          python3 -m pip install requests numpy soundfile
+
+      - name: Start VOICEVOX
+        run: |
+          docker pull voicevox/voicevox_engine:cpu-latest
+          docker run -d --rm --name voicevox -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:cpu-latest
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:50021/version >/dev/null; then
+              echo "VOICEVOX ready"
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:50021/speakers | head -c 4000
+
+      - name: Build narration only
+        run: |
+          python3 tools/ssd_hdd_video/build_voice_only.py
+
+      - name: Inspect audio
+        run: |
+          ffprobe -v error -show_entries stream=codec_name,sample_rate,channels,duration -show_entries format=duration,size,bit_rate -of json voice_output/SSD_HDD_NARRATION_ZUNDAMON_48k.wav
+          ffmpeg -hide_banner -nostats -i voice_output/SSD_HDD_NARRATION_ZUNDAMON_48k.wav -af ebur128=peak=true -f null - 2> voice_output/loudness.txt || true
+          tail -n 30 voice_output/loudness.txt
+          ls -lah voice_output
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-zundamon-narration
+          path: |
+            voice_output/SSD_HDD_NARRATION_ZUNDAMON_48k.wav
+            voice_output/SSD_HDD_NARRATION_ZUNDAMON_320k.mp3
+            voice_output/narration_timestamps.tsv
+            voice_output/loudness.txt
+          compression-level: 0
+          retention-days: 7
