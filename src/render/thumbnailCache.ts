@@ -75,9 +75,11 @@ export function getTimelineThumbnail(asset: AssetMeta, sourceTime: number): Prom
   });
 
   pending.set(key, task);
-  void task.finally(() => {
-    if (pending.get(key) === task) pending.delete(key);
-  });
+  void task
+    .finally(() => {
+      if (pending.get(key) === task) pending.delete(key);
+    })
+    .catch(() => undefined);
   return task;
 }
 
@@ -106,6 +108,7 @@ async function decodeThumbnail(asset: AssetMeta, sourceTime: number) {
       const file = await readAssetFile(asset.proxyStorageName ?? asset.storageName);
       return await renderTimelineThumbnailInWorker(videoThumbnailFingerprint(asset), file, sourceTime);
     } catch (error) {
+      if (isAbortError(error)) throw error;
       console.warn('Timeline thumbnail worker failed; using the main-thread fallback', error);
     }
   }
@@ -203,4 +206,8 @@ function enqueue<T>(work: () => Promise<T>) {
 
 function performanceNow() {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function isAbortError(error: unknown) {
+  return typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError';
 }

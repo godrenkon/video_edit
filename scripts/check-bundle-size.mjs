@@ -85,6 +85,12 @@ function checkOfflinePrecacheManifest() {
   if (serviceWorker.includes("url.pathname === '/precache-assets.js'")) {
     throw new Error('Service worker can intercept the page build id with an obsolete manifest');
   }
+  if (serviceWorker.includes('caches.match(')) {
+    throw new Error('Service worker performs an ambiguous read across retained build caches');
+  }
+  if (!serviceWorker.includes('event.clientId || event.resultingClientId') || !serviceWorker.includes('cacheForClient(clientId)')) {
+    throw new Error('Service worker does not route retained-cache reads by requesting client build');
+  }
   console.log(`Offline precache manifest ${buildIdMatch[1]}: ${manifest.length} build assets (including ${exportChunk})`);
 }
 
