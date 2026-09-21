@@ -13,7 +13,7 @@
       "id": "hdd_open_photo",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:Hard_disk_platters_and_head.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Hard_disk_platters_and_head.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Hard_disk_platters_and_head.jpg?width=1600",
       "license": "CC BY-SA 3.0",
       "credit": "Wikimedia Commons contributor",
       "use": "HDD platter and actuator close-up"
@@ -22,7 +22,7 @@
       "id": "hdd_head_macro",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:Hard_disk_head_on_platter.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Hard_disk_head_on_platter.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Hard_disk_head_on_platter.jpg?width=1600",
       "license": "CC BY-SA 3.0",
       "credit": "Matthew Field",
       "use": "HDD head macro"
@@ -31,7 +31,7 @@
       "id": "hdd_side",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:3.5_inch_hard_disk_drive,_side_view.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/3.5_inch_hard_disk_drive,_side_view.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/3.5_inch_hard_disk_drive,_side_view.jpg?width=1600",
       "license": "CC BY-SA 4.0",
       "credit": "Wikimedia Commons contributor",
       "use": "3.5-inch HDD form factor"
@@ -40,7 +40,7 @@
       "id": "sata_ssd",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:OCPC_SATA_SSD.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/OCPC_SATA_SSD.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/OCPC_SATA_SSD.jpg?width=1600",
       "license": "CC0",
       "credit": "KMBDENNISTRIDENT",
       "use": "2.5-inch SATA SSD"
@@ -49,7 +49,7 @@
       "id": "nvme_m2",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:20260522_스캔디스크_NVMe_M.2형_SSD.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/20260522_스캔디스크_NVMe_M.2형_SSD.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/20260522_스캔디스크_NVMe_M.2형_SSD.jpg?width=1600",
       "license": "CC0",
       "credit": "Striker9498",
       "use": "M.2 NVMe SSD"
@@ -58,7 +58,7 @@
       "id": "ssd_controller",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:Intel_SSD.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Intel_SSD.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Intel_SSD.jpg?width=1600",
       "license": "CC0",
       "credit": "User5515",
       "use": "SSD controller / PCB"
@@ -67,7 +67,7 @@
       "id": "ssd_nand",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:Intel_SSD_330_Series_NAND_flash_PCB.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Intel_SSD_330_Series_NAND_flash_PCB.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Intel_SSD_330_Series_NAND_flash_PCB.jpg?width=1600",
       "license": "CC BY-SA 4.0",
       "credit": "Phiarc",
       "use": "NAND flash chips"
@@ -76,7 +76,7 @@
       "id": "sata_vs_nvme",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:MSATA_SATA_M.2_NVMeSSD.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/MSATA_SATA_M.2_NVMeSSD.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/MSATA_SATA_M.2_NVMeSSD.jpg?width=1600",
       "license": "CC BY-SA 4.0",
       "credit": "Wikimedia Commons contributor",
       "use": "SSD form-factor comparison"
@@ -85,7 +85,7 @@
       "id": "motherboard",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:Computer_motherboard.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Computer_motherboard.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Computer_motherboard.jpg?width=1600",
       "license": "CC0",
       "credit": "Kurt Kaiser",
       "use": "PC motherboard context"
@@ -94,7 +94,7 @@
       "id": "ssd_install",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:Pemasangan_SSD.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Pemasangan_SSD.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Pemasangan_SSD.jpg?width=1600",
       "license": "CC BY 4.0",
       "credit": "Citralestari39",
       "use": "SSD installation"
@@ -103,7 +103,7 @@
       "id": "nas",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:Synology_Disk_Station_DS223J_-_NAS-Server.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Synology_Disk_Station_DS223J_-_NAS-Server.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Synology_Disk_Station_DS223J_-_NAS-Server.jpg?width=1600",
       "license": "CC BY-SA 4.0",
       "credit": "DYVER",
       "use": "NAS example"
@@ -112,34 +112,10 @@
       "id": "server_rack",
       "kind": "image",
       "source": "https://commons.wikimedia.org/wiki/File:Servers_in_a_Rack.jpg",
-      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Servers_in_a_Rack.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Servers_in_a_Rack.jpg?width=1600",
       "license": "CC BY-SA 3.0",
       "credit": "Abigor",
       "use": "server/storage context"
-    },
-    {
-      "id": "motherboard_video",
-      "kind": "video_page",
-      "source": "https://pixabay.com/videos/circuit-board-motherboard-technology-13462/",
-      "license": "Pixabay Content License",
-      "credit": "onijake",
-      "use": "hardware B-roll"
-    },
-    {
-      "id": "linux_boot_video",
-      "kind": "video_page",
-      "source": "https://www.pexels.com/video/close-up-shot-of-a-laptop-screen-4578336/",
-      "license": "Pexels License / Free to use",
-      "credit": "Markus Winkler",
-      "use": "OS boot / storage responsiveness B-roll"
-    },
-    {
-      "id": "bgm_technology",
-      "kind": "audio_page",
-      "source": "https://pixabay.com/music/electronic-technology-background-500108/",
-      "license": "Pixabay Content License",
-      "credit": "MiroMaxMusic",
-      "use": "main technology BGM"
     },
     {
       "id": "zundamon_official",
@@ -148,6 +124,60 @@
       "license": "VOICEVOX / ずんずんPJ character guidelines",
       "credit": "VOICEVOX / ずんだもん",
       "use": "character standing visual"
+    },
+    {
+      "id": "computer_components_video",
+      "kind": "video",
+      "source": "https://commons.wikimedia.org/wiki/File:Computer_Components.webm",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Computer_Components.webm",
+      "license": "CC BY-SA 3.0",
+      "credit": "Tlenyard",
+      "use": "computer hardware B-roll"
+    },
+    {
+      "id": "browser_demo_video",
+      "kind": "video",
+      "source": "https://commons.wikimedia.org/wiki/File:Web_browser_demo.webm",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Web_browser_demo.webm",
+      "license": "CC BY-SA 4.0 / compatible Commons license",
+      "credit": "Wikimedia Commons contributor",
+      "use": "browser / app screen B-roll"
+    },
+    {
+      "id": "startup_video",
+      "kind": "video",
+      "source": "https://commons.wikimedia.org/wiki/File:Start.webm",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Start.webm",
+      "license": "CC BY-SA 4.0",
+      "credit": "Bohdan Mashko",
+      "use": "startup/loading B-roll"
+    },
+    {
+      "id": "bgm_pamgaea",
+      "kind": "audio",
+      "source": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300036",
+      "download": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Pamgaea.mp3",
+      "license": "CC BY 4.0",
+      "credit": "Pamgaea — Kevin MacLeod (incompetech.com)",
+      "use": "main explanatory BGM"
+    },
+    {
+      "id": "bgm_envision",
+      "kind": "audio",
+      "source": "https://www.incompetech.com/music/royalty-free/index.html?Search=Search&isrc=USUAN1900000",
+      "download": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Envision.mp3",
+      "license": "CC BY 4.0",
+      "credit": "Envision — Kevin MacLeod (incompetech.com)",
+      "use": "lifespan / backup calmer BGM"
+    },
+    {
+      "id": "bgm_mellowtron",
+      "kind": "audio",
+      "source": "https://www.incompetech.com/music/royalty-free/index.html?isrc=USUAN1300020",
+      "download": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Mellowtron.mp3",
+      "license": "CC BY 4.0",
+      "credit": "Mellowtron — Kevin MacLeod (incompetech.com)",
+      "use": "opening / transitions"
     }
   ]
 }
