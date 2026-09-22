@@ -74,6 +74,7 @@ export function Timeline(props: Props) {
   const width = Math.max(1200, project.duration * px + 120);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ scrollLeft: 0, width: 0 });
+  const [contextMenu, setContextMenu] = useState<{ clipId: string; x: number; y: number } | null>(null);
   const visibleWindow = useMemo(
     () => timelineVisibleWindow(viewport.scrollLeft, viewport.width, px, project.duration),
     [project.duration, px, viewport.scrollLeft, viewport.width],
@@ -84,6 +85,18 @@ export function Timeline(props: Props) {
   const hasExplicitRange = project.inPoint != null || project.outPoint != null;
   const rangeStart = Math.max(0, Math.min(project.duration, project.inPoint ?? 0));
   const rangeEnd = Math.max(rangeStart, Math.min(project.duration, project.outPoint ?? project.duration));
+
+  useEffect(() => {
+    const close = () => setContextMenu(null);
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('blur', close);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('blur', close);
+      window.removeEventListener('resize', close);
+    };
+  }, []);
 
   useEffect(() => {
     const element = scrollerRef.current;
@@ -211,6 +224,16 @@ export function Timeline(props: Props) {
                     onTrimRight={onTrimClip}
                     onRippleTrim={onRippleTrimClip}
                     onRollEdit={onRollEditClip}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (!selectedClipIds.includes(clip.id)) onSelect(clip.id, false);
+                      setContextMenu({
+                        clipId: clip.id,
+                        x: Math.max(8, Math.min(window.innerWidth - 238, event.clientX)),
+                        y: Math.max(8, Math.min(window.innerHeight - 330, event.clientY)),
+                      });
+                    }}
                   />
                 ))}
               </div>
@@ -218,6 +241,25 @@ export function Timeline(props: Props) {
           </div>
         </div>
       </div>
+      {contextMenu && (
+        <div
+          className="editorContextMenu timelineContextMenu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+          role="menu"
+        >
+          <button type="button" onClick={() => { onSplitSelected(); setContextMenu(null); }}><Scissors size={14} />再生ヘッドで分割</button>
+          <button type="button" onClick={() => { onDuplicateSelected(); setContextMenu(null); }}><Copy size={14} />複製</button>
+          <button type="button" onClick={() => { onCopySelected(); setContextMenu(null); }}><ClipboardCopy size={14} />コピー</button>
+          <button type="button" onClick={() => { onPasteCopied(); setContextMenu(null); }}><ClipboardPaste size={14} />再生ヘッドへ貼り付け</button>
+          <hr />
+          <button type="button" disabled={!canGroup} onClick={() => { onGroupSelected(); setContextMenu(null); }}><Link2 size={14} />グループ化</button>
+          <button type="button" disabled={!canUngroup} onClick={() => { onUngroupSelected(); setContextMenu(null); }}><Unlink2 size={14} />グループ解除</button>
+          <hr />
+          <button type="button" className="danger" onClick={() => { onDeleteSelected(); setContextMenu(null); }}><X size={14} />削除（隙間を残す）</button>
+          <button type="button" className="danger" onClick={() => { onRippleDeleteSelected(); setContextMenu(null); }}><Trash2 size={14} />リップル削除</button>
+        </div>
+      )}
     </section>
   );
 }
@@ -237,6 +279,7 @@ function TimelineClip({
   onTrimRight,
   onRippleTrim,
   onRollEdit,
+  onContextMenu,
 }: {
   clip: Clip;
   asset?: AssetMeta;
@@ -252,6 +295,7 @@ function TimelineClip({
   onTrimRight: (id: string, duration: number) => void;
   onRippleTrim: (id: string, edge: TimelineEdge, boundary: number) => void;
   onRollEdit: (id: string, edge: TimelineEdge, boundary: number) => void;
+  onContextMenu: (event: React.MouseEvent<HTMLDivElement>) => void;
 }) {
   const drag = (e: React.PointerEvent) => {
     if (locked || (e.target as HTMLElement).closest('.trimHandle')) return;
@@ -334,6 +378,7 @@ function TimelineClip({
       className={`clip ${clip.kind} ${clip.groupId ? 'grouped' : ''} ${selected ? 'selected' : ''}`}
       style={{ left: clip.start * px, width: Math.max(12, clip.duration * px) }}
       onPointerDown={drag}
+      onContextMenu={onContextMenu}
       onClick={(e) => {
         e.stopPropagation();
         if (e.ctrlKey || e.metaKey) return;

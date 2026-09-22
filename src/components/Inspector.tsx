@@ -75,6 +75,21 @@ export function Inspector({
     onClip({ text: { ...current, ...patch } });
   };
 
+  const patchSubtitleTextStyle = (patch: Partial<TextPayload>) => {
+    const subtitleText = selectedClip?.subtitle?.text ?? '';
+    const current: TextPayload = selectedClip?.text ?? {
+      text: subtitleText,
+      fontFamily: 'Noto Sans JP',
+      fontSize: 64,
+      fontWeight: 800,
+      color: '#ffffff',
+      strokeColor: '#000000',
+      strokeWidth: 2,
+      align: 'center',
+    };
+    onClip({ text: { ...current, text: subtitleText, ...patch } });
+  };
+
   const patchGenerator = (patch: Partial<GeneratorPayload>) => {
     if (!selectedClip?.generator) return;
     onClip({ generator: { ...selectedClip.generator, ...patch } });
@@ -201,8 +216,43 @@ export function Inspector({
           {selectedClip.kind === 'subtitle' && selectedClip.subtitle && (
             <>
               <h3>字幕</h3>
-              <Field label="内容"><textarea rows={4} value={selectedClip.subtitle.text} onChange={(e) => onClip({ subtitle: { ...selectedClip.subtitle!, text: e.target.value, words: undefined } })} /></Field>
+              <Field label="内容"><textarea rows={4} value={selectedClip.subtitle.text} onChange={(e) => {
+                const value = e.target.value;
+                const currentStyle = selectedClip.text;
+                onClip({
+                  subtitle: { ...selectedClip.subtitle!, text: value, words: undefined },
+                  text: currentStyle ? { ...currentStyle, text: value } : undefined,
+                });
+              }} /></Field>
               <Field label="話者"><input value={selectedClip.subtitle.speaker ?? ''} placeholder="任意" onChange={(e) => onClip({ subtitle: { ...selectedClip.subtitle!, speaker: e.target.value || undefined } })} /></Field>
+              <h3>字幕スタイル</h3>
+              <Field label="フォント"><input value={selectedClip.text?.fontFamily ?? 'Noto Sans JP'} onChange={(e) => patchSubtitleTextStyle({ fontFamily: e.target.value })} /></Field>
+              <div className="twoFields">
+                <NumberField label="サイズ" value={selectedClip.text?.fontSize ?? 64} step={1} onChange={(v) => patchSubtitleTextStyle({ fontSize: Math.max(8, Math.min(600, v)) })} />
+                <NumberField label="太さ" value={selectedClip.text?.fontWeight ?? 800} step={100} onChange={(v) => patchSubtitleTextStyle({ fontWeight: Math.max(100, Math.min(1000, v)) })} />
+              </div>
+              <div className="twoFields">
+                <Field label="文字色"><input type="color" value={safeColor(selectedClip.text?.color, '#ffffff')} onChange={(e) => patchSubtitleTextStyle({ color: e.target.value })} /></Field>
+                <Field label="縁色"><input type="color" value={safeColor(selectedClip.text?.strokeColor, '#000000')} onChange={(e) => patchSubtitleTextStyle({ strokeColor: e.target.value })} /></Field>
+              </div>
+              <NumberField label="縁取り" value={selectedClip.text?.strokeWidth ?? 2} step={0.5} onChange={(v) => patchSubtitleTextStyle({ strokeWidth: Math.max(0, Math.min(40, v)) })} />
+              <label className="checkboxField">
+                <span>字幕背景</span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(selectedClip.text?.backgroundColor)}
+                  onChange={(e) => patchSubtitleTextStyle({ backgroundColor: e.target.checked ? '#101418' : undefined })}
+                />
+              </label>
+              {selectedClip.text?.backgroundColor && (
+                <Field label="背景色"><input type="color" value={safeColor(selectedClip.text.backgroundColor, '#101418')} onChange={(e) => patchSubtitleTextStyle({ backgroundColor: e.target.value })} /></Field>
+              )}
+              <Field label="揃え">
+                <select value={selectedClip.text?.align ?? 'center'} onChange={(e) => patchSubtitleTextStyle({ align: e.target.value as TextPayload['align'] })}>
+                  <option value="left">左</option><option value="center">中央</option><option value="right">右</option>
+                </select>
+              </Field>
+              <div className="infoCard">位置・大きさ・回転は下の「変形」でも数値指定でき、プレビュー上では直接ドラッグ/拡大縮小できます。字幕背景は既定でオフです。</div>
               <h3>ワードハイライト</h3>
               <label className="checkboxField">
                 <span>再生中の単語/文字を強調</span>
@@ -243,7 +293,7 @@ export function Inspector({
                   ? `${selectedClip.subtitle.words.length}区間。Preview/最終書き出しで同じclip-local timingを使用します。`
                   : 'タイミング未生成。空白区切りは単語単位、日本語など空白なしの字幕は文字単位で均等生成します。'}
               </div>
-              <div className="infoCard">字幕は白文字＋黒縁＋半透明背景の読みやすい既定styleでPreview/最終書き出しへ描画されます。</div>
+              <div className="infoCard">字幕styleはPreviewと最終書き出しで共通です。既定は背景なし・白文字・細い黒縁です。</div>
             </>
           )}
 

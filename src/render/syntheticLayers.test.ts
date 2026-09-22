@@ -13,11 +13,12 @@ describe('synthetic render helpers', () => {
   it('resolves readable subtitle defaults without overriding explicit text styling', () => {
     expect(resolveTextStyle(null, 'hello')).toMatchObject({
       text: 'hello',
-      fontSize: 54,
-      fontWeight: 700,
+      fontSize: 64,
+      fontWeight: 800,
       color: '#ffffff',
       strokeColor: '#000000',
-      strokeWidth: 5,
+      strokeWidth: 2,
+      backgroundColor: null,
       align: 'center',
     });
 

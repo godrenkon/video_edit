@@ -144,6 +144,16 @@ export function defaultSubtitleClip(start: number, y = 0, duration = 4): Clip {
   clip.transform = { ...clip.transform, y };
   return {
     ...clip,
+    text: {
+      text: '字幕テキスト',
+      fontFamily: 'Noto Sans JP',
+      fontSize: 64,
+      fontWeight: 800,
+      color: '#ffffff',
+      strokeColor: '#000000',
+      strokeWidth: 2,
+      align: 'center',
+    },
     subtitle: { text: '字幕テキスト' },
   };
 }

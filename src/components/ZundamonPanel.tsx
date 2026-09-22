@@ -14,6 +14,9 @@ export interface ZundamonRequest {
   blinkEvery: number;
   bobAmount: number;
   bobSpeed: number;
+  x?: number;
+  y?: number;
+  scale?: number;
   timingCues?: MouthCue[];
   subtitlePayload?: SubtitlePayload;
 }
@@ -40,6 +43,9 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
   const [blinkEvery, setBlinkEvery] = useState(4);
   const [bobAmount, setBobAmount] = useState(8);
   const [bobSpeed, setBobSpeed] = useState(0.7);
+  const [x, setX] = useState(0);
+  const [y, setY] = useState(0);
+  const [scale, setScale] = useState(0.82);
   const [timingCues, setTimingCues] = useState<MouthCue[] | undefined>();
   const [timingLabel, setTimingLabel] = useState('');
   const [timingStatus, setTimingStatus] = useState('');
@@ -193,6 +199,16 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
         <label>上下 <input type="number" min={0} max={100} step={1} value={bobAmount} onChange={(e) => setBobAmount(Number(e.target.value))} /><span>px</span></label>
         <label>速度 <input type="number" min={0.1} max={3} step={0.1} value={bobSpeed} onChange={(e) => setBobSpeed(Number(e.target.value))} /></label>
       </div>
+      <div className="zPlacementControls">
+        <label><span>X位置</span><input type="number" step={10} value={x} onChange={(e) => setX(Number(e.target.value))} /></label>
+        <label><span>Y位置</span><input type="number" step={10} value={y} onChange={(e) => setY(Number(e.target.value))} /></label>
+        <label><span>大きさ</span><input type="number" min={0.05} max={5} step={0.05} value={scale} onChange={(e) => setScale(Math.max(0.05, Number(e.target.value)))} /></label>
+        <div className="zPlacementPresets" aria-label="配置プリセット">
+          <button type="button" onClick={() => { setX(-560); setY(170); setScale(0.72); }}>左下</button>
+          <button type="button" onClick={() => { setX(0); setY(0); setScale(0.82); }}>中央</button>
+          <button type="button" onClick={() => { setX(560); setY(170); setScale(0.72); }}>右下</button>
+        </div>
+      </div>
       <button className="button zButton" disabled={!valid || busy} onClick={() => onGenerate({
         closedAssetId: closed,
         halfAssetId: half || undefined,
@@ -209,6 +225,9 @@ export function ZundamonPanel({ assets, busy, onGenerate }: Props) {
         blinkEvery,
         bobAmount,
         bobSpeed,
+        x,
+        y,
+        scale,
         timingCues,
         subtitlePayload: autoSubtitle ? timingSubtitle : undefined,
       })}><Sparkles size={16} />{busy ? '口パク生成中…' : '自動口パクをタイムラインに作成'}</button>
