@@ -98,9 +98,9 @@ describe('advanced timeline operations', () => {
 
     const synced = [...output.tracks[1].clips].sort((a, b) => a.start - b.start);
     expect(synced.map((item) => [item.id, item.start, item.duration])).toEqual([
-      ['sync', 4, 2],
       ['overlap', 4, 4],
-    ].sort((a, b) => a[1] - b[1] || String(a[0]).localeCompare(String(b[0]))));
+      ['sync', 4, 2],
+    ]);
     expect(output.tracks[2].clips[0].start).toBe(6);
     expect(output.tracks[3].clips[0].start).toBe(6);
   });
