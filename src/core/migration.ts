@@ -1,5 +1,6 @@
 import type { AssetBin, AudioBusId, AudioBusSettings, AudioDuckingSettings, Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
 import { sanitizeTranscriptDocument } from './transcript';
+import { canonicalProjectFrameRate } from './timebase';
 
 const CURRENT_PROJECT_VERSION = 2 as const;
 
@@ -22,7 +23,8 @@ export function migrateProject(input: unknown): Project {
     name: stringValue(input.name, '無題のプロジェクト'),
     width: finiteNumber(input.width, 1920, 1),
     height: finiteNumber(input.height, 1080, 1),
-    fps: finiteNumber(input.fps, 30, 1, 240),
+    fps: canonicalProjectFrameRate(finiteNumber(input.fps, 30, 1, 240)),
+    timecodeMode: input.timecodeMode === 'drop-frame' ? 'drop-frame' : 'non-drop-frame',
     background: stringValue(input.background, '#000000'),
     duration: finiteNumber(input.duration, 30, 0.1),
     createdAt: stringValue(input.createdAt, new Date().toISOString()),
