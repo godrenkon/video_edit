@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest';
 import type { Clip, Project } from '../types/editor';
 import {
   moveClipCommand,
+  moveClipToTrackCommand,
   nudgeClipCommand,
+  replayEditorCommands,
   rippleDeleteCommand,
+  rippleTrimCommand,
+  slideEditCommand,
   splitClipCommand,
+  trimLeftCommand,
   trimRightCommand,
+  type EditorCommandPayload,
 } from './commands';
 
 function makeProject(): Project {
@@ -27,7 +33,13 @@ function makeProject(): Project {
     ...first,
     id: 'clip-b',
     name: 'B',
-    start: 6,
+    start: 5,
+  };
+  const third: Clip = {
+    ...first,
+    id: 'clip-c',
+    name: 'C',
+    start: 9,
   };
 
   return {
@@ -41,7 +53,15 @@ function makeProject(): Project {
     duration: 20,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-    assets: [],
+    assets: [{
+      id: 'asset-a',
+      name: 'A',
+      kind: 'video',
+      mime: 'video/mp4',
+      size: 1,
+      duration: 30,
+      storageName: 'a.mp4',
+    }],
     markers: [],
     tracks: [
       {
@@ -50,26 +70,41 @@ function makeProject(): Project {
         kind: 'video',
         muted: false,
         locked: false,
+        syncLock: true,
+        targeted: true,
         visible: true,
-        clips: [first, second],
+        clips: [first, second, third],
+      },
+      {
+        id: 'overlay',
+        name: 'Overlay',
+        kind: 'overlay',
+        muted: false,
+        locked: false,
+        syncLock: true,
+        visible: true,
+        clips: [],
       },
     ],
   };
 }
 
 describe('EditorCommand factories', () => {
-  it('exposes stable labels and coalescing keys for continuous edits', () => {
+  it('exposes stable labels, payloads and coalescing keys for continuous edits', () => {
     expect(moveClipCommand('clip-a', 2)).toMatchObject({
       label: 'クリップ移動',
       coalesceKey: 'clip:clip-a:move',
+      payload: { type: 'move-clip', clipId: 'clip-a', start: 2 },
     });
     expect(trimRightCommand('clip-a', 4)).toMatchObject({
       label: '右トリム',
       coalesceKey: 'clip:clip-a:trim-right',
+      payload: { type: 'trim-right', clipId: 'clip-a', end: 4 },
     });
     expect(nudgeClipCommand('clip-a', 1)).toMatchObject({
       label: 'クリップをフレーム移動',
       coalesceKey: 'clip:clip-a:nudge',
+      payload: { type: 'nudge-clip', clipId: 'clip-a', frames: 1 },
     });
   });
 
@@ -82,13 +117,51 @@ describe('EditorCommand factories', () => {
     expect(output.tracks[0].clips[0].start).toBeCloseTo(2.2, 10);
   });
 
-  it('applies split and ripple-delete commands through the same deterministic operation layer', () => {
+  it('applies split and sync-lock ripple-delete commands through the same reducer', () => {
     const input = makeProject();
     const split = splitClipCommand('clip-a', 3).apply(input);
-    expect(split.tracks[0].clips).toHaveLength(3);
+    expect(split.tracks[0].clips).toHaveLength(4);
 
-    const deleted = rippleDeleteCommand('clip-a').apply(input);
-    expect(deleted.tracks[0].clips.map((clip) => clip.id)).toEqual(['clip-b']);
-    expect(deleted.tracks[0].clips[0].start).toBe(2);
+    const deleted = rippleDeleteCommand('clip-a', 'sync-lock').apply(input);
+    expect(deleted.tracks[0].clips.map((clip) => clip.id)).toEqual(['clip-b', 'clip-c']);
+    expect(deleted.tracks[0].clips[0].start).toBe(1);
+  });
+
+  it('replays JSON-round-tripped payloads deterministically', () => {
+    const input = makeProject();
+    const payloads: EditorCommandPayload[] = [
+      trimLeftCommand('clip-a', 2, undefined, 0).payload,
+      trimRightCommand('clip-c', 12, undefined, 0).payload,
+      moveClipToTrackCommand('clip-b', 'overlay', 6, undefined, 0).payload,
+      nudgeClipCommand('clip-b', 1).payload,
+    ];
+    const restored = JSON.parse(JSON.stringify(payloads)) as EditorCommandPayload[];
+
+    expect(replayEditorCommands(input, restored)).toEqual(replayEditorCommands(input, payloads));
+    expect(input.tracks[0].clips.map((clip) => clip.id)).toEqual(['clip-a', 'clip-b', 'clip-c']);
+  });
+
+  it('routes advanced edit commands through serializable payloads', () => {
+    const input = makeProject();
+    const slid = slideEditCommand('clip-b', 6).apply(input);
+    expect(slid.tracks[0].clips.find((clip) => clip.id === 'clip-b')?.start).toBe(6);
+
+    const rippled = rippleTrimCommand('clip-a', 'right', 4, undefined, 0, 'sync-lock').apply(input);
+    expect(rippled.tracks[0].clips.find((clip) => clip.id === 'clip-a')?.duration).toBe(3);
+    expect(rippled.tracks[0].clips.find((clip) => clip.id === 'clip-b')?.start).toBe(4);
+  });
+
+  it('keeps replay a no-op when command preconditions fail', () => {
+    const input = makeProject();
+    const locked: Project = {
+      ...input,
+      tracks: input.tracks.map((track) => track.id === 'video' ? { ...track, locked: true } : track),
+    };
+    const payloads: EditorCommandPayload[] = [
+      moveClipCommand('clip-a', 10).payload,
+      splitClipCommand('clip-a', 3).payload,
+    ];
+
+    expect(replayEditorCommands(locked, payloads)).toEqual(locked);
   });
 });
