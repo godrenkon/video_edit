@@ -63,6 +63,59 @@ describe('insert / overwrite editing', () => {
     expect(sorted[3].name).toBe('b');
   });
 
+  it('insert ripples sync-locked tracks while preserving excluded and locked tracks', () => {
+    const input = project([clip('a', 0, 6)]);
+    input.tracks[0].syncLock = false;
+    input.tracks.push(
+      {
+        id: 'video-2',
+        name: 'Video 2',
+        kind: 'video',
+        muted: false,
+        locked: false,
+        syncLock: true,
+        visible: true,
+        clips: [clip('b', 1, 5)],
+      },
+      {
+        id: 'video-3',
+        name: 'Video 3',
+        kind: 'video',
+        muted: false,
+        locked: false,
+        syncLock: false,
+        visible: true,
+        clips: [clip('c', 5, 2)],
+      },
+      {
+        id: 'locked',
+        name: 'Locked',
+        kind: 'video',
+        muted: false,
+        locked: true,
+        syncLock: true,
+        visible: true,
+        clips: [clip('d', 5, 2)],
+      },
+    );
+
+    const output = insertClipAt(input, 'video', clip('new', 0, 2), 3, 'sync-lock');
+    const target = [...output.tracks[0].clips].sort((a, b) => a.start - b.start);
+    const synced = [...output.tracks[1].clips].sort((a, b) => a.start - b.start);
+
+    expect(target.map((item) => [item.name, item.start, item.duration])).toEqual([
+      ['a', 0, 3],
+      ['new', 3, 2],
+      ['a (2)', 5, 3],
+    ]);
+    expect(synced.map((item) => [item.start, item.duration, item.inPoint])).toEqual([
+      [1, 2, 0],
+      [5, 3, 2],
+    ]);
+    expect(output.tracks[2].clips[0].start).toBe(5);
+    expect(output.tracks[3].clips[0].start).toBe(5);
+  });
+
   it('overwrite removes only the covered range and preserves both sides', () => {
     const input = project([clip('a', 0, 10, 1)]);
     const incoming = clip('new', 0, 3);
