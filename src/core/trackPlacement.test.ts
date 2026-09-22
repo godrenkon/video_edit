@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createProject, defaultClip, defaultSubtitleClip, defaultTextClip } from './project';
-import { clipCanLiveOnTrack, moveClipToTrack } from './trackPlacement';
+import { clipCanLiveOnTrack, moveClipToTrack, targetTrackForKind } from './trackPlacement';
 import type { AssetMeta, Project } from '../types/editor';
 
 function fixture() {
@@ -15,6 +15,29 @@ function fixture() {
 }
 
 describe('track placement', () => {
+  it('prefers an explicit unlocked target track over clip-selection fallback', () => {
+    const { project, videoTrack } = fixture();
+    const second = {
+      ...videoTrack,
+      id: 'video-2',
+      name: 'Video 2',
+      targeted: true,
+      clips: [],
+    };
+    project.tracks = project.tracks.map((track) => track.id === videoTrack.id
+      ? { ...track, targeted: false }
+      : track);
+    project.tracks.push(second);
+
+    expect(targetTrackForKind(project, 'video', videoTrack.id)?.id).toBe('video-2');
+
+    const locked = {
+      ...project,
+      tracks: project.tracks.map((track) => track.id === 'video-2' ? { ...track, locked: true } : track),
+    };
+    expect(targetTrackForKind(locked, 'video', videoTrack.id)?.id).toBe(videoTrack.id);
+  });
+
   it('moves visual clips between video and overlay tracks without replacing existing clips', () => {
     const { project, videoTrack, overlayTrack } = fixture();
     const clip = defaultClip('video', 'video', 1, 4);
