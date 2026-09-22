@@ -15,10 +15,11 @@ export type AssetRuntimeUrlRegistry = Map<string, AssetRuntimeUrls>;
  * retains stale browser resources.
  */
 export function snapshotProjectForHistory(project: Project): Project {
-  return {
+  const metadataOnly: Project = {
     ...project,
     assets: project.assets.map(({ objectUrl: _objectUrl, proxyObjectUrl: _proxyObjectUrl, ...asset }) => asset),
   };
+  return structuredClone(metadataOnly);
 }
 
 /**
