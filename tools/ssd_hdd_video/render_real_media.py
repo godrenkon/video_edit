@@ -52,8 +52,10 @@ def read_timestamps():
             })
     return rows
 
-def semantic_phrases(text,maxlen=24):
-    # Caption splitting: token boundaries only, never cut English acronyms or Japanese words in half.
+def semantic_phrases(text,maxlen=26):
+    """Subtitle splitting on token boundaries only.
+    Punctuation always stays with the preceding phrase, so no cue starts with 、 or 。.
+    """
     ascii_pat=re.compile(r"[A-Za-z0-9.+/:-]+(?:[ \u3000]+[A-Za-z0-9.+/:-]+)*")
     toks=[]; pos=0
     for m in ascii_pat.finditer(text):
@@ -64,23 +66,51 @@ def semantic_phrases(text,maxlen=24):
     if pos<len(text):
         for t in JP.tokenize(text[pos:]):
             if t.surface: toks.append((t.surface,t.part_of_speech.split(",")[0]))
+
     out=[]; cur=""
+    punct=set("、。！？!?，,：:；;")
     for surf,pos in toks:
+        if surf in punct:
+            cur += surf
+            if len(cur)>=10:
+                out.append(cur.rstrip("。"))
+                cur=""
+            continue
+
         candidate=cur+surf
-        boundary = surf in "、。！？!?" or pos in ("助詞","接続詞")
+        # If adding a token would exceed the visual limit, cut only at a token boundary.
         if len(candidate)>maxlen and cur:
-            out.append(cur.rstrip("。")); cur=surf
+            out.append(cur.rstrip("。"))
+            cur=surf
         else:
             cur=candidate
-        if boundary and len(cur)>=10:
-            out.append(cur.rstrip("。")); cur=""
-    if cur: out.append(cur.rstrip("。"))
-    # merge tiny pieces
-    merged=[]
+
+        if pos in ("助詞","接続詞") and len(cur)>=12:
+            out.append(cur.rstrip("。"))
+            cur=""
+
+    if cur:
+        out.append(cur.rstrip("。"))
+
+    # Repair any punctuation-only prefix defensively.
+    fixed=[]
     for p in out:
-        if merged and len(p)<=4 and len(merged[-1])+len(p)<=maxlen:
+        if not p: continue
+        if fixed and p[0] in punct:
+            fixed[-1] += p[0]
+            p=p[1:]
+        if p:
+            fixed.append(p)
+
+    # Merge tiny fragments when safe.
+    merged=[]
+    for p in fixed:
+        core=re.sub(r"[\s、。！？!?，,：:；;]","",p)
+        if merged and len(core)<=4 and len(merged[-1])+len(p)<=maxlen:
             merged[-1]+=p
-        else: merged.append(p)
+        else:
+            merged.append(p)
+
     return [x for x in merged if x] or [text.rstrip("。")]
 
 def ass_time(t):
@@ -316,6 +346,54 @@ def make_bgm(total):
     run(["ffmpeg","-y","-loglevel","error","-f","concat","-safe","0","-i",lst,"-c:a","pcm_s16le",out])
     return out
 
+def make_sfx(rows,total):
+    """Build a restrained stereo SFX stem from licensed free effects."""
+    transition=optional_asset("sfx_transition")
+    click=optional_asset("sfx_click")
+    success=optional_asset("sfx_success")
+    events=[]
+
+    # Chapter starts.
+    prev=None
+    for r in rows:
+        if r["section"]!=prev:
+            if prev is not None and transition:
+                events.append((r["st"],transition,"transition"))
+            prev=r["section"]
+
+    # Important technical corrections/keywords.
+    keys=("M.2","NVMe","TBW","3-2-1","FPS","CMR","SMR","バックアップ")
+    if click:
+        for r in rows:
+            if any(k in r["text"] for k in keys):
+                events.append((r["st"]+0.08,click,"click"))
+
+    if success:
+        events.append((max(0,total-7.0),success,"success"))
+
+    stem=OUT/"sfx_stem.wav"
+    if not events:
+        run(["ffmpeg","-y","-loglevel","error","-f","lavfi","-i","anullsrc=r=48000:cl=stereo","-t",f"{total:.3f}","-c:a","pcm_s16le",stem])
+        return stem
+
+    cmd=["ffmpeg","-y","-loglevel","error","-f","lavfi","-t",f"{total:.3f}","-i","anullsrc=r=48000:cl=stereo"]
+    filters=[]
+    mix_inputs=["[0:a]"]
+    for i,(at,p,kind) in enumerate(events,1):
+        cmd += ["-i",str(p)]
+        delay=max(0,int(round(at*1000)))
+        if kind=="transition":
+            filters.append(f"[{i}:a]atrim=0:0.90,afade=t=out:st=0.55:d=0.35,volume=-25dB,adelay={delay}|{delay}[s{i}]")
+        elif kind=="success":
+            filters.append(f"[{i}:a]atrim=0:1.30,afade=t=out:st=0.80:d=0.50,volume=-25dB,adelay={delay}|{delay}[s{i}]")
+        else:
+            filters.append(f"[{i}:a]atrim=0:0.22,afade=t=out:st=0.10:d=0.12,volume=-22dB,adelay={delay}|{delay}[s{i}]")
+        mix_inputs.append(f"[s{i}]")
+    filters.append("".join(mix_inputs)+f"amix=inputs={len(mix_inputs)}:duration=first:normalize=0,aresample=48000[out]")
+    cmd += ["-filter_complex",";".join(filters),"-map","[out]","-ar","48000","-ac","2","-c:a","pcm_s16le",stem]
+    run(cmd)
+    return stem
+
 rows=read_timestamps()
 voice=VOICE_DIR/"SSD_HDD_NARRATION_ZUNDAMON_48k.wav"
 full_total=probe_duration(voice)
@@ -394,16 +472,21 @@ concat=WORK/"video_concat.txt"
 concat.write_text("\n".join(f"file '{p.resolve()}'" for p in clips),encoding="utf-8")
 visual=WORK/"visual.mp4"
 run(["ffmpeg","-y","-loglevel","error","-f","concat","-safe","0","-i",concat,"-c","copy",visual])
+clean_visual=OUT/"SSD_HDD_REAL_MEDIA_CLEAN.mp4"
+run(["ffmpeg","-y","-loglevel","error","-i",visual,"-c:v","copy","-an",clean_visual])
 
 bgm=make_bgm(total)
+bgm_out=OUT/"bgm_stem.wav"
+run(["ffmpeg","-y","-loglevel","error","-i",bgm,"-ar","48000","-ac","2","-c:a","pcm_s16le",bgm_out])
+sfx=make_sfx(rows,total)
 final=OUT/"SSD_HDD_REAL_MEDIA_FINAL.mp4"
 # External BGM under narration, soft chapter SFX synthesized only as accents.
 run([
-  "ffmpeg","-y","-loglevel","error","-i",visual,"-i",voice,"-i",bgm,
+  "ffmpeg","-y","-loglevel","error","-i",visual,"-i",voice,"-i",bgm,"-i",sfx,
   "-filter_complex",
   f"[0:v]ass={ass.as_posix()}:fontsdir=/usr/share/fonts/opentype/noto[v];"
-  "[1:a]volume=1.0[n];[2:a]volume=1.0[b];"
-  "[n][b]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=9[a]",
+  "[1:a]volume=1.0[n];[2:a]volume=1.0[b];[3:a]volume=1.0[s];"
+  "[n][b][s]amix=inputs=3:duration=first:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=9[a]",
   "-map","[v]","-map","[a]","-t",f"{total:.3f}",
   "-c:v","libx264","-preset","medium","-b:v","10M","-maxrate","12M","-bufsize","24M",
   "-pix_fmt","yuv420p","-c:a","aac","-ar","48000","-b:a","256k","-movflags","+faststart",final
