@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Clip, Project } from '../types/editor';
+import { copyClip } from './clipboardOps';
 import {
   deleteClipsCommand,
+  duplicateClipCommand,
   groupClipsCommand,
   moveClipCommand,
   moveClipsCommand,
   moveClipToTrackCommand,
   nudgeClipCommand,
   nudgeClipsCommand,
+  pasteClipCommand,
   replayEditorCommands,
   rippleDeleteCommand,
   rippleTrimCommand,
@@ -177,6 +180,31 @@ describe('EditorCommand factories', () => {
     expect(output.tracks[0].clips.every((clip) => clip.groupId === undefined)).toBe(true);
     expect(output.tracks[0].clips[0].start).toBeCloseTo(2 + 1 / 30, 10);
     expect(output.tracks[0].clips[1].start).toBeCloseTo(6 + 1 / 30, 10);
+  });
+
+  it('captures fresh clipboard identities once so duplicate and paste replay deterministically', () => {
+    const input = makeProject();
+    const duplicate = duplicateClipCommand(input, 'clip-a');
+    const clipboard = copyClip(input, 'clip-b');
+    const paste = clipboard ? pasteClipCommand(input, clipboard, 14) : null;
+    expect(duplicate?.createdClipId).toBeTruthy();
+    expect(paste?.createdClipId).toBeTruthy();
+
+    const payloads = [duplicate!.payload, paste!.payload];
+    const restored = JSON.parse(JSON.stringify(payloads)) as EditorCommandPayload[];
+    const first = replayEditorCommands(input, payloads);
+    const replayed = replayEditorCommands(input, restored);
+    expect(replayed).toEqual(first);
+    expect(first.tracks[0].clips.map((clip) => clip.id)).toContain(duplicate!.createdClipId);
+    expect(first.tracks[0].clips.map((clip) => clip.id)).toContain(paste!.createdClipId);
+    expect(first.tracks[0].clips.find((clip) => clip.id === paste!.createdClipId)?.start).toBe(14);
+  });
+
+  it('does not add the same prepared clip identity twice', () => {
+    const input = makeProject();
+    const duplicate = duplicateClipCommand(input, 'clip-a')!;
+    const once = duplicate.apply(input);
+    expect(duplicate.apply(once)).toBe(once);
   });
 
   it('keeps replay a no-op when command preconditions fail', () => {
