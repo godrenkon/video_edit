@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles } from 'lucide-react';
 import { rippleTrimClip, rollEditBoundary, slideEditClip } from './core/advancedTimelineOps';
 import { addAssetBin, assignAssetBin, removeAssetBin, renameAssetBin } from './core/assetBins';
@@ -41,6 +41,7 @@ import {
 } from './core/storage';
 import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
+import { moveClipToTrack } from './core/trackPlacement';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
 import { clearWaveformMemoryCache, waveformCacheKey } from './render/waveform';
@@ -49,13 +50,14 @@ import { deleteAssetStorageBeforeInvalidation, replaceRelinkedAssetStorage } fro
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
-import { RecoveryDialog } from './components/RecoveryDialog';
-import { SearchEverythingPalette } from './components/SearchEverythingPalette';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
 import { ZundamonPanel } from './components/ZundamonPanel';
 import type { ZundamonRequest } from './components/ZundamonPanel';
 import type { Clip, Project, TrackKind } from './types/editor';
+
+const RecoveryDialog = lazy(() => import('./components/RecoveryDialog').then((module) => ({ default: module.RecoveryDialog })));
+const SearchEverythingPalette = lazy(() => import('./components/SearchEverythingPalette').then((module) => ({ default: module.SearchEverythingPalette })));
 
 interface UpdateOptions {
   history?: boolean;
@@ -87,6 +89,7 @@ export default function App() {
   const [mediaWidth, setMediaWidth] = useState(300);
   const [inspectorWidth, setInspectorWidth] = useState(320);
   const [timelineHeight, setTimelineHeight] = useState(300);
+  const [snappingEnabled, setSnappingEnabled] = useState(true);
   const capabilities = useMemo(() => detectCapabilities(), []);
   const playbackOrigin = useRef<{ wallMs: number; time: number } | null>(null);
   const timeRef = useRef(0);
@@ -1002,30 +1005,32 @@ export default function App() {
     }
   };
 
-  const snapThreshold = 8 / Math.max(20, zoom);
+  const snapThreshold = snappingEnabled ? 8 / Math.max(20, zoom) : 0;
 
   return (
     <div className="appShell">
-      {searchOpen && (
-        <SearchEverythingPalette
-          project={project}
-          open
-          onClose={() => setSearchOpen(false)}
-          onNavigate={navigateSearchResult}
-        />
-      )}
-      {showRecovery && (
-        <RecoveryDialog
-          snapshots={recoverySnapshots}
-          suspectedCrash={suspectedCrash}
-          busy={recoveryBusy}
-          onRestore={restoreSnapshot}
-          onDismiss={() => {
-            setShowRecovery(false);
-            setSaveState('現在の保存を使用');
-          }}
-        />
-      )}
+      <Suspense fallback={null}>
+        {searchOpen && (
+          <SearchEverythingPalette
+            project={project}
+            open
+            onClose={() => setSearchOpen(false)}
+            onNavigate={navigateSearchResult}
+          />
+        )}
+        {showRecovery && (
+          <RecoveryDialog
+            snapshots={recoverySnapshots}
+            suspectedCrash={suspectedCrash}
+            busy={recoveryBusy}
+            onRestore={restoreSnapshot}
+            onDismiss={() => {
+              setShowRecovery(false);
+              setSaveState('現在の保存を使用');
+            }}
+          />
+        )}
+      </Suspense>
 
       <TopBar
         projectName={project.name}
@@ -1147,6 +1152,8 @@ export default function App() {
         zoom={zoom}
         selectedClipId={selectedClipId}
         selectedClipIds={selectedClipIds}
+        snappingEnabled={snappingEnabled}
+        onToggleSnapping={() => setSnappingEnabled((value) => !value)}
         onZoom={setZoom}
         onTime={(v) => { setPlaying(false); setTime(v); }}
         onSelect={selectClip}
@@ -1168,6 +1175,10 @@ export default function App() {
         onMoveClip={(id, start) => updateProject(
           (p) => moveClip(p, id, start, time, snapThreshold),
           { label: 'クリップ移動', key: `clip:${id}:move` },
+        )}
+        onMoveClipToTrack={(id, trackId, start) => updateProject(
+          (p) => moveClipToTrack(p, id, trackId, start, time, snapThreshold),
+          { label: 'クリップを別トラックへ移動', key: `clip:${id}:move-track` },
         )}
         onSlideClip={(id, start) => updateProject(
           (p) => slideEditClip(p, id, start),
@@ -1191,6 +1202,8 @@ export default function App() {
           { label: 'ロール編集', key: `clip:${id}:roll:${edge}` },
         )}
         onToggleMuteTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, muted: !t.muted } : t) }), { label: 'トラックミュート' })}
+        onToggleSoloTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, solo: !t.solo } : t) }), { label: 'トラックSolo' })}
+        onToggleVisibleTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, visible: t.visible === false } : t) }), { label: 'トラック表示' })}
         onToggleLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, locked: !t.locked } : t) }), { label: 'トラックロック' })}
       />
       </div>

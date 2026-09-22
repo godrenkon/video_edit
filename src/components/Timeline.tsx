@@ -14,6 +14,8 @@ interface Props {
   zoom: number;
   selectedClipId: string | null;
   selectedClipIds: string[];
+  snappingEnabled: boolean;
+  onToggleSnapping: () => void;
   onZoom: (value: number) => void;
   onTime: (time: number) => void;
   onSelect: (clipId: string, additive: boolean) => void;
@@ -30,12 +32,15 @@ interface Props {
   canGroup: boolean;
   canUngroup: boolean;
   onMoveClip: (clipId: string, start: number) => void;
+  onMoveClipToTrack: (clipId: string, trackId: string, start: number) => void;
   onSlideClip: (clipId: string, start: number) => void;
   onTrimClipLeft: (clipId: string, start: number) => void;
   onTrimClip: (clipId: string, duration: number) => void;
   onRippleTrimClip: (clipId: string, edge: TimelineEdge, boundary: number) => void;
   onRollEditClip: (clipId: string, edge: TimelineEdge, boundary: number) => void;
   onToggleMuteTrack: (trackId: string) => void;
+  onToggleSoloTrack: (trackId: string) => void;
+  onToggleVisibleTrack: (trackId: string) => void;
   onToggleLockTrack: (trackId: string) => void;
 }
 
@@ -46,6 +51,8 @@ export function Timeline(props: Props) {
     zoom,
     selectedClipId,
     selectedClipIds,
+    snappingEnabled,
+    onToggleSnapping,
     onZoom,
     onTime,
     onSelect,
@@ -62,12 +69,15 @@ export function Timeline(props: Props) {
     canGroup,
     canUngroup,
     onMoveClip,
+    onMoveClipToTrack,
     onSlideClip,
     onTrimClipLeft,
     onTrimClip,
     onRippleTrimClip,
     onRollEditClip,
     onToggleMuteTrack,
+    onToggleSoloTrack,
+    onToggleVisibleTrack,
     onToggleLockTrack,
   } = props;
   const px = zoom;
@@ -75,6 +85,14 @@ export function Timeline(props: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ scrollLeft: 0, width: 0 });
   const [contextMenu, setContextMenu] = useState<{ clipId: string; x: number; y: number } | null>(null);
+  const [trackHeights, setTrackHeights] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem('suiram.timeline.trackHeights');
+      return raw ? JSON.parse(raw) as Record<string, number> : {};
+    } catch {
+      return {};
+    }
+  });
   const visibleWindow = useMemo(
     () => timelineVisibleWindow(viewport.scrollLeft, viewport.width, px, project.duration),
     [project.duration, px, viewport.scrollLeft, viewport.width],
@@ -85,6 +103,41 @@ export function Timeline(props: Props) {
   const hasExplicitRange = project.inPoint != null || project.outPoint != null;
   const rangeStart = Math.max(0, Math.min(project.duration, project.inPoint ?? 0));
   const rangeEnd = Math.max(rangeStart, Math.min(project.duration, project.outPoint ?? project.duration));
+  const trackHeight = (trackId: string) => Math.max(38, Math.min(160, trackHeights[trackId] ?? 54));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('suiram.timeline.trackHeights', JSON.stringify(trackHeights));
+    } catch {
+      // Workspace sizing is best-effort and must never block editing.
+    }
+  }, [trackHeights]);
+
+  const beginTrackHeightResize = (event: React.PointerEvent<HTMLDivElement>, trackId: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startY = event.clientY;
+    const initial = trackHeight(trackId);
+    const target = event.currentTarget;
+    target.setPointerCapture(event.pointerId);
+    const move = (pointer: PointerEvent) => {
+      const next = Math.max(38, Math.min(160, initial + pointer.clientY - startY));
+      setTrackHeights((current) => ({ ...current, [trackId]: Math.round(next) }));
+    };
+    const up = () => cleanupPointerDrag(target, move, up);
+    target.addEventListener('pointermove', move);
+    target.addEventListener('pointerup', up);
+    target.addEventListener('pointercancel', up);
+  };
+
+  const trackAtPointerY = (clientY: number, fallbackTrackId: string) => {
+    const lanes = Array.from(document.querySelectorAll<HTMLElement>('.trackLane[data-track-id]'));
+    const lane = lanes.find((element) => {
+      const rect = element.getBoundingClientRect();
+      return clientY >= rect.top && clientY <= rect.bottom;
+    });
+    return lane?.dataset.trackId ?? fallbackTrackId;
+  };
 
   useEffect(() => {
     const close = () => setContextMenu(null);
@@ -162,6 +215,12 @@ export function Timeline(props: Props) {
           ><Trash2 size={14} /></button>
           <button className="miniBtn" onClick={onGroupSelected} disabled={!canGroup} title="選択クリップをグループ化 (Ctrl/Cmd+G)"><Link2 size={14} /></button>
           <button className="miniBtn" onClick={onUngroupSelected} disabled={!canUngroup} title="選択グループを解除 (Ctrl/Cmd+Shift+G)"><Unlink2 size={14} /></button>
+          <button
+            className={`miniBtn ${snappingEnabled ? 'active' : ''}`}
+            onClick={onToggleSnapping}
+            title={snappingEnabled ? 'スナップを無効化' : 'スナップを有効化'}
+            aria-pressed={snappingEnabled}
+          ><span aria-hidden="true">SN</span></button>
           <button className="miniBtn" onClick={() => onZoom(Math.max(20, zoom - 10))}><ZoomOut size={14} /></button>
           <input type="range" min={20} max={120} value={zoom} onChange={(e) => onZoom(Number(e.target.value))} />
           <button className="miniBtn" onClick={() => onZoom(Math.min(120, zoom + 10))}><ZoomIn size={14} /></button>
@@ -171,10 +230,13 @@ export function Timeline(props: Props) {
         <div className="trackNames">
           <div className="rulerSpacer" />
           {project.tracks.map((track) => (
-            <div className="trackLabel" key={track.id}>
+            <div className="trackLabel" key={track.id} style={{ height: trackHeight(track.id) }}>
               <div><strong>{track.name}</strong><span>{track.kind}</span></div>
-              <button className="miniBtn" onClick={() => onToggleMuteTrack(track.id)} title="ミュート">{track.muted ? <EyeOff size={13} /> : <Eye size={13} />}</button>
-              <button className="miniBtn" onClick={() => onToggleLockTrack(track.id)} title="ロック">{track.locked ? <Lock size={13} /> : <Unlock size={13} />}</button>
+              <button className={`miniBtn ${track.muted ? 'active' : ''}`} onClick={() => onToggleMuteTrack(track.id)} title={track.muted ? 'ミュート解除' : 'ミュート'} aria-pressed={track.muted}>M</button>
+              <button className={`miniBtn ${track.solo ? 'active' : ''}`} onClick={() => onToggleSoloTrack(track.id)} title="Solo" aria-pressed={Boolean(track.solo)}>S</button>
+              {track.kind !== 'audio' && <button className={`miniBtn ${track.visible === false ? '' : 'active'}`} onClick={() => onToggleVisibleTrack(track.id)} title={track.visible === false ? '表示' : '非表示'}>{track.visible === false ? <EyeOff size={13} /> : <Eye size={13} />}</button>}
+              <button className="miniBtn" onClick={() => onToggleLockTrack(track.id)} title={track.locked ? 'ロック解除' : 'ロック'}>{track.locked ? <Lock size={13} /> : <Unlock size={13} />}</button>
+              <div className="trackHeightHandle" onPointerDown={(event) => beginTrackHeightResize(event, track.id)} title="ドラッグでトラックの高さを変更" />
             </div>
           ))}
         </div>
@@ -206,11 +268,12 @@ export function Timeline(props: Props) {
             ))}
             <div className="playhead" style={{ left: time * px }}><i /></div>
             {project.tracks.map((track) => (
-              <div className="trackLane" key={track.id}>
+              <div className="trackLane" key={track.id} data-track-id={track.id} style={{ height: trackHeight(track.id) }}>
                 {track.clips.filter((clip) => selectedClipIds.includes(clip.id) || clipIntersectsTimelineWindow(clip, visibleWindow)).map((clip) => (
                   <TimelineClip
                     key={clip.id}
                     clip={clip}
+                    trackId={track.id}
                     asset={clip.assetId ? assetById.get(clip.assetId) : undefined}
                     px={px}
                     selected={selectedClipIds.includes(clip.id)}
@@ -218,6 +281,11 @@ export function Timeline(props: Props) {
                     locked={track.locked}
                     onSelect={onSelect}
                     onMove={onMoveClip}
+                    onMoveToTrack={(id, start, clientY, sourceTrackId) => {
+                      const targetTrackId = trackAtPointerY(clientY, sourceTrackId);
+                      if (targetTrackId === sourceTrackId) onMoveClip(id, start);
+                      else onMoveClipToTrack(id, targetTrackId, start);
+                    }}
                     onMoveSelectedByDelta={onMoveSelectedByDelta}
                     onSlide={onSlideClip}
                     onTrimLeft={onTrimClipLeft}
@@ -266,6 +334,7 @@ export function Timeline(props: Props) {
 
 function TimelineClip({
   clip,
+  trackId,
   asset,
   px,
   selected,
@@ -273,6 +342,7 @@ function TimelineClip({
   locked,
   onSelect,
   onMove,
+  onMoveToTrack,
   onMoveSelectedByDelta,
   onSlide,
   onTrimLeft,
@@ -282,6 +352,7 @@ function TimelineClip({
   onContextMenu,
 }: {
   clip: Clip;
+  trackId: string;
   asset?: AssetMeta;
   px: number;
   selected: boolean;
@@ -289,6 +360,7 @@ function TimelineClip({
   locked: boolean;
   onSelect: (id: string, additive: boolean) => void;
   onMove: (id: string, start: number) => void;
+  onMoveToTrack: (id: string, start: number, clientY: number, sourceTrackId: string) => void;
   onMoveSelectedByDelta: (deltaSeconds: number) => void;
   onSlide: (id: string, start: number) => void;
   onTrimLeft: (id: string, start: number) => void;
@@ -308,6 +380,7 @@ function TimelineClip({
     if (!selected) onSelect(clip.id, false);
     const startX = e.clientX;
     let lastX = startX;
+    let finalStart = clip.start;
     const initial = clip.start;
     const slide = e.altKey && !multiSelected;
     const target = e.currentTarget as HTMLElement;
@@ -319,11 +392,16 @@ function TimelineClip({
         onMoveSelectedByDelta(delta);
         return;
       }
-      const start = Math.max(0, initial + (ev.clientX - startX) / px);
-      if (slide) onSlide(clip.id, start);
-      else onMove(clip.id, start);
+      finalStart = Math.max(0, initial + (ev.clientX - startX) / px);
+      if (slide) onSlide(clip.id, finalStart);
+      else onMove(clip.id, finalStart);
     };
-    const up = () => cleanupPointerDrag(target, move, up);
+    const up = (ev?: PointerEvent) => {
+      if (ev?.type === 'pointerup' && !slide && !(multiSelected && selected)) {
+        onMoveToTrack(clip.id, finalStart, ev.clientY, trackId);
+      }
+      cleanupPointerDrag(target, move, up);
+    };
     target.addEventListener('pointermove', move);
     target.addEventListener('pointerup', up);
     target.addEventListener('pointercancel', up);

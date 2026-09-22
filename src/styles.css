@@ -411,3 +411,101 @@ body.resizingPanels * {
   .zundamonCard { max-height: 155px; }
   .previewColumn { min-height: 160px; }
 }
+
+
+/* Research-driven professional interaction refinements */
+.zoomCtl .miniBtn.active,
+.trackLabel .miniBtn.active,
+.previewToolbar .miniBtn.active {
+  color: #bff4ff;
+  border-color: #2d7188;
+  background: #12303b;
+}
+.trackLabel {
+  position: relative;
+  grid-template-columns: minmax(0,1fr) repeat(4, 24px);
+  min-height: 38px;
+}
+.trackHeightHandle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  z-index: 8;
+  height: 7px;
+  cursor: row-resize;
+  touch-action: none;
+}
+.trackHeightHandle:hover { background: rgba(105, 220, 255, .22); }
+.trackLane { min-height: 38px; }
+.trackLane .clip {
+  top: 6px;
+  height: calc(100% - 12px);
+  min-height: 26px;
+  max-height: 64px;
+}
+.previewGuides,
+.previewSnapGuide {
+  position: absolute;
+  inset: 0;
+  z-index: 65;
+  pointer-events: none;
+}
+.previewGuides .safeArea {
+  position: absolute;
+  border: 1px dashed rgba(255,255,255,.22);
+  box-sizing: border-box;
+}
+.previewGuides .actionSafe { inset: 5%; }
+.previewGuides .titleSafe { inset: 10%; border-color: rgba(105,220,255,.24); }
+.previewGuides .centerGuide,
+.previewSnapGuide {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+.previewGuides .centerGuide.vertical,
+.previewSnapGuide.vertical {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+.previewGuides .centerGuide.horizontal,
+.previewSnapGuide.horizontal {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+}
+.previewGuides .centerGuide { background: rgba(255,255,255,.10); }
+.previewSnapGuide { z-index: 79; }
+.previewSnapGuide.vertical,
+.previewSnapGuide.horizontal { background: #69dcff; box-shadow: 0 0 5px rgba(105,220,255,.8); }
+.previewRotateHandle {
+  position: absolute;
+  left: 50%;
+  top: -30px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  transform: translateX(-50%);
+  border: 1px solid #0d7fa3;
+  border-radius: 50%;
+  background: #ecfbff;
+  color: #0d6079;
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+}
+.previewRotateHandle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 19px;
+  width: 1px;
+  height: 11px;
+  background: #69dcff;
+}
+.previewRotateHandle:active { cursor: grabbing; }
