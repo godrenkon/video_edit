@@ -1,10 +1,11 @@
 import type { Clip, Project } from '../types/editor';
+import { cloneClipWithFreshIds, type ClipClipboardPayload } from './clipboardOps';
 import { rippleTrimClip, rollEditBoundary, slideEditClip, type TimelineEdge } from './advancedTimelineOps';
 import { insertClipAt, overwriteClipAt, type InsertScope } from './editModes';
 import { groupSelectedClips, ungroupSelectedClips } from './groupOps';
 import { deleteSelectedClips, moveSelectedClipsByDelta, nudgeSelectedClips } from './multiSelectionOps';
 import { uid } from './project';
-import { moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight, type RippleDeleteScope } from './timelineOps';
+import { findClip, moveClip, nudgeClip, quantizeToFrame, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight, type RippleDeleteScope } from './timelineOps';
 import { moveClipToTrack } from './trackPlacement';
 
 export type EditorCommandPayload =
@@ -24,13 +25,15 @@ export type EditorCommandPayload =
   | { type: 'group-clips'; clipIds: string[]; groupId: string }
   | { type: 'ungroup-clips'; clipIds: string[] }
   | { type: 'insert-clip'; trackId: string; clip: Clip; time: number; scope: InsertScope }
-  | { type: 'overwrite-clip'; trackId: string; clip: Clip; time: number };
+  | { type: 'overwrite-clip'; trackId: string; clip: Clip; time: number }
+  | { type: 'add-prepared-clip'; trackId: string; clip: Clip };
 
 export interface EditorCommand {
   id: string;
   label: string;
   coalesceKey?: string;
   payload: EditorCommandPayload;
+  createdClipId?: string;
   apply(project: Project): Project;
 }
 
@@ -41,12 +44,14 @@ function command(
   label: string,
   payload: EditorCommandPayload,
   coalesceKey?: string,
+  createdClipId?: string,
 ): EditorCommand {
   return {
     id: id(name),
     label,
     coalesceKey,
     payload,
+    createdClipId,
     apply: (project) => applyEditorCommand(project, payload),
   };
 }
@@ -107,6 +112,8 @@ export function applyEditorCommand(project: Project, payload: EditorCommandPaylo
       return insertClipAt(project, payload.trackId, payload.clip, payload.time, payload.scope);
     case 'overwrite-clip':
       return overwriteClipAt(project, payload.trackId, payload.clip, payload.time);
+    case 'add-prepared-clip':
+      return addPreparedClip(project, payload.trackId, payload.clip);
   }
 }
 
@@ -274,6 +281,38 @@ export function ungroupClipsCommand(clipIds: Iterable<string>): EditorCommand {
   });
 }
 
+export function duplicateClipCommand(project: Project, clipId: string): EditorCommand | null {
+  const location = findClip(project, clipId);
+  if (!location || location.track.locked) return null;
+  const clip = cloneClipWithFreshIds(location.clip);
+  clip.start = quantizeToFrame(location.clip.start + location.clip.duration, project.fps);
+  return command(
+    'duplicate-clip',
+    'クリップ複製',
+    { type: 'add-prepared-clip', trackId: location.track.id, clip },
+    undefined,
+    clip.id,
+  );
+}
+
+export function pasteClipCommand(
+  project: Project,
+  payload: ClipClipboardPayload,
+  time: number,
+): EditorCommand | null {
+  const target = project.tracks.find((track) => track.kind === payload.trackKind && !track.locked);
+  if (!target) return null;
+  const clip = cloneClipWithFreshIds(payload.clip);
+  clip.start = quantizeToFrame(Math.max(0, time), project.fps);
+  return command(
+    'paste-clip',
+    'クリップ貼り付け',
+    { type: 'add-prepared-clip', trackId: target.id, clip },
+    undefined,
+    clip.id,
+  );
+}
+
 export function insertClipCommand(
   trackId: string,
   clip: Clip,
@@ -296,6 +335,18 @@ export function overwriteClipCommand(trackId: string, clip: Clip, time: number):
     clip: structuredClone(clip),
     time,
   });
+}
+
+function addPreparedClip(project: Project, trackId: string, prepared: Clip) {
+  const target = project.tracks.find((track) => track.id === trackId);
+  if (!target || target.locked || findClip(project, prepared.id)) return project;
+  const clip = structuredClone(prepared);
+  return {
+    ...project,
+    tracks: project.tracks.map((track) => track.id === trackId
+      ? { ...track, clips: [...track.clips, clip] }
+      : track),
+  };
 }
 
 function normalizedIds(clipIds: Iterable<string>) {
