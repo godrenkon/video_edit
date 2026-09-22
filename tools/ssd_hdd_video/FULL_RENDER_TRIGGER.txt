@@ -1,5 +1,3 @@
-latest-real-media-render
-commit-target=01a0b78253bd9f420363aae348bc47d4774084fa
-assets-run=35668057188
-voice-run=35667383665
-trigger-revision=1
+Final real-media render trigger
+revision: remove low-quality letterboxed B-roll
+timestamp: 2026-09-22T23:32+09:00
