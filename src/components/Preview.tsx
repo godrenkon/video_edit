@@ -32,6 +32,10 @@ interface Props {
   project: Project;
   time: number;
   playing: boolean;
+  selectedClipId: string | null;
+  onSelectClip: (clipId: string) => void;
+  onClearSelection: () => void;
+  onTransformClip: (clipId: string, patch: Partial<Clip['transform']>) => void;
   onTogglePlay: () => void;
   onTime: (time: number) => void;
 }
@@ -359,11 +363,26 @@ function AudioLayer({ clip, asset, time, playing, trackMuted, trackGain, trackPa
   return <audio ref={ref} src={asset.objectUrl} preload="auto" />;
 }
 
-export function Preview({ project, time, playing, onTogglePlay, onTime }: Props) {
+export function Preview({
+  project,
+  time,
+  playing,
+  selectedClipId,
+  onSelectClip,
+  onClearSelection,
+  onTransformClip,
+  onTogglePlay,
+  onTime,
+}: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const visuals = useMemo(() => visualTimelineItems(project, time), [project, time]);
   const audios = useMemo(() => audioTimelineItems(project, time), [project, time]);
+  const selectedVisual = useMemo(
+    () => visuals.find(({ clip }) => clip.id === selectedClipId) ?? null,
+    [selectedClipId, visuals],
+  );
   const requiresProcessedPreview = useMemo(
     () => visuals.some(({ clip }) => hasPixelEffects(clip.effects)),
     [visuals],
@@ -386,6 +405,57 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
     }
   };
 
+  const beginMoveSelected = (event: React.PointerEvent<HTMLDivElement>) => {
+    const selected = selectedVisual?.clip;
+    const stage = stageRef.current;
+    if (!selected || !stage || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onSelectClip(selected.id);
+    const rect = stage.getBoundingClientRect();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const initialX = selected.transform.x;
+    const initialY = selected.transform.y;
+    const target = event.currentTarget;
+    target.setPointerCapture(event.pointerId);
+    const move = (pointer: PointerEvent) => {
+      const dx = (pointer.clientX - startX) / Math.max(1, rect.width) * project.width;
+      const dy = (pointer.clientY - startY) / Math.max(1, rect.height) * project.height;
+      onTransformClip(selected.id, { x: initialX + dx, y: initialY + dy });
+    };
+    const up = () => cleanupPreviewPointer(target, move, up);
+    target.addEventListener('pointermove', move);
+    target.addEventListener('pointerup', up);
+    target.addEventListener('pointercancel', up);
+  };
+
+  const beginScaleSelected = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const selected = selectedVisual?.clip;
+    const stage = stageRef.current;
+    if (!selected || !stage || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = stage.getBoundingClientRect();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const initialScale = selected.transform.scale;
+    const target = event.currentTarget;
+    target.setPointerCapture(event.pointerId);
+    const move = (pointer: PointerEvent) => {
+      const normalized = ((pointer.clientX - startX) / Math.max(1, rect.width) + (pointer.clientY - startY) / Math.max(1, rect.height)) * 0.9;
+      onTransformClip(selected.id, { scale: Math.max(0.05, Math.min(12, initialScale * (1 + normalized))) });
+    };
+    const up = () => cleanupPreviewPointer(target, move, up);
+    target.addEventListener('pointermove', move);
+    target.addEventListener('pointerup', up);
+    target.addEventListener('pointercancel', up);
+  };
+
+  const selectionStyle = selectedVisual
+    ? previewSelectionStyle(selectedVisual.clip, project, time, project.assets)
+    : undefined;
+
   return (
     <section className="previewColumn">
       <div
@@ -403,7 +473,14 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
           </button>
         </div>
         <div className="stageOuter">
-          <div className="stage" style={{ aspectRatio: aspect, background: project.background }}>
+          <div
+            ref={stageRef}
+            className="stage"
+            style={{ aspectRatio: aspect, background: project.background }}
+            onPointerDown={(event) => {
+              if (event.target === event.currentTarget) onClearSelection();
+            }}
+          >
             {visuals.map(({ clip }) => {
               if (clip.kind === 'zundamon') return <ZundamonLayer key={clip.id} clip={clip} assets={project.assets} project={project} time={time} />;
               if (clip.kind === 'text' || clip.kind === 'subtitle' || clip.kind === 'generator') {
@@ -421,6 +498,23 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
                   enabled={playing && requiresProcessedPreview}
                 />
               </>
+            )}
+            {selectedVisual && selectionStyle && (
+              <div
+                className="previewSelectionBox"
+                style={selectionStyle}
+                onPointerDown={beginMoveSelected}
+                title="ドラッグで移動"
+              >
+                <button
+                  type="button"
+                  className="previewScaleHandle"
+                  onPointerDown={beginScaleSelected}
+                  aria-label="拡大縮小"
+                  title="ドラッグで拡大縮小"
+                />
+                <span className="previewSelectionLabel">{selectedVisual.clip.name}</span>
+              </div>
             )}
             {visuals.length === 0 && <div className="stageEmpty"><FilmIcon /><span>タイムラインに素材を追加</span></div>}
           </div>
@@ -449,6 +543,69 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
       </div>
     </section>
   );
+}
+
+function previewSelectionStyle(clip: Clip, project: Project, time: number, assets: AssetMeta[]): CSSProperties {
+  const local = Math.max(0, Math.min(clip.duration, time - clip.start));
+  const transitionOffset = transitionMotionOffset(clip, local, project.width, project.height);
+  const xPercent = (clip.transform.x + transitionOffset.x) / Math.max(1, project.width) * 100;
+  const yPercent = (clip.transform.y + transitionOffset.y) / Math.max(1, project.height) * 100;
+
+  const assetId = clip.kind === 'zundamon'
+    ? zundamonVisualState(clip, time).assetId
+    : clip.assetId;
+  const asset = assetId ? assets.find((item) => item.id === assetId) : undefined;
+  if (asset && asset.kind !== 'audio') {
+    const layout = previewCropLayout(
+      asset.width ?? project.width,
+      asset.height ?? project.height,
+      project.width,
+      project.height,
+      clip.crop ?? null,
+    );
+    if (layout) {
+      const anchorX = Math.max(0, Math.min(1, clip.transform.anchorX ?? 0.5));
+      const anchorY = Math.max(0, Math.min(1, clip.transform.anchorY ?? 0.5));
+      return {
+        left: `${50 + xPercent}%`,
+        top: `${50 + yPercent}%`,
+        width: `${layout.frameWidthPercent}%`,
+        height: `${layout.frameHeightPercent}%`,
+        transformOrigin: '0 0',
+        transform: `rotate(${clip.transform.rotation}deg) scale(${clip.transform.scale}) translate(${-anchorX * 100}%, ${-anchorY * 100}%)`,
+      };
+    }
+  }
+
+  if (clip.kind === 'generator') {
+    return {
+      left: `${xPercent}%`,
+      top: `${yPercent}%`,
+      width: '100%',
+      height: '100%',
+      transformOrigin: '50% 50%',
+      transform: `scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`,
+    };
+  }
+
+  return {
+    left: `${50 + xPercent}%`,
+    top: `${50 + yPercent}%`,
+    width: '82%',
+    height: clip.kind === 'subtitle' ? '22%' : '30%',
+    transformOrigin: '50% 50%',
+    transform: `translate(-50%, -50%) scale(${clip.transform.scale}) rotate(${clip.transform.rotation}deg)`,
+  };
+}
+
+function cleanupPreviewPointer(
+  target: HTMLElement,
+  move: (event: PointerEvent) => void,
+  up: () => void,
+) {
+  target.removeEventListener('pointermove', move);
+  target.removeEventListener('pointerup', up);
+  target.removeEventListener('pointercancel', up);
 }
 
 const NOISE_FRAME_CACHE_LIMIT = 96;
