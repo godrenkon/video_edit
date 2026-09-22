@@ -20,6 +20,7 @@ import {
   hashString,
   resolveTextStyle,
 } from '../render/syntheticLayers';
+import { formatEditorTimecode } from '../core/timecode';
 import type { AssetMeta, Clip, Project } from '../types/editor';
 import { PlaybackDiagnostics } from './PlaybackDiagnostics';
 import { PausedPreviewCanvas } from './PausedPreviewCanvas';
@@ -675,9 +676,9 @@ export function Preview({
         <div className="transport">
           <button className="iconBtn" type="button" onClick={() => onTime(0)} aria-label="先頭へ移動" title="先頭へ移動"><SkipBack size={17} /></button>
           <button className="playBtn" type="button" onClick={onTogglePlay} aria-label={playing ? '一時停止' : '再生'} title={playing ? '一時停止' : '再生'}>{playing ? <Pause size={20} /> : <Play size={20} />}</button>
-          <span className="timecode">{formatTime(time)}</span>
+          <span className="timecode">{formatEditorTimecode(time, project.fps)}</span>
           <input type="range" min={0} max={project.duration} step={1 / project.fps} value={time} onChange={(e) => onTime(Number(e.target.value))} />
-          <span className="timecode dim">{formatTime(project.duration)}</span>
+          <span className="timecode dim">{formatEditorTimecode(project.duration, project.fps)}</span>
           <Volume2 size={16} className="dim" />
         </div>
       </div>
@@ -777,12 +778,6 @@ function noiseDataUrl(clipId: string, frame: number) {
   noiseFrameCache.set(key, result);
   if (noiseFrameCache.size > NOISE_FRAME_CACHE_LIMIT) noiseFrameCache.delete(noiseFrameCache.keys().next().value!);
   return result;
-}
-
-function formatTime(sec: number) {
-  const m = Math.floor(sec / 60);
-  const s = sec - m * 60;
-  return `${String(m).padStart(2, '0')}:${s.toFixed(2).padStart(5, '0')}`;
 }
 
 function FilmIcon() {
