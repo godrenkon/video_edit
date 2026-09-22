@@ -330,16 +330,17 @@ export default function App() {
     markProjectDirty();
     setProject(clampProjectDuration({ ...result.value, updatedAt: new Date().toISOString() }));
     setSaveState(`元に戻す: ${result.label}`);
-  }, [project]);
+  }, [markProjectDirty, project]);
 
   const redo = useCallback(() => {
     const result = history.current.redo(project);
     if (!result) return;
     setPlaying(false);
     setSelectedClipId(null);
+    markProjectDirty();
     setProject(clampProjectDuration({ ...result.value, updatedAt: new Date().toISOString() }));
     setSaveState(`やり直し: ${result.label}`);
-  }, [project]);
+  }, [markProjectDirty, project]);
 
   const restoreSnapshot = useCallback(async (snapshotId: string) => {
     setRecoveryBusy(true);
@@ -366,7 +367,7 @@ export default function App() {
     } finally {
       setRecoveryBusy(false);
     }
-  }, [project]);
+  }, [markProjectDirty, project]);
 
   const importFiles = async (files: File[]) => {
     if (rendering) return;
@@ -723,7 +724,7 @@ export default function App() {
     setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
     setSelectedClipId(result.clipId);
     setSaveState('クリップを貼り付けました');
-  }, [project, rendering, time]);
+  }, [markProjectDirty, project, rendering, time]);
 
   const duplicateSelectedClip = useCallback(() => {
     if (!selectedClipId || rendering) return;
@@ -735,7 +736,7 @@ export default function App() {
     setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
     setSelectedClipId(result.clipId);
     setSaveState('クリップを複製しました');
-  }, [project, rendering, selectedClipId]);
+  }, [markProjectDirty, project, rendering, selectedClipId]);
 
   const groupSelection = useCallback(() => {
     if (selectedClipIds.length < 2 || rendering) return;
