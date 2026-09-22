@@ -1,6 +1,12 @@
 name: Build Full Real-Media SSD HDD Video
 
 on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-media-full.yml"
+      - "tools/ssd_hdd_video/render_real_media.py"
   workflow_dispatch:
 
 permissions:
