@@ -10,7 +10,8 @@ import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClip
 import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
 import { addPunchInVoiceover } from './core/punchInVoiceover';
 import { loadShortcutOverrides, saveShortcutOverrides, shortcutMatches, type ShortcutOverrides } from './core/shortcuts';
-import { insertClipAt, overwriteClipAt } from './core/editModes';
+import { overwriteClipAt } from './core/editModes';
+import { placeClipOnAvailableTrack } from './core/freePlacement';
 import { analyzeMouthCues, buildAssetMeta, mergeRelinkedAsset } from './core/media';
 import {
   clampProjectDuration,
@@ -1195,45 +1196,6 @@ export default function App() {
       </div>
     </div>
   );
-}
-
-function placeClipOnAvailableTrack(project: Project, clip: Clip, kind: TrackKind, preferredTrackId?: string | null): Project {
-  const overlaps = (candidate: Clip) => {
-    const candidateEnd = candidate.start + candidate.duration;
-    const clipEnd = clip.start + clip.duration;
-    return candidate.start < clipEnd - 0.0001 && candidateEnd > clip.start + 0.0001;
-  };
-  const tracks = project.tracks;
-  const preferred = preferredTrackId
-    ? tracks.find((track) => track.id === preferredTrackId && track.kind === kind && !track.locked && !track.clips.some(overlaps))
-    : undefined;
-  const free = preferred ?? tracks.find((track) => track.kind === kind && !track.locked && !track.clips.some(overlaps));
-
-  if (free) {
-    return {
-      ...project,
-      tracks: tracks.map((track) => track.id === free.id ? { ...track, clips: [...track.clips, clip] } : track),
-    };
-  }
-
-  const sameKindCount = tracks.filter((track) => track.kind === kind).length;
-  const id = uid('track');
-  const label = kind === 'video' ? 'ビデオ' : kind === 'audio' ? 'オーディオ' : kind === 'subtitle' ? '字幕' : 'オーバーレイ';
-  const created = {
-    id,
-    name: `${label} ${sameKindCount + 1}`,
-    kind,
-    muted: false,
-    locked: false,
-    visible: true,
-    clips: [clip],
-  };
-  const firstSameKind = tracks.findIndex((track) => track.kind === kind);
-  if (firstSameKind < 0) return { ...project, tracks: [...tracks, created] };
-  return {
-    ...project,
-    tracks: [...tracks.slice(0, firstSameKind), created, ...tracks.slice(firstSameKind)],
-  };
 }
 
 function startPointerResize(
