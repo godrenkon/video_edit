@@ -1,9 +1,23 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles } from 'lucide-react';
-import { rippleTrimClip, rollEditBoundary, slideEditClip } from './core/advancedTimelineOps';
 import { addAssetBin, assignAssetBin, removeAssetBin, renameAssetBin } from './core/assetBins';
 import type { ProjectSearchResult } from './core/projectSearch';
 import { detectCapabilities } from './core/capabilities';
+import {
+  insertClipCommand,
+  moveClipCommand,
+  moveClipToTrackCommand,
+  nudgeClipCommand,
+  overwriteClipCommand,
+  rippleDeleteCommand,
+  rippleTrimCommand,
+  rollEditCommand,
+  slideEditCommand,
+  splitClipCommand,
+  trimLeftCommand,
+  trimRightCommand,
+  type EditorCommand,
+} from './core/commands';
 import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
 import {
@@ -17,7 +31,6 @@ import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClip
 import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
 import { addPunchInVoiceover } from './core/punchInVoiceover';
 import { loadShortcutOverrides, saveShortcutOverrides, shortcutMatches, type ShortcutOverrides } from './core/shortcuts';
-import { insertClipAt, overwriteClipAt } from './core/editModes';
 import { placeClipOnAvailableTrack } from './core/freePlacement';
 import { analyzeMouthCues, buildAssetMeta, mergeRelinkedAsset } from './core/media';
 import {
@@ -47,8 +60,8 @@ import {
   type RecoverySnapshotInfo,
 } from './core/storage';
 import { beginEditorSession, markEditorSessionClean, markEditorSessionDirty } from './core/session';
-import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
-import { moveClipToTrack, targetTrackForKind } from './core/trackPlacement';
+import { findClip } from './core/timelineOps';
+import { targetTrackForKind } from './core/trackPlacement';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { quantizePreviewTime } from './render/previewClock';
 import { adjacentEditPoint, nextShuttleRate, quantizeTransportTime, stepTransportFrames, transportFrameTime } from './core/transport';
@@ -314,6 +327,13 @@ export default function App() {
       return next;
     });
   }, [markProjectDirty]);
+
+  const executeEditorCommand = useCallback((editorCommand: EditorCommand) => {
+    updateProject(editorCommand.apply, {
+      label: editorCommand.label,
+      key: editorCommand.coalesceKey,
+    });
+  }, [updateProject]);
 
   const updateClip = useCallback((clipId: string, patch: Partial<Clip>, historyKey?: string, label = 'クリップ編集') => {
     updateProject((p) => ({
@@ -647,10 +667,10 @@ export default function App() {
       const target = targetTrackForKind(p, kind, selectedTrackId);
 
       if (mode === 'overwrite') {
-        return target ? overwriteClipAt(p, target.id, incoming, time) : placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
+        return target ? overwriteClipCommand(target.id, incoming, time).apply(p) : placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
       }
       if (mode === 'insert') {
-        return target ? insertClipAt(p, target.id, incoming, time, 'sync-lock') : placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
+        return target ? insertClipCommand(target.id, incoming, time, 'sync-lock').apply(p) : placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
       }
 
       return placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
@@ -725,14 +745,14 @@ export default function App() {
     if (!selectedClipId || !selectedClip || rendering) return;
     const frame = 1 / Math.max(1, project.fps);
     if (time < selectedClip.start + frame || time > selectedClip.start + selectedClip.duration - frame) return;
-    updateProject((p) => splitClipAt(p, selectedClipId, time), { label: 'クリップ分割' });
-  }, [project.fps, rendering, selectedClip, selectedClipId, time, updateProject]);
+    executeEditorCommand(splitClipCommand(selectedClipId, time));
+  }, [executeEditorCommand, project.fps, rendering, selectedClip, selectedClipId, time]);
 
   const rippleDeleteSelectedClip = useCallback(() => {
     if (!selectedClipId || rendering) return;
-    updateProject((p) => rippleDeleteClip(p, selectedClipId, 'sync-lock'), { label: '同期ロック付きリップル削除' });
+    executeEditorCommand(rippleDeleteCommand(selectedClipId, 'sync-lock'));
     setSelectedClipId(null);
-  }, [rendering, selectedClipId, updateProject]);
+  }, [executeEditorCommand, rendering, selectedClipId]);
 
   const copySelectedClip = useCallback(() => {
     if (!selectedClipId || rendering) return;
@@ -783,14 +803,18 @@ export default function App() {
   const nudgeSelected = useCallback((frames: number) => {
     if (selectedClipIds.length === 0 || rendering) return;
     const ids = [...selectedClipIds];
+    if (ids.length === 1) {
+      executeEditorCommand(nudgeClipCommand(ids[0], frames));
+      return;
+    }
     updateProject(
-      (p) => ids.length > 1 ? nudgeSelectedClips(p, ids, frames) : nudgeClip(p, ids[0], frames),
+      (p) => nudgeSelectedClips(p, ids, frames),
       {
-        label: ids.length > 1 ? '選択クリップをフレーム移動' : 'クリップをフレーム移動',
-        key: ids.length > 1 ? `multi:nudge:${ids.join(',')}` : `clip:${ids[0]}:nudge`,
+        label: '選択クリップをフレーム移動',
+        key: `multi:nudge:${ids.join(',')}`,
       },
     );
-  }, [rendering, selectedClipIds, updateProject]);
+  }, [executeEditorCommand, rendering, selectedClipIds, updateProject]);
 
   const toggleNormalPlayback = useCallback(() => {
     if (playingRef.current) {
@@ -1395,35 +1419,21 @@ export default function App() {
         onUngroupSelected={ungroupSelection}
         canGroup={selectedClipIds.length >= 2}
         canUngroup={selectedHasGroup(project, selectedClipIds)}
-        onMoveClip={(id, start) => updateProject(
-          (p) => moveClip(p, id, start, time, snapThreshold),
-          { label: 'クリップ移動', key: `clip:${id}:move` },
+        onMoveClip={(id, start) => executeEditorCommand(moveClipCommand(id, start, time, snapThreshold))}
+        onMoveClipToTrack={(id, trackId, start) => executeEditorCommand(
+          moveClipToTrackCommand(id, trackId, start, time, snapThreshold),
         )}
-        onMoveClipToTrack={(id, trackId, start) => updateProject(
-          (p) => moveClipToTrack(p, id, trackId, start, time, snapThreshold),
-          { label: 'クリップを別トラックへ移動', key: `clip:${id}:move-track` },
+        onSlideClip={(id, start) => executeEditorCommand(slideEditCommand(id, start))}
+        onTrimClipLeft={(id, start) => executeEditorCommand(trimLeftCommand(id, start, time, snapThreshold))}
+        onTrimClip={(id, duration) => {
+          const location = findClip(project, id);
+          if (!location) return;
+          executeEditorCommand(trimRightCommand(id, location.clip.start + duration, time, snapThreshold));
+        }}
+        onRippleTrimClip={(id, edge, boundary) => executeEditorCommand(
+          rippleTrimCommand(id, edge, boundary, time, snapThreshold, 'sync-lock'),
         )}
-        onSlideClip={(id, start) => updateProject(
-          (p) => slideEditClip(p, id, start),
-          { label: 'スライド編集', key: `clip:${id}:slide` },
-        )}
-        onTrimClipLeft={(id, start) => updateProject(
-          (p) => trimClipLeft(p, id, start, time, snapThreshold),
-          { label: '左トリム', key: `clip:${id}:trim-left` },
-        )}
-        onTrimClip={(id, duration) => updateProject((p) => {
-          const location = findClip(p, id);
-          if (!location) return p;
-          return trimClipRight(p, id, location.clip.start + duration, time, snapThreshold);
-        }, { label: '右トリム', key: `clip:${id}:trim-right` })}
-        onRippleTrimClip={(id, edge, boundary) => updateProject(
-          (p) => rippleTrimClip(p, id, edge, boundary, time, snapThreshold, 'sync-lock'),
-          { label: 'リップルトリム', key: `clip:${id}:ripple-trim:${edge}` },
-        )}
-        onRollEditClip={(id, edge, boundary) => updateProject(
-          (p) => rollEditBoundary(p, id, edge, boundary),
-          { label: 'ロール編集', key: `clip:${id}:roll:${edge}` },
-        )}
+        onRollEditClip={(id, edge, boundary) => executeEditorCommand(rollEditCommand(id, edge, boundary))}
         onToggleMuteTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, muted: !t.muted } : t) }), { label: 'トラックミュート' })}
         onToggleSoloTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, solo: !t.solo } : t) }), { label: 'トラックSolo' })}
         onToggleVisibleTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, visible: t.visible === false } : t) }), { label: 'トラック表示' })}
