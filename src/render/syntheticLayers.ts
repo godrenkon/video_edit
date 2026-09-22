@@ -20,13 +20,13 @@ export function resolveTextStyle(text: TextPayload | null, subtitleText?: string
   const source = text ?? {} as TextPayload;
   return {
     text: source.text ?? subtitleText ?? '',
-    fontFamily: source.fontFamily?.trim() || 'sans-serif',
-    fontSize: finite(source.fontSize, subtitleText ? 54 : 64, 8, 600),
-    fontWeight: finite(source.fontWeight, 700, 100, 1000),
+    fontFamily: source.fontFamily?.trim() || '"Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif',
+    fontSize: finite(source.fontSize, subtitleText ? 64 : 64, 8, 600),
+    fontWeight: finite(source.fontWeight, subtitleText ? 800 : 700, 100, 1000),
     color: source.color || '#ffffff',
     strokeColor: source.strokeColor ?? (subtitleText ? '#000000' : null),
-    strokeWidth: finite(source.strokeWidth, subtitleText ? 5 : 0, 0, 40),
-    backgroundColor: source.backgroundColor ?? (subtitleText ? 'rgba(0,0,0,0.55)' : null),
+    strokeWidth: finite(source.strokeWidth, subtitleText ? 2 : 0, 0, 40),
+    backgroundColor: source.backgroundColor ?? null,
     shadowColor: source.shadowColor ?? null,
     shadowBlur: finite(source.shadowBlur, 0, 0, 100),
     shadowOffsetX: finite(source.shadowOffsetX, 0, -200, 200),
