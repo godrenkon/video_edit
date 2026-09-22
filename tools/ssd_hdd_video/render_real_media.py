@@ -125,6 +125,18 @@ def semantic_phrases(text,maxlen=26):
 
     return [x for x in merged if x] or [text.rstrip("。")]
 
+def timed_phrases(row):
+    ps=semantic_phrases(row["text"])
+    weights=[max(3,len(re.sub(r"[\\s、。！？!?]","",p))) for p in ps]
+    sw=sum(weights) or 1
+    cur=row["st"]
+    out=[]
+    for i,(p,w) in enumerate(zip(ps,weights)):
+        en=row["en"] if i==len(ps)-1 else cur+(row["en"]-row["st"])*w/sw
+        out.append({"st":cur,"en":en,"text":p})
+        cur=en
+    return out
+
 def ass_time(t):
     cs=round(t*100); h=cs//360000; cs%=360000; m=cs//6000; cs%=6000; s=cs//100; cs%=100
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
@@ -142,12 +154,8 @@ def ass_markup(s):
 def make_ass(rows,path):
     events=[]
     for row in rows:
-        ps=semantic_phrases(row["text"])
-        weights=[max(3,len(re.sub(r"[\s、。！？!?]","",p))) for p in ps]
-        sw=sum(weights); cur=row["st"]
-        for i,(p,w) in enumerate(zip(ps,weights)):
-            en=row["en"] if i==len(ps)-1 else cur+(row["en"]-row["st"])*w/sw
-            events.append((cur,en,p)); cur=en
+        for seg in timed_phrases(row):
+            events.append((seg["st"],seg["en"],seg["text"]))
     header="""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1920
@@ -187,39 +195,43 @@ PC_MEDIA=["motherboard","pc_m2_hdd_inside","computer_components_video","ssd_inst
 SPEED_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","pc_m2_hdd_inside"]
 
 def strong_media_for(text):
-    """Return only semantically strong media candidates for a sentence.
-    If a technical object is explicitly named, never dilute it with generic chapter B-roll.
-    """
-    groups=[]
+    specific=[]
     if any(k in text for k in ["プラッタ","ヘッド","5400RPM","7200RPM","RPM","CMR","SMR","モーター","回転機構","回転音","カリカリ"]):
-        groups.append(HDD_INTERNAL)
+        specific.append(HDD_INTERNAL)
     if any(k in text for k in ["NAND","TLC","QLC","コントローラー","TBW","フラッシュメモリ"]):
-        groups.append(SSD_INTERNAL)
+        specific.append(SSD_INTERNAL)
     if any(k in text for k in ["M.2","NVMe","PCIe"]):
-        groups.append(M2_MEDIA)
+        specific.append(M2_MEDIA)
     if "SATA" in text:
-        groups.append(SATA_MEDIA)
-    if "NAS" in text:
-        groups.append(NAS_MEDIA)
-    if any(k in text for k in ["外付け","USB"]):
-        groups.append(EXTERNAL_MEDIA)
+        specific.append(SATA_MEDIA)
+    if specific:
+        return _unique([x for g in specific for x in g])
+
+    if "ブラウザ" in text:
+        return BROWSER_MEDIA
+    if any(k in text for k in ["ロード","起動時間","立ち上げ","起動する","起動が"]):
+        return LOAD_MEDIA
+    if any(k in text for k in ["Windows","アプリ","ゲーム"]):
+        return APP_MEDIA
     if "RAM" in text:
-        groups.append(RAM_MEDIA)
-    if any(k in text for k in ["Windows","アプリ","ブラウザ","ゲーム","ロード","起動時間","起動"]):
-        groups.append(SPEED_MEDIA)
+        return RAM_MEDIA
+    if "NAS" in text:
+        return NAS_MEDIA
+    if any(k in text for k in ["外付け","USB"]):
+        return EXTERNAL_MEDIA
     if any(k in text for k in ["バックアップ","3-2-1","別の場所","クラウド"]):
-        groups.append(["nas","external_hdds","external_ssd","server_rack"])
+        return ["nas","external_hdds","external_ssd","server_rack"]
     if any(k in text for k in ["ノートパソコン","小型PC","薄いノート"]):
-        groups.append(["m2_installed","nvme_m2","external_ssd","pc_m2_hdd_inside"])
+        return ["m2_installed","nvme_m2","external_ssd","pc_m2_hdd_inside"]
     if any(k in text for k in ["消費電力","発熱","熱く"]):
-        groups.append(["nvme_m2","m2_installed","motherboard","sata_ssd"])
+        return ["nvme_m2","m2_installed","motherboard","sata_ssd"]
     if any(k in text for k in ["動作音","振動","衝撃"]):
-        groups.append(["hdd_working_video","hdd_open_photo","hdd_head_macro","sata_ssd","nvme_m2"])
+        return ["hdd_working_video","hdd_open_photo","hdd_head_macro","sata_ssd","nvme_m2"]
     if any(k in text for k in ["容量あたり","大容量","価格","1TB","2TB","4TB","8TB","16TB"]):
-        groups.append(["hdd_side","external_hdds","nas","sata_ssd","external_ssd","nvme_m2"])
-    if not groups:
-        return []
-    return _unique([x for g in groups for x in g])
+        return ["hdd_side","external_hdds","nas","sata_ssd","external_ssd","nvme_m2"]
+    if any(k in text for k in ["ストレージ","保存","データ","写真","動画","ファイル"]):
+        return STORAGE_MEDIA
+    return []
 
 def pool_for(section,text):
     # Explicit technical terms always win over broad chapter-level rotation.
