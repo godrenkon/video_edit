@@ -1,6 +1,9 @@
 import type { Clip, Project } from '../types/editor';
 import { rippleTrimClip, rollEditBoundary, slideEditClip, type TimelineEdge } from './advancedTimelineOps';
 import { insertClipAt, overwriteClipAt, type InsertScope } from './editModes';
+import { groupSelectedClips, ungroupSelectedClips } from './groupOps';
+import { deleteSelectedClips, moveSelectedClipsByDelta, nudgeSelectedClips } from './multiSelectionOps';
+import { uid } from './project';
 import { moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight, type RippleDeleteScope } from './timelineOps';
 import { moveClipToTrack } from './trackPlacement';
 
@@ -15,6 +18,11 @@ export type EditorCommandPayload =
   | { type: 'roll-edit'; clipId: string; edge: TimelineEdge; boundary: number }
   | { type: 'slide-edit'; clipId: string; start: number }
   | { type: 'nudge-clip'; clipId: string; frames: number }
+  | { type: 'delete-clips'; clipIds: string[] }
+  | { type: 'move-clips'; clipIds: string[]; delta: number }
+  | { type: 'nudge-clips'; clipIds: string[]; frames: number }
+  | { type: 'group-clips'; clipIds: string[]; groupId: string }
+  | { type: 'ungroup-clips'; clipIds: string[] }
   | { type: 'insert-clip'; trackId: string; clip: Clip; time: number; scope: InsertScope }
   | { type: 'overwrite-clip'; trackId: string; clip: Clip; time: number };
 
@@ -85,6 +93,16 @@ export function applyEditorCommand(project: Project, payload: EditorCommandPaylo
       return slideEditClip(project, payload.clipId, payload.start);
     case 'nudge-clip':
       return nudgeClip(project, payload.clipId, payload.frames);
+    case 'delete-clips':
+      return deleteSelectedClips(project, payload.clipIds);
+    case 'move-clips':
+      return moveSelectedClipsByDelta(project, payload.clipIds, payload.delta);
+    case 'nudge-clips':
+      return nudgeSelectedClips(project, payload.clipIds, payload.frames);
+    case 'group-clips':
+      return groupSelectedClips(project, payload.clipIds, payload.groupId);
+    case 'ungroup-clips':
+      return ungroupSelectedClips(project, payload.clipIds);
     case 'insert-clip':
       return insertClipAt(project, payload.trackId, payload.clip, payload.time, payload.scope);
     case 'overwrite-clip':
@@ -212,6 +230,50 @@ export function nudgeClipCommand(clipId: string, frames: number): EditorCommand 
   );
 }
 
+export function deleteClipsCommand(clipIds: Iterable<string>): EditorCommand {
+  const ids = normalizedIds(clipIds);
+  return command('delete-clips', ids.length > 1 ? `${ids.length}クリップ削除` : 'クリップ削除', {
+    type: 'delete-clips',
+    clipIds: ids,
+  });
+}
+
+export function moveClipsCommand(clipIds: Iterable<string>, delta: number): EditorCommand {
+  const ids = normalizedIds(clipIds);
+  return command(
+    'move-clips',
+    '選択クリップ移動',
+    { type: 'move-clips', clipIds: ids, delta },
+    `multi:move:${stableIds(ids)}`,
+  );
+}
+
+export function nudgeClipsCommand(clipIds: Iterable<string>, frames: number): EditorCommand {
+  const ids = normalizedIds(clipIds);
+  return command(
+    'nudge-clips',
+    '選択クリップをフレーム移動',
+    { type: 'nudge-clips', clipIds: ids, frames },
+    `multi:nudge:${stableIds(ids)}`,
+  );
+}
+
+export function groupClipsCommand(clipIds: Iterable<string>, groupId = uid('group')): EditorCommand {
+  const ids = normalizedIds(clipIds);
+  return command('group-clips', 'クリップをグループ化', {
+    type: 'group-clips',
+    clipIds: ids,
+    groupId,
+  });
+}
+
+export function ungroupClipsCommand(clipIds: Iterable<string>): EditorCommand {
+  return command('ungroup-clips', 'グループを解除', {
+    type: 'ungroup-clips',
+    clipIds: normalizedIds(clipIds),
+  });
+}
+
 export function insertClipCommand(
   trackId: string,
   clip: Clip,
@@ -234,4 +296,12 @@ export function overwriteClipCommand(trackId: string, clip: Clip, time: number):
     clip: structuredClone(clip),
     time,
   });
+}
+
+function normalizedIds(clipIds: Iterable<string>) {
+  return [...new Set(clipIds)].filter(Boolean);
+}
+
+function stableIds(clipIds: readonly string[]) {
+  return [...clipIds].sort((a, b) => a.localeCompare(b)).join(',');
 }
