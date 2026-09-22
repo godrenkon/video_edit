@@ -128,7 +128,7 @@ describe('migrateProject', () => {
     const invalidMode = migrateProject({
       version: 2,
       fps: 24,
-      timecodeMode: 'drop-frame-invalid-value',
+      timecodeMode: 'drop-frame',
       assets: [],
       tracks: [],
     });
