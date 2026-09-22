@@ -1,4 +1,4 @@
-import { ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, Headphones, Link2, Lock, Magnet, Scissors, Trash2, Unlink2, Unlock, Volume2, VolumeX, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { ClipboardCopy, ClipboardPaste, Copy, Eye, EyeOff, Link2, Lock, Scissors, Trash2, Unlink2, Unlock, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AssetMeta, Clip, Project } from '../types/editor';
 import { clipIntersectsTimelineWindow, timelineVisibleWindow, visibleSecondTicks } from '../core/timelineVirtualization';
@@ -220,7 +220,7 @@ export function Timeline(props: Props) {
             onClick={onToggleSnapping}
             title={snappingEnabled ? 'スナップを無効化' : 'スナップを有効化'}
             aria-pressed={snappingEnabled}
-          ><Magnet size={14} /></button>
+          ><span aria-hidden="true">SN</span></button>
           <button className="miniBtn" onClick={() => onZoom(Math.max(20, zoom - 10))}><ZoomOut size={14} /></button>
           <input type="range" min={20} max={120} value={zoom} onChange={(e) => onZoom(Number(e.target.value))} />
           <button className="miniBtn" onClick={() => onZoom(Math.min(120, zoom + 10))}><ZoomIn size={14} /></button>
@@ -232,8 +232,8 @@ export function Timeline(props: Props) {
           {project.tracks.map((track) => (
             <div className="trackLabel" key={track.id} style={{ height: trackHeight(track.id) }}>
               <div><strong>{track.name}</strong><span>{track.kind}</span></div>
-              <button className="miniBtn" onClick={() => onToggleMuteTrack(track.id)} title={track.muted ? 'ミュート解除' : 'ミュート'}>{track.muted ? <VolumeX size={13} /> : <Volume2 size={13} />}</button>
-              <button className={`miniBtn ${track.solo ? 'active' : ''}`} onClick={() => onToggleSoloTrack(track.id)} title="Solo"><Headphones size={13} /></button>
+              <button className={`miniBtn ${track.muted ? 'active' : ''}`} onClick={() => onToggleMuteTrack(track.id)} title={track.muted ? 'ミュート解除' : 'ミュート'} aria-pressed={track.muted}>M</button>
+              <button className={`miniBtn ${track.solo ? 'active' : ''}`} onClick={() => onToggleSoloTrack(track.id)} title="Solo" aria-pressed={Boolean(track.solo)}>S</button>
               {track.kind !== 'audio' && <button className={`miniBtn ${track.visible === false ? '' : 'active'}`} onClick={() => onToggleVisibleTrack(track.id)} title={track.visible === false ? '表示' : '非表示'}>{track.visible === false ? <EyeOff size={13} /> : <Eye size={13} />}</button>}
               <button className="miniBtn" onClick={() => onToggleLockTrack(track.id)} title={track.locked ? 'ロック解除' : 'ロック'}>{track.locked ? <Lock size={13} /> : <Unlock size={13} />}</button>
               <div className="trackHeightHandle" onPointerDown={(event) => beginTrackHeightResize(event, track.id)} title="ドラッグでトラックの高さを変更" />
