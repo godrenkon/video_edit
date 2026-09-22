@@ -141,7 +141,7 @@ export function MediaLibrary({
           disabled={!folderImportSupported}
           title={folderImportSupported ? 'フォルダから動画・画像・音声を一括読み込み' : 'このブラウザはフォルダ読み込みに未対応'}
         ><FolderOpen size={17} /></button>
-        <button className="iconBtn" onClick={() => input.current?.click()} title="素材を読み込む"><Plus size={18} /></button>
+        <button className="iconBtn" type="button" onClick={() => input.current?.click()} title="素材を読み込む" aria-label="素材を読み込む"><Plus size={18} /></button>
         <input
           ref={input}
           hidden
@@ -298,7 +298,7 @@ export function MediaLibrary({
       )}
       <div className="assetList">
         {visibleAssets.length === 0 && (
-          <button className="emptyImport" onClick={() => input.current?.click()}>
+          <button className="emptyImport" type="button" onClick={() => input.current?.click()}>
             <Plus size={22} />
             <strong>素材を追加</strong>
             <span>動画・画像・音声をここに読み込む</span>
@@ -311,8 +311,27 @@ export function MediaLibrary({
               <strong title={asset.name}>{asset.favorite ? '★ ' : ''}{asset.name}</strong>
               <span>{asset.kind} · {formatBytes(asset.size)}{asset.duration ? ` · ${asset.duration.toFixed(1)}s` : ''}{asset.binId ? ` · ${assetBins.find((bin) => bin.id === asset.binId)?.name ?? 'bin'}` : ''}{asset.proxyStorageName ? ' · proxy' : ''}{!asset.objectUrl ? ' · offline' : ''}</span>
             </div>
-            <button className="miniBtn" title={editMode === 'insert' ? '挿入編集でタイムラインに追加' : '上書き編集でタイムラインに追加'} onClick={() => onAdd(asset.id, editMode)}><Plus size={14} /></button>
-            <button className="miniBtn danger" title="素材を削除" onClick={() => onDelete(asset.id)}><Trash2 size={14} /></button>
+            <button
+              className="miniBtn"
+              type="button"
+              title={editMode === 'insert' ? '挿入編集でタイムラインに追加' : '上書き編集でタイムラインに追加'}
+              aria-label={`${asset.name}をタイムラインへ追加`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onAdd(asset.id, editMode);
+              }}
+            ><Plus size={14} /></button>
+            <button
+              className="miniBtn danger"
+              type="button"
+              title="素材を削除"
+              aria-label={`${asset.name}を削除`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setSelectedAssetId((current) => current === asset.id ? null : current);
+                onDelete(asset.id);
+              }}
+            ><Trash2 size={14} /></button>
           </div>
         ))}
       </div>

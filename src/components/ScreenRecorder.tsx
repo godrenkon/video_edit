@@ -69,16 +69,15 @@ export function ScreenRecorder({ onImport }: { onImport: (files: File[]) => void
       }
 
       const mimeType = preferredScreenCaptureMimeType((mime) => MediaRecorder.isTypeSupported(mime));
-      const fileName = screenCaptureFileName(new Date());
-      sink = await createOpfsRecordingSink(fileName);
-      sinkRef.current = sink;
-
       const recorder = new MediaRecorder(stream, {
         ...(mimeType ? { mimeType } : {}),
         videoBitsPerSecond: 8_000_000,
         audioBitsPerSecond: 128_000,
       });
       recorderRef.current = recorder;
+      const finalMime = recorder.mimeType || mimeType || 'video/webm';
+      sink = await createOpfsRecordingSink(screenCaptureFileName(new Date(), finalMime));
+      sinkRef.current = sink;
 
       recorder.ondataavailable = (event) => {
         if (event.data.size <= 0 || !sinkRef.current || writeFailedRef.current) return;
@@ -107,7 +106,6 @@ export function ScreenRecorder({ onImport }: { onImport: (files: File[]) => void
           if (!activeSink) return;
 
           try {
-            const finalMime = recorder.mimeType || mimeType || 'video/webm';
             const file = await activeSink.close(finalMime);
             await onImport([file]);
             await deleteTemporaryRecording(file.name);

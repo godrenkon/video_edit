@@ -16,8 +16,8 @@ export function preferredScreenCaptureMimeType(isSupported: (mime: string) => bo
   }) ?? '';
 }
 
-export function screenCaptureFileName(now: Date) {
-  return `screen-${now.toISOString().replace(/[:.]/g, '-')}.webm`;
+export function screenCaptureFileName(now: Date, mime = 'video/webm') {
+  return `screen-${now.toISOString().replace(/[:.]/g, '-')}.${extensionForVideoRecordingMime(mime)}`;
 }
 
 

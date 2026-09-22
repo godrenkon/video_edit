@@ -192,6 +192,15 @@ function ZundamonLayer({ clip, assets, project, time }: { clip: Clip; assets: As
 }
 
 function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project; time: number }) {
+  const generator = clip.kind === 'generator' ? clip.generator : undefined;
+  const noiseSpeed = generator?.kind === 'noise'
+    ? generatorNumber(generator, 'speed', 8, 0, 120)
+    : 0;
+  const noiseFrame = Math.floor(time * Math.min(24, noiseSpeed));
+  const noiseBackground = useMemo(
+    () => generator?.kind === 'noise' ? noiseDataUrl(clip.id, noiseFrame) : undefined,
+    [clip.id, generator?.kind, noiseFrame],
+  );
   const common = layerStyle(clip, project, time);
 
   if (clip.kind === 'text' || clip.kind === 'subtitle') {
@@ -233,8 +242,7 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
     );
   }
 
-  if (clip.kind === 'generator' && clip.generator) {
-    const generator = clip.generator;
+  if (clip.kind === 'generator' && generator) {
     if (generator.kind === 'bars') {
       return (
         <div className="previewSynthetic previewGenerator" style={common}>
@@ -250,7 +258,7 @@ function SyntheticLayer({ clip, project, time }: { clip: Clip; project: Project;
       const angle = generatorNumber(generator, 'angle', 0, -360, 360);
       background = `linear-gradient(${90 + angle}deg, ${generatorColor(generator, 'startColor', '#161b22')}, ${generatorColor(generator, 'endColor', '#5fd8ff')})`;
     } else if (generator.kind === 'noise') {
-      background = noiseDataUrl(clip.id, time, generatorNumber(generator, 'speed', 8, 0, 120));
+      background = noiseBackground;
     } else {
       background = generatorColor(generator, 'color', '#202830');
     }
@@ -431,8 +439,8 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
           />
         ))}
         <div className="transport">
-          <button className="iconBtn" onClick={() => onTime(0)}><SkipBack size={17} /></button>
-          <button className="playBtn" onClick={onTogglePlay}>{playing ? <Pause size={20} /> : <Play size={20} />}</button>
+          <button className="iconBtn" type="button" onClick={() => onTime(0)} aria-label="先頭へ移動" title="先頭へ移動"><SkipBack size={17} /></button>
+          <button className="playBtn" type="button" onClick={onTogglePlay} aria-label={playing ? '一時停止' : '再生'} title={playing ? '一時停止' : '再生'}>{playing ? <Pause size={20} /> : <Play size={20} />}</button>
           <span className="timecode">{formatTime(time)}</span>
           <input type="range" min={0} max={project.duration} step={1 / project.fps} value={time} onChange={(e) => onTime(Number(e.target.value))} />
           <span className="timecode dim">{formatTime(project.duration)}</span>
@@ -443,15 +451,20 @@ export function Preview({ project, time, playing, onTogglePlay, onTime }: Props)
   );
 }
 
-function noiseDataUrl(clipId: string, timeSeconds: number, speed: number) {
+const NOISE_FRAME_CACHE_LIMIT = 96;
+const noiseFrameCache = new Map<string, string | undefined>();
+
+function noiseDataUrl(clipId: string, frame: number) {
   if (typeof document === 'undefined') return undefined;
+  const key = `${clipId}:${frame}`;
+  if (noiseFrameCache.has(key)) return noiseFrameCache.get(key);
   const canvas = document.createElement('canvas');
   canvas.width = 32;
   canvas.height = 18;
   const context = canvas.getContext('2d');
   if (!context) return undefined;
   const image = context.createImageData(canvas.width, canvas.height);
-  const seed = hashString(`${clipId}:${Math.floor(timeSeconds * speed)}`);
+  const seed = hashString(key);
   for (let y = 0; y < canvas.height; y += 1) {
     for (let x = 0; x < canvas.width; x += 1) {
       const value = deterministicNoiseByte(seed, x, y);
@@ -463,7 +476,10 @@ function noiseDataUrl(clipId: string, timeSeconds: number, speed: number) {
     }
   }
   context.putImageData(image, 0, 0);
-  return `url(${canvas.toDataURL('image/png')})`;
+  const result = `url(${canvas.toDataURL('image/png')})`;
+  noiseFrameCache.set(key, result);
+  if (noiseFrameCache.size > NOISE_FRAME_CACHE_LIMIT) noiseFrameCache.delete(noiseFrameCache.keys().next().value!);
+  return result;
 }
 
 function formatTime(sec: number) {

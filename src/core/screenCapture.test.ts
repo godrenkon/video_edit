@@ -18,6 +18,7 @@ describe('screen capture helpers', () => {
   it('creates filesystem-safe capture names with matching extensions', () => {
     const now = new Date('2026-09-19T00:01:02.345Z');
     expect(screenCaptureFileName(now)).toBe('screen-2026-09-19T00-01-02-345Z.webm');
+    expect(screenCaptureFileName(now, 'video/mp4')).toBe('screen-2026-09-19T00-01-02-345Z.mp4');
     expect(extensionForVideoRecordingMime('video/mp4')).toBe('mp4');
     expect(extensionForVideoRecordingMime('video/webm;codecs=vp9')).toBe('webm');
     expect(cameraCaptureFileName(now, 'video/mp4')).toBe('camera-2026-09-19T00-01-02-345Z.mp4');

@@ -1,5 +1,5 @@
 import { Camera, Download, Film, Images, Music, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { resolveExportDimensions } from '../render/exportDimensions';
 import type { Project, ProjectExportContainer, ProjectExportQuality, ProjectExportSettings } from '../types/editor';
 import '../export-settings.css';
@@ -35,6 +35,11 @@ export function ProjectExportSettingsPanel({ project, timelineTime, onChange }: 
   const [sequenceStatus, setSequenceStatus] = useState('');
   const wavAbort = useRef<AbortController | null>(null);
   const sequenceAbort = useRef<AbortController | null>(null);
+
+  useEffect(() => () => {
+    wavAbort.current?.abort('Export settings panel closed');
+    sequenceAbort.current?.abort('Export settings panel closed');
+  }, []);
 
   const patch = (next: Partial<ProjectExportSettings>) => onChange({ ...settings, ...next });
 

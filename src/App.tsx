@@ -332,19 +332,28 @@ export default function App() {
   const importFiles = async (files: File[]) => {
     if (rendering) return;
     setSaveState('素材を保存中…');
+    let imported = 0;
+    let failed = 0;
     for (const file of files) {
+      let asset: Project['assets'][number] | null = null;
       try {
-        const asset = await buildAssetMeta(file);
-        if (capabilities.opfs) await saveAssetFile(asset.storageName, file);
-        updateProject((p) => ({ ...p, assets: [...p.assets, asset] }), {
+        const importedAsset = await buildAssetMeta(file);
+        asset = importedAsset;
+        if (capabilities.opfs) await saveAssetFile(importedAsset.storageName, file);
+        updateProject((p) => ({ ...p, assets: [...p.assets, importedAsset] }), {
           label: '素材を読み込む',
           key: 'import-assets',
         });
+        imported += 1;
       } catch (error) {
         console.error(`Failed to import ${file.name}`, error);
+        if (asset?.objectUrl) URL.revokeObjectURL(asset.objectUrl);
+        failed += 1;
       }
     }
-    setSaveState('素材追加済み');
+    if (failed === 0) setSaveState(`${imported}件の素材を追加しました`);
+    else if (imported > 0) setSaveState(`${imported}件を追加・${failed}件を読み込めませんでした`);
+    else setSaveState('素材を読み込めませんでした');
   };
 
   const setPunchInPlayback = useCallback((active: boolean) => {
@@ -862,7 +871,7 @@ export default function App() {
   const backupProject = () => {
     const clean = {
       ...project,
-      assets: project.assets.map(({ objectUrl: _objectUrl, ...asset }) => asset),
+      assets: project.assets.map(({ objectUrl: _objectUrl, proxyObjectUrl: _proxyObjectUrl, ...asset }) => asset),
     };
     const blob = new Blob([JSON.stringify(clean, null, 2)], { type: 'application/json' });
     downloadBlob(blob, `${sanitize(project.name)}.sveproj.json`);

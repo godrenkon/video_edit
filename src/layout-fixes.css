@@ -2,3 +2,58 @@
 .warningBar { grid-row: 2; }
 .editorGrid { grid-row: 3; }
 .timelinePanel { grid-row: 4; }
+
+@media (max-width: 960px) {
+  html, body, #root { min-width: 0; }
+  body { overflow: auto; }
+  .appShell {
+    height: auto;
+    min-height: 100dvh;
+    grid-template-rows: auto auto auto auto;
+  }
+  .topbar {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 7px;
+    padding: 8px;
+  }
+  .projectTitleWrap {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+    width: 100%;
+  }
+  .topActions {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .topActions .button { flex: 0 0 auto; }
+  .editorGrid { grid-template-columns: minmax(0, 1fr); }
+  .centerColumn { order: -1; overflow: visible; padding: 8px; }
+  .mediaPanel, .inspectorPanel { max-height: min(520px, 72dvh); }
+  .stage { max-height: none; }
+  .timelinePanel { min-height: 330px; }
+  .timelineBody { grid-template-columns: 128px minmax(0, 1fr); }
+  .trackLabel { padding-left: 7px; }
+}
+
+@media (max-width: 560px) {
+  .brand span { display: none; }
+  .brand strong { font-size: 12px; }
+  .projectTitleWrap { padding: 0 8px; }
+  .saveState { max-width: 42%; overflow: hidden; text-overflow: ellipsis; }
+  .topActions { gap: 5px; }
+  .button { padding: 0 9px; }
+  .transport { grid-template-columns: 30px 34px auto minmax(80px, 1fr) auto; gap: 5px; }
+  .transport > .dim:last-child { display: none; }
+  .timelineHeader { height: auto; min-height: 40px; align-items: flex-start; flex-direction: column; gap: 6px; padding: 7px 9px; }
+  .timelinePanel { min-height: 340px; }
+  .timelineBody { height: calc(100% - 62px); grid-template-columns: 104px minmax(0, 1fr); }
+  .zoomCtl { width: 100%; overflow-x: auto; padding-bottom: 2px; }
+  .zoomCtl input { min-width: 76px; width: 76px; }
+  .trackLabel { grid-template-columns: 1fr 23px 23px; padding: 0 3px 0 5px; }
+  .engineStatus { align-items: flex-start; flex-direction: column; }
+  .enginePills { justify-content: flex-start; }
+}

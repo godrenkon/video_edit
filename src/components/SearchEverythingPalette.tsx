@@ -47,7 +47,7 @@ export function SearchEverythingPalette({
     }
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setActiveIndex((index) => Math.min(results.length - 1, index + 1));
+      setActiveIndex((index) => Math.max(0, Math.min(results.length - 1, index + 1)));
       return;
     }
     if (event.key === 'ArrowUp') {
