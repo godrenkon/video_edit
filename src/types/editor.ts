@@ -228,6 +228,7 @@ export interface Track {
   kind: TrackKind;
   muted: boolean;
   locked: boolean;
+  syncLock?: boolean;
   solo?: boolean;
   visible?: boolean;
   gain?: number;
