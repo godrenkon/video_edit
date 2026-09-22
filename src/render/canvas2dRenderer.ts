@@ -1,5 +1,6 @@
 import type { BlendMode, Project } from '../types/editor';
 import { resolveCropRectangle } from './cropGeometry';
+import { resolveLayerMaskShapes } from './maskGeometry';
 import { canvasFilterForEffects, resolveTemperatureTintEffects, resolveVignetteEffects, type ResolvedColorWash, type ResolvedVignette } from './effectEvaluation';
 import { buildVisualFramePlan, type VisualFrameLayerPlan } from './framePlan';
 import { activeSubtitleHighlight, normalizeSubtitleHighlightColor, type SubtitleHighlightRange } from './subtitleHighlight';
@@ -75,6 +76,7 @@ export class Canvas2DProjectRenderer {
         context.save();
         applyLayerTransform(context, project, layer);
         applyLayerReveal(context, layer, dx, dy, drawWidth, drawHeight);
+        applyLayerMasks(context, layer, dx, dy, drawWidth, drawHeight);
         if (hasPixelEffects(layer.effects)) {
           drawPixelProcessedFrame(
             context,
@@ -195,6 +197,36 @@ function applyLayerReveal(
   context.clip();
 }
 
+function applyLayerMasks(
+  context: RenderContext2D,
+  layer: VisualFrameLayerPlan,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  const shapes = resolveLayerMaskShapes(layer.masks, x, y, width, height);
+  if (!shapes.length) return;
+
+  context.beginPath();
+  for (const shape of shapes) {
+    if (shape.kind === 'ellipse') {
+      context.ellipse(
+        shape.centerX,
+        shape.centerY,
+        Math.max(0, shape.radiusX),
+        Math.max(0, shape.radiusY),
+        0,
+        0,
+        Math.PI * 2,
+      );
+    } else {
+      context.rect(shape.x, shape.y, shape.width, shape.height);
+    }
+  }
+  context.clip();
+}
+
 function drawTextLayer(context: RenderContext2D, project: Project, layer: VisualFrameLayerPlan) {
   const subtitleText = layer.kind === 'subtitle' ? layer.subtitle?.text : undefined;
   const style = resolveTextStyle(layer.text, subtitleText);
@@ -202,14 +234,17 @@ function drawTextLayer(context: RenderContext2D, project: Project, layer: Visual
 
   context.save();
   applyLayerTransform(context, project, layer);
+  const textLayerX = -project.width * layer.transform.anchorX;
+  const textLayerY = -project.height * layer.transform.anchorY;
   applyLayerReveal(
     context,
     layer,
-    -project.width * layer.transform.anchorX,
-    -project.height * layer.transform.anchorY,
+    textLayerX,
+    textLayerY,
     project.width,
     project.height,
   );
+  applyLayerMasks(context, layer, textLayerX, textLayerY, project.width, project.height);
   context.font = `${style.fontWeight} ${style.fontSize}px ${quoteFontFamily(style.fontFamily)}`;
   context.textAlign = style.align;
   context.textBaseline = 'middle';
@@ -359,6 +394,7 @@ function drawGeneratorLayer(
   context.save();
   applyLayerTransform(context, project, layer);
   applyLayerReveal(context, layer, dx, dy, width, height);
+  applyLayerMasks(context, layer, dx, dy, width, height);
 
   if (payload.kind === 'gradient') {
     const angle = generatorNumber(payload, 'angle', 0, -360, 360) * Math.PI / 180;

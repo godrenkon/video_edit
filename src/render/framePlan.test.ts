@@ -175,4 +175,18 @@ describe('buildVisualFramePlan', () => {
     value[0] = 99;
     expect(source.effects?.[0].parameters.amount.value).toEqual([1, 2]);
   });
+  it('carries clip masks into the shared frame plan without sharing mutable objects', () => {
+    const source = clip('video', 'video', {
+      masks: [
+        { id: 'rect', kind: 'rectangle', x: 0.1, y: 0.2, width: 0.3, height: 0.4 },
+        { id: 'ellipse', kind: 'ellipse', x: 0.5, y: 0.1, width: 0.25, height: 0.5 },
+      ],
+    });
+    const plan = buildVisualFramePlan(project([track('video', 'video', [source])]), 1);
+
+    expect(plan[0].masks).toEqual(source.masks);
+    plan[0].masks[0].x = 0.9;
+    expect(source.masks?.[0].x).toBe(0.1);
+  });
+
 });

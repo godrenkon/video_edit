@@ -1,5 +1,6 @@
 import type { AssetBin, AudioBusId, AudioBusSettings, AudioDuckingSettings, Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
 import { sanitizeTranscriptDocument } from './transcript';
+import { sanitizeClipMasks } from './masks';
 
 const CURRENT_PROJECT_VERSION = 2 as const;
 
@@ -135,6 +136,7 @@ function migrateClip(clip: Record<string, unknown>, index: number): Clip {
     freezeFrameAt: optionalClampedNumber(clip.freezeFrameAt, 0, Number.MAX_SAFE_INTEGER),
     transitionIn: migrateTransition(clip.transitionIn, duration),
     transitionOut: migrateTransition(clip.transitionOut, duration),
+    masks: sanitizeClipMasks(clip.masks),
     transform: {
       x: finiteNumber(transform.x, 0),
       y: finiteNumber(transform.y, 0),

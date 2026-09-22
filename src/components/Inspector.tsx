@@ -1,10 +1,11 @@
 import { ChevronDown, ChevronUp, Flag, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { uid } from '../core/project';
+import { createClipMask, removeClipMask, updateClipMask } from '../core/masks';
 import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrackSolo, setTrackVisible } from '../core/trackOps';
 import { constrainNormalizedCrop, cropToNormalized } from '../render/cropGeometry';
 import { clipSourceTime } from '../render/timelineEvaluation';
 import { generateEvenSubtitleWords, normalizeSubtitleHighlightColor } from '../render/subtitleHighlight';
-import type { BlendMode, Clip, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker, TrackKind, TransitionKind } from '../types/editor';
+import type { BlendMode, Clip, ClipMask, Crop, GeneratorPayload, Project, TextPayload, TimelineMarker, TrackKind, TransitionKind } from '../types/editor';
 import { EffectsPanel } from './EffectsPanel';
 import { ProjectExportSettingsPanel } from './ProjectExportSettingsPanel';
 import { ProjectTemplatesPanel } from './ProjectTemplatesPanel';
@@ -69,6 +70,7 @@ export function Inspector({
         timelineTime,
       )))
     : 0;
+  const masks = selectedClip?.masks ?? [];
 
   const patchText = (patch: Partial<TextPayload>) => {
     const current: TextPayload = selectedClip?.text ?? { text: 'テキスト' };
@@ -105,6 +107,18 @@ export function Inspector({
     const next = constrainNormalizedCrop({ ...crop, [edge]: Math.max(0, Math.min(99, percent)) / 100 }, edge);
     const empty = Object.values(next).every((value) => value <= 1e-6);
     onClip({ crop: empty ? undefined : next });
+  };
+
+  const addMask = (kind: ClipMask['kind']) => {
+    onClip({ masks: [...masks, createClipMask(kind)] });
+  };
+
+  const patchMask = (maskId: string, patch: Partial<Omit<ClipMask, 'id'>>) => {
+    onClip({ masks: updateClipMask(masks, maskId, patch) });
+  };
+
+  const deleteMask = (maskId: string) => {
+    onClip({ masks: removeClipMask(masks, maskId) });
   };
 
   const markers = [...(project.markers ?? [])].sort((a, b) => a.time - b.time);
@@ -394,6 +408,27 @@ export function Inspector({
               <RangeField label="不透明度" value={selectedClip.transform.opacity} min={0} max={1} step={0.01} onChange={(v) => onTransform('opacity', v)} />
               {selectedAsset?.kind !== 'audio' && (
                 <>
+                  <h3 className="sectionTitleRow"><span>マスク</span><span>{masks.length}</span></h3>
+                  <div className="projectActionGrid">
+                    <button type="button" onClick={() => addMask('rectangle')}>矩形マスク追加</button>
+                    <button type="button" onClick={() => addMask('ellipse')}>楕円マスク追加</button>
+                  </div>
+                  {masks.length === 0 && <div className="infoCard">マスクなし。追加するとクリップの表示領域を矩形または楕円で制限できます。</div>}
+                  {masks.map((mask, index) => (
+                    <div className="infoCard" key={mask.id}>
+                      <div className="sectionTitleRow">
+                        <strong>{mask.kind === 'ellipse' ? '楕円' : '矩形'}マスク {index + 1}</strong>
+                        <button type="button" className="miniBtn danger" onClick={() => deleteMask(mask.id)} title="マスクを削除"><Trash2 size={12} /></button>
+                      </div>
+                      <div className="twoFields">
+                        <NumberField label="X %" value={mask.x * 100} step={0.5} onChange={(v) => patchMask(mask.id, { x: Math.max(0, Math.min(99.9, v)) / 100 })} />
+                        <NumberField label="Y %" value={mask.y * 100} step={0.5} onChange={(v) => patchMask(mask.id, { y: Math.max(0, Math.min(99.9, v)) / 100 })} />
+                        <NumberField label="幅 %" value={mask.width * 100} step={0.5} onChange={(v) => patchMask(mask.id, { width: Math.max(0.1, Math.min(100, v)) / 100 })} />
+                        <NumberField label="高さ %" value={mask.height * 100} step={0.5} onChange={(v) => patchMask(mask.id, { height: Math.max(0.1, Math.min(100, v)) / 100 })} />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="infoCard">複数マスクは和集合として表示されます。Previewと最終書き出しは同じマスク形状を使用します。</div>
                   <h3>トランジション</h3>
                   <div className="twoFields">
                     <Field label="In 種類">

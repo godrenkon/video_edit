@@ -1,6 +1,7 @@
 import type {
   BlendMode,
   ClipKind,
+  ClipMask,
   Crop,
   EffectInstance,
   GeneratorPayload,
@@ -25,6 +26,7 @@ export interface VisualFrameLayerPlan {
     anchorY: number;
   };
   crop: Crop | null;
+  masks: ClipMask[];
   blendMode: BlendMode;
   effects: EffectInstance[];
   text: TextPayload | null;
@@ -63,6 +65,7 @@ export function buildVisualFramePlan(project: Project, timeSeconds: number): Vis
         anchorY: clip.transform.anchorY ?? 0.5,
       },
       crop: clip.crop ? { ...clip.crop } : null,
+      masks: clip.masks?.map((mask) => ({ ...mask })) ?? [],
       blendMode: clip.blendMode ?? 'normal',
       effects: clip.effects?.filter((effect) => effect.enabled).map(cloneEffect) ?? [],
       text: clip.text ? { ...clip.text } : null,
