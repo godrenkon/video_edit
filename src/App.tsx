@@ -1427,9 +1427,40 @@ export default function App() {
         onToggleMuteTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, muted: !t.muted } : t) }), { label: 'トラックミュート' })}
         onToggleSoloTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, solo: !t.solo } : t) }), { label: 'トラックSolo' })}
         onToggleVisibleTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, visible: t.visible === false } : t) }), { label: 'トラック表示' })}
-        onToggleTargetTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, targeted: !t.targeted } : t) }), { label: 'トラックターゲット切替' })}
-        onToggleSyncLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, syncLock: t.syncLock === false } : t) }), { label: '同期ロック切替' })}
-        onToggleLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, locked: !t.locked } : t) }), { label: 'トラックロック' })}
+        onToggleTargetTrack={(id, sameKind) => updateProject((p) => {
+          const source = p.tracks.find((track) => track.id === id);
+          if (!source || source.locked) return p;
+          const targeted = !source.targeted;
+          return {
+            ...p,
+            tracks: p.tracks.map((track) => (
+              track.id === id || (sameKind && track.kind === source.kind && !track.locked)
+                ? { ...track, targeted }
+                : track
+            )),
+          };
+        }, { label: sameKind ? '同種トラックのターゲット切替' : 'トラックターゲット切替' })}
+        onToggleSyncLockTrack={(id, sameKind) => updateProject((p) => {
+          const source = p.tracks.find((track) => track.id === id);
+          if (!source) return p;
+          const syncLock = source.syncLock === false;
+          return {
+            ...p,
+            tracks: p.tracks.map((track) => (
+              track.id === id || (sameKind && track.kind === source.kind)
+                ? { ...track, syncLock }
+                : track
+            )),
+          };
+        }, { label: sameKind ? '同種トラックの同期ロック切替' : '同期ロック切替' })}
+        onToggleLockTrack={(id) => updateProject((p) => ({
+          ...p,
+          tracks: p.tracks.map((track) => {
+            if (track.id !== id) return track;
+            const locked = !track.locked;
+            return { ...track, locked, targeted: locked ? false : track.targeted };
+          }),
+        }), { label: 'トラックロック' })}
       />
       </div>
     </div>
