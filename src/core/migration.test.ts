@@ -169,12 +169,12 @@ describe('migrateProject', () => {
       version: 2,
       assets: [],
       tracks: [
-        { id: 'synced', kind: 'video', syncLock: true, clips: [] },
-        { id: 'excluded', kind: 'audio', syncLock: false, clips: [] },
+        { id: 'synced', kind: 'video', syncLock: true, targeted: true, clips: [] },
+        { id: 'excluded', kind: 'audio', syncLock: false, targeted: false, clips: [] },
       ],
     });
-    expect(project.tracks[0].syncLock).toBe(true);
-    expect(project.tracks[1].syncLock).toBe(false);
+    expect(project.tracks[0]).toMatchObject({ syncLock: true, targeted: true });
+    expect(project.tracks[1]).toMatchObject({ syncLock: false, targeted: false });
   });
 
   it('drops invalid bus assignments and malformed bus lists safely', () => {
