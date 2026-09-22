@@ -6,7 +6,7 @@ import { groupSelectedClips, ungroupSelectedClips } from './groupOps';
 import { deleteSelectedClips, moveSelectedClipsByDelta, nudgeSelectedClips } from './multiSelectionOps';
 import { uid } from './project';
 import { findClip, moveClip, nudgeClip, quantizeToFrame, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight, type RippleDeleteScope } from './timelineOps';
-import { moveClipToTrack } from './trackPlacement';
+import { moveClipToTrack, targetTrackForKind } from './trackPlacement';
 
 export type EditorCommandPayload =
   | { type: 'split-clip'; clipId: string; time: number }
@@ -300,7 +300,7 @@ export function pasteClipCommand(
   payload: ClipClipboardPayload,
   time: number,
 ): EditorCommand | null {
-  const target = project.tracks.find((track) => track.kind === payload.trackKind && !track.locked);
+  const target = targetTrackForKind(project, payload.trackKind);
   if (!target) return null;
   const clip = cloneClipWithFreshIds(payload.clip);
   clip.start = quantizeToFrame(Math.max(0, time), project.fps);
