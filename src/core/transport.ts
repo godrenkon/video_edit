@@ -57,7 +57,12 @@ export function stepTransportFrames(
 export function adjacentEditPoint(project: Project, timeSeconds: number, direction: -1 | 1) {
   const frame = frameDuration(project.fps);
   const points = new Set<number>([0, Math.max(0, project.duration)]);
-  for (const track of project.tracks) {
+  const targetedTracks = project.tracks.filter((track) => track.targeted && !track.locked);
+  const navigationTracks = targetedTracks.length > 0 ? targetedTracks : project.tracks.filter((track) => !track.locked);
+  points.clear();
+  points.add(0);
+  points.add(Math.max(0, project.duration));
+  for (const track of navigationTracks) {
     for (const clip of track.clips) {
       points.add(quantizeTransportTime(clip.start, project.fps, project.duration));
       points.add(quantizeTransportTime(clip.start + clip.duration, project.fps, project.duration));
