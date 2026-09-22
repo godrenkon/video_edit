@@ -1,3 +1,5 @@
-Final real-media render trigger
-Validated smoke run: 35730712070
-Renderer commit: c9e8c063bb3dd70cb13951ecf9b0aafe62518a4d
+latest-real-media-render
+commit-target=01a0b78253bd9f420363aae348bc47d4774084fa
+assets-run=35668057188
+voice-run=35667383665
+trigger-revision=1
