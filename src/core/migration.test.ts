@@ -114,6 +114,27 @@ describe('migrateProject', () => {
     });
   });
 
+  it('canonicalizes fractional sequence rates and preserves explicit timecode mode', () => {
+    const project = migrateProject({
+      version: 2,
+      fps: 29.97,
+      timecodeMode: 'drop-frame',
+      assets: [],
+      tracks: [],
+    });
+    expect(project.fps).toBe(30000 / 1001);
+    expect(project.timecodeMode).toBe('drop-frame');
+
+    const invalidMode = migrateProject({
+      version: 2,
+      fps: 24,
+      timecodeMode: 'drop-frame-invalid-value',
+      assets: [],
+      tracks: [],
+    });
+    expect(invalidMode.timecodeMode).toBe('non-drop-frame');
+  });
+
   it('preserves valid export settings and normalizes clip fades', () => {
     const project = migrateProject({
       version: 2,
