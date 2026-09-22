@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2, Pause, Play, SkipBack, Volume2 } from 'lucide-react';
+import { Grid3X3, Maximize2, Minimize2, Pause, Play, RotateCw, SkipBack, Volume2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   audioTimelineItems,
@@ -377,6 +377,8 @@ export function Preview({
   const panelRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [showGuides, setShowGuides] = useState(true);
+  const [snapGuides, setSnapGuides] = useState({ x: false, y: false });
   const [contextMenu, setContextMenu] = useState<{ clipId: string; x: number; y: number } | null>(null);
   const visuals = useMemo(() => visualTimelineItems(project, time), [project, time]);
   const audios = useMemo(() => audioTimelineItems(project, time), [project, time]);
@@ -435,7 +437,42 @@ export function Preview({
     const move = (pointer: PointerEvent) => {
       const dx = (pointer.clientX - startX) / Math.max(1, rect.width) * project.width;
       const dy = (pointer.clientY - startY) / Math.max(1, rect.height) * project.height;
-      onTransformClip(selected.id, { x: initialX + dx, y: initialY + dy });
+      const rawX = initialX + dx;
+      const rawY = initialY + dy;
+      const thresholdX = project.width * 0.012;
+      const thresholdY = project.height * 0.012;
+      const snapX = Math.abs(rawX) <= thresholdX;
+      const snapY = Math.abs(rawY) <= thresholdY;
+      setSnapGuides({ x: snapX, y: snapY });
+      onTransformClip(selected.id, { x: snapX ? 0 : rawX, y: snapY ? 0 : rawY });
+    };
+    const up = () => {
+      setSnapGuides({ x: false, y: false });
+      cleanupPreviewPointer(target, move, up);
+    };
+    target.addEventListener('pointermove', move);
+    target.addEventListener('pointerup', up);
+    target.addEventListener('pointercancel', up);
+  };
+
+  const beginRotateSelected = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const selected = selectedVisual?.clip;
+    const stage = stageRef.current;
+    if (!selected || !stage || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = stage.getBoundingClientRect();
+    const centerX = rect.left + rect.width * (0.5 + selected.transform.x / Math.max(1, project.width));
+    const centerY = rect.top + rect.height * (0.5 + selected.transform.y / Math.max(1, project.height));
+    const startAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX) * 180 / Math.PI;
+    const initialRotation = selected.transform.rotation;
+    const target = event.currentTarget;
+    target.setPointerCapture(event.pointerId);
+    const move = (pointer: PointerEvent) => {
+      const angle = Math.atan2(pointer.clientY - centerY, pointer.clientX - centerX) * 180 / Math.PI;
+      let rotation = initialRotation + angle - startAngle;
+      if (pointer.shiftKey) rotation = Math.round(rotation / 15) * 15;
+      onTransformClip(selected.id, { rotation });
     };
     const up = () => cleanupPreviewPointer(target, move, up);
     target.addEventListener('pointermove', move);
@@ -481,6 +518,13 @@ export function Preview({
           <span>{project.fps} fps</span>
           <PreviewAudioMeter playing={playing} />
           <PlaybackDiagnostics time={time} playing={playing} fps={project.fps} />
+          <button
+            className={`miniBtn ${showGuides ? 'active' : ''}`}
+            type="button"
+            onClick={() => setShowGuides((value) => !value)}
+            title={showGuides ? 'ガイドを非表示' : 'ガイドを表示'}
+            aria-pressed={showGuides}
+          ><Grid3X3 size={14} /></button>
           <button className="miniBtn" type="button" onClick={toggleFullscreen} title={fullscreen ? 'フルスクリーンを終了' : 'フルスクリーン'} aria-label={fullscreen ? 'フルスクリーンを終了' : 'フルスクリーン'}>
             {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
@@ -494,6 +538,16 @@ export function Preview({
               if (event.target === event.currentTarget) onClearSelection();
             }}
           >
+            {showGuides && (
+              <div className="previewGuides" aria-hidden="true">
+                <i className="safeArea actionSafe" />
+                <i className="safeArea titleSafe" />
+                <i className="centerGuide vertical" />
+                <i className="centerGuide horizontal" />
+              </div>
+            )}
+            {snapGuides.x && <i className="previewSnapGuide vertical" aria-hidden="true" />}
+            {snapGuides.y && <i className="previewSnapGuide horizontal" aria-hidden="true" />}
             {visuals.map(({ clip }) => {
               if (clip.kind === 'zundamon') return <ZundamonLayer key={clip.id} clip={clip} assets={project.assets} project={project} time={time} />;
               if (clip.kind === 'text' || clip.kind === 'subtitle' || clip.kind === 'generator') {
@@ -547,6 +601,13 @@ export function Preview({
                 onPointerDown={beginMoveSelected}
                 title="ドラッグで移動"
               >
+                <button
+                  type="button"
+                  className="previewRotateHandle"
+                  onPointerDown={beginRotateSelected}
+                  aria-label="回転"
+                  title="ドラッグで回転 / Shiftで15°スナップ"
+                ><RotateCw size={10} /></button>
                 <button
                   type="button"
                   className="previewScaleHandle"
