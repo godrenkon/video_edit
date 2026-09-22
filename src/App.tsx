@@ -55,17 +55,17 @@ import { adjacentEditPoint, nextShuttleRate, quantizeTransportTime, stepTranspor
 import { clearWaveformMemoryCache, waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
 import { deleteAssetStorageBeforeInvalidation, replaceRelinkedAssetStorage } from './render/assetRelinkLifecycle';
-import { Inspector } from './components/Inspector';
-import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
-import { ZundamonPanel } from './components/ZundamonPanel';
 import type { ZundamonRequest } from './components/ZundamonPanel';
 import type { Clip, Project, TrackKind } from './types/editor';
 
 const RecoveryDialog = lazy(() => import('./components/RecoveryDialog').then((module) => ({ default: module.RecoveryDialog })));
 const SearchEverythingPalette = lazy(() => import('./components/SearchEverythingPalette').then((module) => ({ default: module.SearchEverythingPalette })));
+const MediaLibrary = lazy(() => import('./components/MediaLibrary').then((module) => ({ default: module.MediaLibrary })));
+const Inspector = lazy(() => import('./components/Inspector').then((module) => ({ default: module.Inspector })));
+const ZundamonPanel = lazy(() => import('./components/ZundamonPanel').then((module) => ({ default: module.ZundamonPanel })));
 
 interface UpdateOptions {
   history?: boolean;
@@ -1267,6 +1267,7 @@ export default function App() {
         aria-busy={rendering}
         style={{ gridTemplateColumns: `${mediaWidth}px 6px minmax(0,1fr) 6px ${inspectorWidth}px` }}
       >
+        <Suspense fallback={<aside className="panel mediaPanel" aria-busy="true" />}>
         <MediaLibrary
           assets={project.assets}
           assetBins={project.assetBins ?? []}
@@ -1296,6 +1297,7 @@ export default function App() {
           onCreateSubtitle={createSubtitle}
           onCreateGenerator={createGenerator}
         />
+        </Suspense>
         <div
           className="panelResizeHandle vertical"
           role="separator"
@@ -1322,7 +1324,9 @@ export default function App() {
               setTime(Math.max(0, Math.min(project.duration, v)));
             }}
           />
-          <ZundamonPanel assets={project.assets} busy={zBusy} onGenerate={generateZundamon} />
+          <Suspense fallback={null}>
+            <ZundamonPanel assets={project.assets} busy={zBusy} onGenerate={generateZundamon} />
+          </Suspense>
           <EngineStatus capabilities={capabilities} storageText={storageText} />
         </div>
         <div
@@ -1332,6 +1336,7 @@ export default function App() {
           title="インスペクターの幅を変更"
           onPointerDown={(event) => startPointerResize(event.clientX, inspectorWidth, setInspectorWidth, -1, 250, 540, 'x')}
         />
+        <Suspense fallback={<aside className="panel inspectorPanel" aria-busy="true" />}>
         <Inspector
           project={project}
           selectedClip={selectedClip}
@@ -1352,6 +1357,7 @@ export default function App() {
           shortcutOverrides={shortcutOverrides}
           onShortcutOverrides={updateShortcutOverrides}
         />
+        </Suspense>
       </main>
 
       <div
