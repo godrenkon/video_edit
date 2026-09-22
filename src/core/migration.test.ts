@@ -89,6 +89,7 @@ describe('migrateProject', () => {
     expect(project.tracks[0]).toMatchObject({
       muted: false,
       locked: false,
+      syncLock: true,
       visible: true,
       solo: false,
       gain: 4,
