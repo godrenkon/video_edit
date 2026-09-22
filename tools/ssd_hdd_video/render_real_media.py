@@ -363,6 +363,23 @@ def semantic_asset_ok(text, asset_id):
 def is_video(p):
     return p.suffix.lower() in (".mp4",".webm",".mov",".mkv")
 
+# Avoid title cards / end credits inside external B-roll.
+# Values are (safe_start_seconds, safe_end_margin_seconds).
+VIDEO_SAFE_WINDOWS = {
+    "hdd_working_video": (12.0, 8.0),
+    "computer_components_video": (2.0, 2.0),
+    "browser_demo_video": (2.0, 2.0),
+    "startup_video": (2.0, 2.0),
+}
+
+def safe_video_seek(asset_id, srcdur, clipdur, event_no):
+    start, end_margin = VIDEO_SAFE_WINDOWS.get(asset_id, (1.0, 1.5))
+    latest = max(start, srcdur - end_margin - clipdur)
+    if latest <= start + 0.05:
+        return max(0.0, min(start, max(0.0, srcdur - clipdur)))
+    span = latest - start
+    return start + ((event_no * 3.7) % span)
+
 def create_overlay(row,slot,path):
     # Context-specific explanatory graphics. Real media remains the main picture.
     im=Image.new("RGBA",(W,H),(0,0,0,0)); d=ImageDraw.Draw(im,"RGBA")
@@ -434,7 +451,7 @@ def render_event(ev,out,zundamon):
     # Make actual source the dominant frame. Images get a subtle Ken Burns zoom.
     if is_video(src):
         srcdur=probe_duration(src)
-        seek=(ev["n"]*3.7)%max(0.1,srcdur-1.0)
+        seek=safe_video_seek(ev["asset"],srcdur,dur,ev["n"])
         base_inputs=["-stream_loop","-1","-ss",f"{seek:.2f}","-i",src]
         base_filter=f"[0:v]{fit_image_filter()},fps={FPS},setpts=PTS-STARTPTS,setsar=1[base]"
     else:
@@ -678,11 +695,13 @@ run([
   "ffmpeg","-y","-loglevel","error","-i",visual,"-i",voice,"-i",bgm,"-i",sfx,
   "-filter_complex",
   f"[0:v]ass={ass.as_posix()}:fontsdir=/usr/share/fonts/opentype/noto[v];"
-  "[1:a]volume=1.0[n];[2:a]volume=1.0[b];[3:a]volume=1.0[s];"
-  "[n][b][s]amix=inputs=3:duration=first:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=9[a]",
+  "[1:a]aresample=48000,pan=stereo|c0=c0|c1=c0,volume=1.0[n];"
+  "[2:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=1.0[b];"
+  "[3:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=1.0[s];"
+  "[n][b][s]amix=inputs=3:duration=first:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=9,aresample=48000[a]",
   "-map","[v]","-map","[a]","-t",f"{total:.3f}",
   "-c:v","libx264","-preset","medium","-b:v","10M","-maxrate","12M","-bufsize","24M",
-  "-pix_fmt","yuv420p","-c:a","aac","-ar","48000","-b:a","256k","-movflags","+faststart",final
+  "-pix_fmt","yuv420p","-c:a","aac","-ar","48000","-ac","2","-b:a","256k","-movflags","+faststart",final
 ])
 
 # Preview and QA frames.
