@@ -102,6 +102,33 @@ jobs:
           print("assets",sorted(assets))
           PY
 
+      - name: Build upload credits
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path("real_video_output/ATTRIBUTION.md")
+          out=Path("real_video_output/YOUTUBE_DESCRIPTION_CREDITS.txt")
+          lines=[
+            "【使用素材・BGM・SE】",
+            "この動画では、以下のライセンスに基づく素材を使用しています。",
+            "",
+          ]
+          if src.exists():
+              for raw in src.read_text(encoding="utf-8").splitlines():
+                  s=raw.strip()
+                  if not s.startswith("- **"):
+                      continue
+                  # Markdown bold only removed; source URLs/licence/author remain intact.
+                  lines.append(s.replace("**",""))
+          lines += [
+            "",
+            "VOICEVOX:ずんだもん",
+            "ずんだもん立ち絵: VOICEVOX / ずんずんPJ の利用条件に基づき使用",
+          ]
+          out.write_text("\n".join(lines)+"\n",encoding="utf-8")
+          print(out.read_text(encoding="utf-8"))
+          PY
+
       - name: Build QA samples
         run: |
           mkdir -p qa
@@ -130,6 +157,7 @@ jobs:
             real_video_output/storyboard.tsv
             real_video_output/subtitles_green.ass
             real_video_output/ATTRIBUTION.md
+            real_video_output/YOUTUBE_DESCRIPTION_CREDITS.txt
             real_video_output/ffprobe.json
           compression-level: 0
           retention-days: 7
