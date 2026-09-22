@@ -380,6 +380,7 @@ function TimelineClip({
     if (!selected) onSelect(clip.id, false);
     const startX = e.clientX;
     let lastX = startX;
+    let finalStart = clip.start;
     const initial = clip.start;
     const slide = e.altKey && !multiSelected;
     const target = e.currentTarget as HTMLElement;
@@ -391,11 +392,16 @@ function TimelineClip({
         onMoveSelectedByDelta(delta);
         return;
       }
-      const start = Math.max(0, initial + (ev.clientX - startX) / px);
-      if (slide) onSlide(clip.id, start);
-      else onMoveToTrack(clip.id, start, ev.clientY, trackId);
+      finalStart = Math.max(0, initial + (ev.clientX - startX) / px);
+      if (slide) onSlide(clip.id, finalStart);
+      else onMove(clip.id, finalStart);
     };
-    const up = () => cleanupPointerDrag(target, move, up);
+    const up = (ev?: PointerEvent) => {
+      if (ev?.type === 'pointerup' && !slide && !(multiSelected && selected)) {
+        onMoveToTrack(clip.id, finalStart, ev.clientY, trackId);
+      }
+      cleanupPointerDrag(target, move, up);
+    };
     target.addEventListener('pointermove', move);
     target.addEventListener('pointerup', up);
     target.addEventListener('pointercancel', up);
