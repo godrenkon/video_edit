@@ -65,7 +65,8 @@ describe('project settings templates', () => {
       name: ' Test ',
       width: 999999,
       height: -1,
-      fps: 999,
+      fps: 24,
+      timecodeMode: 'drop-frame',
       background: 'invalid',
       exportSettings: { container: 'avi', outputHeight: 99999, quality: 'ultra', includeAudio: false },
     }]));
@@ -73,7 +74,8 @@ describe('project settings templates', () => {
       name: 'Test',
       width: 16384,
       height: 16,
-      fps: 240,
+      fps: 24,
+      timecodeMode: 'non-drop-frame',
       background: '#000000',
       exportSettings: { outputHeight: 4320, includeAudio: false },
     });
