@@ -1,5 +1,7 @@
 import { ChevronDown, ChevronUp, Flag, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { uid } from '../core/project';
+import { canonicalProjectFrameRate, frameRateDisplayLabel, PROFESSIONAL_FRAME_RATES } from '../core/timebase';
+import { supportsDropFrameTimecode } from '../core/timecode';
 import { addTrack, canRemoveTrack, moveTrack, removeTrack, renameTrack, setTrackSolo, setTrackVisible } from '../core/trackOps';
 import { constrainNormalizedCrop, cropToNormalized } from '../render/cropGeometry';
 import { clipSourceTime } from '../render/timelineEvaluation';
@@ -470,7 +472,53 @@ export function Inspector({
           <div className="twoFields">
             <NumberField label="幅" value={project.width} step={1} onChange={(v) => onProject({ width: Math.max(16, Math.round(v)) })} />
             <NumberField label="高さ" value={project.height} step={1} onChange={(v) => onProject({ height: Math.max(16, Math.round(v)) })} />
-            <NumberField label="FPS" value={project.fps} step={1} onChange={(v) => onProject({ fps: Math.max(1, Math.min(120, Math.round(v))) })} />
+            <NumberField
+              label="FPS"
+              value={project.fps}
+              step={0.001}
+              onChange={(v) => {
+                const fps = canonicalProjectFrameRate(v);
+                onProject({
+                  fps,
+                  timecodeMode: supportsDropFrameTimecode(fps)
+                    ? project.timecodeMode ?? 'non-drop-frame'
+                    : 'non-drop-frame',
+                });
+              }}
+            />
+            <Field label="FPSプリセット">
+              <select
+                value={PROFESSIONAL_FRAME_RATES.some(({ label }) => label === frameRateDisplayLabel(project.fps))
+                  ? frameRateDisplayLabel(project.fps)
+                  : 'custom'}
+                onChange={(event) => {
+                  if (event.target.value === 'custom') return;
+                  const fps = canonicalProjectFrameRate(Number(event.target.value));
+                  onProject({
+                    fps,
+                    timecodeMode: supportsDropFrameTimecode(fps)
+                      ? project.timecodeMode ?? 'non-drop-frame'
+                      : 'non-drop-frame',
+                  });
+                }}
+              >
+                {PROFESSIONAL_FRAME_RATES.map(({ label }) => <option key={label} value={label}>{label} fps</option>)}
+                <option value="custom">カスタム</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="タイムコード">
+            <select
+              value={project.timecodeMode ?? 'non-drop-frame'}
+              onChange={(event) => onProject({ timecodeMode: event.target.value as Project['timecodeMode'] })}
+            >
+              <option value="non-drop-frame">Non-Drop Frame</option>
+              <option value="drop-frame" disabled={!supportsDropFrameTimecode(project.fps)}>Drop Frame</option>
+            </select>
+          </Field>
+          <div className="infoCard">
+            シーケンスFPS: {frameRateDisplayLabel(project.fps)} / {project.timecodeMode === 'drop-frame' ? 'DF' : 'NDF'}
+            {supportsDropFrameTimecode(project.fps) ? '。29.97/59.94ではDF/NDFを選択できます。' : '。このFPSではNDFのみ使用できます。'}
           </div>
           <Field label="背景"><input type="color" value={project.background} onChange={(e) => onProject({ background: e.target.value })} /></Field>
 
