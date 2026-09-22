@@ -79,6 +79,23 @@ jobs:
           assert "zundamon_official" not in assets, "Zundamon used as background media"
           assert len(assets) >= 14, len(assets)
           assert len(rows) >= 250, len(rows)
+
+          # Per-chapter media diversity QA: do not let the video fall back into
+          # long stretches of the same few assets even when every individual
+          # shot is short.
+          from collections import Counter, defaultdict
+          by_section=defaultdict(list)
+          for r in rows:
+              by_section[r["section"]].append(r)
+          for section, rs in by_section.items():
+              if section=="次回":
+                  continue
+              counts=Counter(r["asset"] for r in rs)
+              assert len(counts) >= 6, (section, "too few unique assets", counts)
+              top_asset, top_count = counts.most_common(1)[0]
+              top_share = top_count / len(rs)
+              assert top_share <= 0.30, (section, "asset overused", top_asset, top_share)
+
           probe=json.load(open("real_video_output/ffprobe.json"))
           fmt=probe["format"]
           assert float(fmt["duration"]) > 1100, fmt["duration"]
