@@ -186,17 +186,17 @@ def _unique(xs):
 
 HDD_INTERNAL=["hdd_working_video","hdd_open_photo","hdd_head_macro","hdd_side"]
 SSD_INTERNAL=["ssd_nand","ssd_controller","sata_ssd","nvme_m2"]
-M2_MEDIA=["nvme_m2","m2_installed","sata_vs_nvme","pc_m2_hdd_inside"]
+M2_MEDIA=["nvme_m2","m2_installed","sata_vs_nvme","ssd_install"]
 SATA_MEDIA=["sata_ssd","sata_connector","sata_data_power","sata_vs_nvme"]
-NAS_MEDIA=["nas","server_rack","external_hdds","pc_m2_hdd_inside"]
+NAS_MEDIA=["nas","server_rack","external_hdds","external_ssd"]
 EXTERNAL_MEDIA=["external_ssd","external_hdds","sata_ssd","hdd_side"]
-RAM_MEDIA=["ram_ddr4","motherboard","pc_m2_hdd_inside"]
-PC_MEDIA=["motherboard","pc_m2_hdd_inside","computer_components_video","ssd_install"]
-STORAGE_MEDIA=["pc_m2_hdd_inside","external_ssd","external_hdds","sata_ssd","hdd_side","nvme_m2"]
-APP_MEDIA=["pc_m2_hdd_inside","m2_installed","nvme_m2","sata_ssd","hdd_side","computer_components_video"]
-LOAD_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","pc_m2_hdd_inside"]
-BROWSER_MEDIA=["browser_demo_video","pc_m2_hdd_inside","nvme_m2","sata_ssd"]
-SPEED_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","pc_m2_hdd_inside"]
+RAM_MEDIA=["ram_ddr4","motherboard","m2_installed"]
+PC_MEDIA=["motherboard","m2_installed","computer_components_video","ssd_install"]
+STORAGE_MEDIA=["external_ssd","sata_ssd","nvme_m2","hdd_side","hdd_open_photo","m2_installed","sata_vs_nvme","external_hdds"]
+APP_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_side","computer_components_video","motherboard"]
+LOAD_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","computer_components_video"]
+BROWSER_MEDIA=["browser_demo_video","m2_installed","nvme_m2","sata_ssd"]
+SPEED_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","sata_vs_nvme"]
 
 def strong_media_for(text):
     specific=[]
@@ -226,7 +226,7 @@ def strong_media_for(text):
     if any(k in text for k in ["バックアップ","3-2-1","別の場所","クラウド"]):
         return ["nas","external_hdds","external_ssd","server_rack"]
     if any(k in text for k in ["ノートパソコン","小型PC","薄いノート"]):
-        return ["m2_installed","nvme_m2","external_ssd","pc_m2_hdd_inside"]
+        return ["m2_installed","nvme_m2","external_ssd","ssd_install"]
     if any(k in text for k in ["消費電力","発熱","熱く"]):
         return ["nvme_m2","m2_installed","motherboard","sata_ssd"]
     if any(k in text for k in ["動作音","振動","衝撃"]):
@@ -261,12 +261,12 @@ def pool_for(section,text):
     if "バックアップ" in sec:
         return ["nas","external_hdds","external_ssd","server_rack"]
     if "用途" in sec:
-        return ["motherboard","pc_m2_hdd_inside","ssd_install","m2_installed","nas","server_rack","nvme_m2","external_ssd","external_hdds"]
+        return ["m2_installed","ssd_install","motherboard","nas","server_rack","nvme_m2","external_ssd","external_hdds","sata_vs_nvme"]
     if "最終" in sec:
         return ["hdd_open_photo","hdd_working_video","sata_ssd","nvme_m2","nas","motherboard"]
     if "第1章" in sec:
-        return ["ram_ddr4","motherboard","pc_m2_hdd_inside","ssd_install","sata_ssd","hdd_side","external_ssd","external_hdds"]
-    return ["external_hdds","external_ssd","pc_m2_hdd_inside","hdd_open_photo","sata_ssd","nvme_m2","motherboard"]
+        return ["ram_ddr4","motherboard","m2_installed","ssd_install","sata_ssd","hdd_side","external_ssd","external_hdds"]
+    return ["external_ssd","sata_ssd","nvme_m2","hdd_open_photo","hdd_side","m2_installed","sata_vs_nvme","external_hdds","motherboard"]
 
 def semantic_asset_ok(text, asset_id):
     strong=strong_media_for(text)
@@ -503,7 +503,7 @@ for a in [x for x in ["hdd_open_photo","ssd_controller","nvme_m2","sata_ssd"] if
     en=min(total,cur+2.0)
     events.append({"n":n,"st":cur,"en":en,"asset":a,"slot":0,"row":ending_row}); n+=1; cur=en
 if cur<total:
-    a=next((x for x in ["nvme_m2","sata_ssd","hdd_open_photo","pc_m2_hdd_inside"] if optional_asset(x)),None)
+    a=next((x for x in ["nvme_m2","sata_ssd","hdd_open_photo","m2_installed"] if optional_asset(x)),None)
     if not a:
         raise RuntimeError("no real-media asset available for ending")
     events.append({"n":n,"st":cur,"en":total,"asset":a,"slot":0,"row":ending_row})
