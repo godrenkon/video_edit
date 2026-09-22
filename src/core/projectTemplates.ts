@@ -1,6 +1,7 @@
 import type { Project, ProjectExportSettings } from '../types/editor';
 import { uid } from './project';
 import { canonicalProjectFrameRate } from './timebase';
+import { normalizeProjectTimecodeMode } from './timecode';
 
 export interface ProjectSettingsTemplate {
   id: string;
@@ -92,14 +93,15 @@ function parseTemplate(value: unknown): ProjectSettingsTemplate | null {
   if (!isRecord(value)) return null;
   const name = normalizeProjectTemplateName(typeof value.name === 'string' ? value.name : '');
   if (!name || typeof value.id !== 'string') return null;
+  const fps = canonicalProjectFrameRate(clampNumber(value.fps, 1, 240));
   return {
     id: value.id.slice(0, 160),
     name,
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : '',
     width: clampInt(value.width, 16, 16384),
     height: clampInt(value.height, 16, 16384),
-    fps: canonicalProjectFrameRate(clampNumber(value.fps, 1, 240)),
-    timecodeMode: value.timecodeMode === 'drop-frame' ? 'drop-frame' : 'non-drop-frame',
+    fps,
+    timecodeMode: normalizeProjectTimecodeMode(value.timecodeMode, fps),
     background: normalizeColor(value.background),
     exportSettings: parseExportSettings(value.exportSettings),
   };
