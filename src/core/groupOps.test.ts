@@ -27,6 +27,18 @@ describe('clip grouping', () => {
     expect(c.groupId).toBeUndefined();
   });
 
+  it('uses a caller-supplied group id for deterministic command replay', () => {
+    const output = groupSelectedClips(
+      project([track('a', [clip('1'), clip('2')])]),
+      ['1', '2'],
+      'group-replay-1',
+    );
+    expect(output.tracks[0].clips.map((item) => item.groupId)).toEqual([
+      'group-replay-1',
+      'group-replay-1',
+    ]);
+  });
+
   it('does not group fewer than two clips or modify locked tracks', () => {
     const input = project([track('locked', [clip('1'), clip('2')], true)]);
     expect(groupSelectedClips(input, ['1', '2'])).toBe(input);
