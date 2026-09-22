@@ -48,7 +48,7 @@ import {
 } from './core/storage';
 import { beginEditorSession, markEditorSessionClean, markEditorSessionDirty } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
-import { moveClipToTrack } from './core/trackPlacement';
+import { moveClipToTrack, targetTrackForKind } from './core/trackPlacement';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
 import { quantizePreviewTime } from './render/previewClock';
 import { adjacentEditPoint, nextShuttleRate, quantizeTransportTime, stepTransportFrames, transportFrameTime } from './core/transport';
@@ -644,10 +644,7 @@ export default function App() {
       const incoming = defaultClip(asset.name, asset.id, time, duration);
       addedClipId = incoming.id;
 
-      const selectedTrack = selectedTrackId
-        ? p.tracks.find((track) => track.id === selectedTrackId && track.kind === kind && !track.locked)
-        : undefined;
-      const target = selectedTrack ?? p.tracks.find((track) => track.kind === kind && !track.locked);
+      const target = targetTrackForKind(p, kind, selectedTrackId);
 
       if (mode === 'overwrite') {
         return target ? overwriteClipAt(p, target.id, incoming, time) : placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
@@ -1430,6 +1427,7 @@ export default function App() {
         onToggleMuteTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, muted: !t.muted } : t) }), { label: 'トラックミュート' })}
         onToggleSoloTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, solo: !t.solo } : t) }), { label: 'トラックSolo' })}
         onToggleVisibleTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, visible: t.visible === false } : t) }), { label: 'トラック表示' })}
+        onToggleTargetTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, targeted: !t.targeted } : t) }), { label: 'トラックターゲット切替' })}
         onToggleSyncLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, syncLock: t.syncLock === false } : t) }), { label: '同期ロック切替' })}
         onToggleLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, locked: !t.locked } : t) }), { label: 'トラックロック' })}
       />
