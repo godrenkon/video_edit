@@ -17,7 +17,7 @@ import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClip
 import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
 import { addPunchInVoiceover } from './core/punchInVoiceover';
 import { loadShortcutOverrides, saveShortcutOverrides, shortcutMatches, type ShortcutOverrides } from './core/shortcuts';
-import { overwriteClipAt } from './core/editModes';
+import { insertClipAt, overwriteClipAt } from './core/editModes';
 import { placeClipOnAvailableTrack } from './core/freePlacement';
 import { analyzeMouthCues, buildAssetMeta, mergeRelinkedAsset } from './core/media';
 import {
@@ -633,7 +633,7 @@ export default function App() {
     }
   }, [rendering]);
 
-  const addAssetToTimeline = (assetId: string, mode: 'insert' | 'overwrite') => {
+  const addAssetToTimeline = (assetId: string, mode: 'place' | 'insert' | 'overwrite') => {
     if (rendering) return;
     let addedClipId: string | null = null;
     updateProject((p) => {
@@ -644,16 +644,20 @@ export default function App() {
       const incoming = defaultClip(asset.name, asset.id, time, duration);
       addedClipId = incoming.id;
 
+      const selectedTrack = selectedTrackId
+        ? p.tracks.find((track) => track.id === selectedTrackId && track.kind === kind && !track.locked)
+        : undefined;
+      const target = selectedTrack ?? p.tracks.find((track) => track.kind === kind && !track.locked);
+
       if (mode === 'overwrite') {
-        const selectedTrack = selectedTrackId
-          ? p.tracks.find((track) => track.id === selectedTrackId && track.kind === kind && !track.locked)
-          : undefined;
-        const target = selectedTrack ?? p.tracks.find((track) => track.kind === kind && !track.locked);
         return target ? overwriteClipAt(p, target.id, incoming, time) : placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
+      }
+      if (mode === 'insert') {
+        return target ? insertClipAt(p, target.id, incoming, time, 'sync-lock') : placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
       }
 
       return placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
-    }, { label: mode === 'overwrite' ? '上書き編集' : '素材を配置' });
+    }, { label: mode === 'overwrite' ? '上書き編集' : mode === 'insert' ? '挿入編集' : '素材を配置' });
     if (addedClipId) {
       setSelectedClipId(addedClipId);
       setSelectedClipIds([addedClipId]);
