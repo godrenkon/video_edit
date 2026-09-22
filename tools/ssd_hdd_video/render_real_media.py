@@ -354,8 +354,22 @@ def pool_for(section,text):
         return ["ram_ddr4","motherboard","m2_installed","ssd_install","sata_ssd","hdd_side","external_ssd","external_hdds"]
     return ["external_ssd","sata_ssd","nvme_m2","hdd_open_photo","hdd_side","m2_installed","sata_vs_nvme","external_hdds","motherboard"]
 
-def semantic_asset_ok(text, asset_id):
+def contextual_pool(section, phrase_text, source_text=None):
+    # Keep the technical subject of the whole sentence even after it is split
+    # into shorter subtitle/visual phrases.
+    strong=strong_media_for(phrase_text)
+    if strong:
+        return strong
+    if source_text and source_text != phrase_text:
+        strong=strong_media_for(source_text)
+        if strong:
+            return strong
+    return pool_for(section,phrase_text)
+
+def semantic_asset_ok(text, asset_id, source_text=None):
     strong=strong_media_for(text)
+    if not strong and source_text and source_text != text:
+        strong=strong_media_for(source_text)
     if not strong:
         return True
     return asset_id in set(strong)
@@ -437,9 +451,11 @@ def fit_image_filter():
 def render_event(ev,out,zundamon):
     dur=ev["en"]-ev["st"]
     text=ev["row"]["text"]
-    # If narration explicitly says both SSD and HDD, show both real devices
-    # at the same time instead of illustrating only one side.
-    if "SSD" in text and "HDD" in text:
+    source_text=ev["row"].get("source_text",text)
+    # If the full narration sentence explicitly compares SSD and HDD, keep
+    # both real devices on screen even if the current short phrase only
+    # contains one of the two terms.
+    if "SSD" in source_text and "HDD" in source_text:
         src=make_ssd_hdd_compare(ev["n"])
     else:
         src=asset(ev["asset"])
@@ -591,7 +607,7 @@ for row in rows:
         phrase_row["text"]=seg["text"]
         segdur=seg["en"]-seg["st"]
         slots=max(1,math.ceil(segdur/3.35))
-        pool=[x for x in pool_for(row["section"],seg["text"]) if optional_asset(x)]
+        pool=[x for x in contextual_pool(row["section"],seg["text"],row["text"]) if optional_asset(x)]
         if not pool:
             pool=[x for x in STORAGE_MEDIA if optional_asset(x)]
         if not pool:
@@ -637,7 +653,7 @@ if too_long:
 semantic_bad=[
     (e["n"],e["asset"],e["row"]["text"])
     for e in events
-    if not semantic_asset_ok(e["row"]["text"],e["asset"])
+    if not semantic_asset_ok(e["row"]["text"],e["asset"],e["row"].get("source_text"))
 ]
 if semantic_bad:
     raise RuntimeError("semantic media mismatch: "+repr(semantic_bad[:20]))
