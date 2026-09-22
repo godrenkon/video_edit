@@ -41,8 +41,8 @@ interface Props {
   onToggleMuteTrack: (trackId: string) => void;
   onToggleSoloTrack: (trackId: string) => void;
   onToggleVisibleTrack: (trackId: string) => void;
-  onToggleTargetTrack: (trackId: string) => void;
-  onToggleSyncLockTrack: (trackId: string) => void;
+  onToggleTargetTrack: (trackId: string, sameKind: boolean) => void;
+  onToggleSyncLockTrack: (trackId: string, sameKind: boolean) => void;
   onToggleLockTrack: (trackId: string) => void;
 }
 
@@ -241,14 +241,15 @@ export function Timeline(props: Props) {
               {track.kind !== 'audio' && <button className={`miniBtn ${track.visible === false ? '' : 'active'}`} onClick={() => onToggleVisibleTrack(track.id)} title={track.visible === false ? '表示' : '非表示'}>{track.visible === false ? <EyeOff size={13} /> : <Eye size={13} />}</button>}
               <button
                 className={`miniBtn ${track.targeted ? 'active' : ''}`}
-                onClick={() => onToggleTargetTrack(track.id)}
-                title={track.targeted ? 'ターゲット解除' : '編集ターゲットに指定'}
+                onClick={(event) => onToggleTargetTrack(track.id, event.shiftKey)}
+                disabled={track.locked}
+                title={track.locked ? 'ロック中のトラックはターゲットにできません' : track.targeted ? 'ターゲット解除 / Shift+クリックで同種トラックを一括解除' : '編集ターゲットに指定 / Shift+クリックで同種トラックを一括指定'}
                 aria-pressed={Boolean(track.targeted)}
               >T</button>
               <button
                 className={`miniBtn ${track.syncLock === false ? '' : 'active'}`}
-                onClick={() => onToggleSyncLockTrack(track.id)}
-                title={track.syncLock === false ? '同期ロックを有効化' : '同期ロックを解除'}
+                onClick={(event) => onToggleSyncLockTrack(track.id, event.shiftKey)}
+                title={track.syncLock === false ? '同期ロックを有効化 / Shift+クリックで同種トラックを一括有効化' : '同期ロックを解除 / Shift+クリックで同種トラックを一括解除'}
                 aria-pressed={track.syncLock !== false}
               >SL</button>
               <button className="miniBtn" onClick={() => onToggleLockTrack(track.id)} title={track.locked ? 'ロック解除' : 'ロック'}>{track.locked ? <Lock size={13} /> : <Unlock size={13} />}</button>
