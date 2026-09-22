@@ -467,7 +467,7 @@ def render_event(ev,out,zundamon):
       "[base]drawbox=x=0:y=0:w=iw:h=ih:color=black@0.10:t=fill[b0]",
       f"[1:v]format=rgba,setpts=PTS-STARTPTS[ov];[b0][ov]overlay=0:0[b1]",
       "[2:v]format=rgba,scale=-1:560,setpts=PTS-STARTPTS[z]",
-      f"[b1][z]overlay=x='{zx}':y='{zy}':format=auto,fade=t=in:st=0:d=0.10,fade=t=out:st={max(0,dur-.10):.3f}:d=0.10,format=yuv420p[v]"
+      f"[b1][z]overlay=x='{zx}':y='{zy}':format=auto,format=yuv420p[v]"
     ]
     cmd += ["-filter_complex",";".join(fc),"-map","[v]","-t",f"{dur:.3f}","-r",str(FPS),
             "-an","-c:v","libx264","-preset","ultrafast","-crf","15",out]
