@@ -308,6 +308,20 @@ body.resizingPanels * {
   border: 0;
   background: var(--line);
 }
+.previewHitTarget {
+  position: absolute;
+  z-index: 70;
+  display: block;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: transparent;
+  cursor: default;
+  touch-action: none;
+}
+.previewHitTarget:hover { outline: 1px solid rgba(105, 220, 255, .42); }
+.previewHitTarget.selected { pointer-events: none; }
 .previewSelectionBox {
   position: absolute;
   z-index: 80;
