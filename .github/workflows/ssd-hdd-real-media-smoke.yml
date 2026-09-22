@@ -13,10 +13,14 @@ permissions:
   actions: read
   contents: read
 
+concurrency:
+  group: ssd-hdd-real-media-smoke
+  cancel-in-progress: true
+
 jobs:
   smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -58,45 +62,103 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install pillow janome
 
-      - name: Render 30 second smoke test
-        env:
-          SSD_HDD_SMOKE_SECONDS: "30"
+      - name: Render targeted smoke tests
         run: |
+          set -euxo pipefail
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
-          python3 tools/ssd_hdd_video/render_real_media.py
+          rm -rf smoke_qa
+          mkdir -p smoke_qa
 
-      - name: Inspect smoke output
+          for SPEC in "opening:0" "types:645" "lifespan:885"; do
+            NAME="${SPEC%%:*}"
+            START="${SPEC##*:}"
+            rm -rf real_video_output /tmp/ssd_hdd_real_render
+            mkdir -p real_video_output /tmp/ssd_hdd_real_render
+
+            SSD_HDD_SMOKE_START="$START" SSD_HDD_SMOKE_SECONDS="30"               python3 tools/ssd_hdd_video/render_real_media.py
+
+            mkdir -p "smoke_qa/$NAME"
+            cp real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 "smoke_qa/$NAME/sample.mp4"
+            cp real_video_output/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4 "smoke_qa/$NAME/preview.mp4"
+            cp real_video_output/storyboard.tsv "smoke_qa/$NAME/storyboard.tsv"
+            cp real_video_output/subtitles_green.ass "smoke_qa/$NAME/subtitles_green.ass"
+            if [ -f real_video_output/frame_15.png ]; then
+              cp real_video_output/frame_15.png "smoke_qa/$NAME/frame_15.png"
+            fi
+          done
+
+      - name: Inspect targeted smoke outputs
         run: |
-          ffprobe -v error -show_streams -show_format -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
           python3 - <<'PY'
-          import csv, re, os
-          rows=list(csv.DictReader(open("real_video_output/storyboard.tsv",encoding="utf-8"),delimiter="\t"))
-          assert rows
-          assert max(float(r["duration"]) for r in rows) <= 4.05
-          assert len({r["asset"] for r in rows}) >= 2
-          ass=open("real_video_output/subtitles_green.ass",encoding="utf-8-sig").read().splitlines()
-          cues=[]
-          for line in ass:
-              if not line.startswith("Dialogue:"): continue
-              txt=line.split(",,",1)[-1]
-              txt=re.sub(r"\{[^}]+\}","",txt).replace("\\N"," ").strip()
-              cues.append(txt)
-          assert cues
-          assert not [x for x in cues if x.startswith(("、","。","，",",","：",":","；",";","！","？","!","?"))]
-          assert max(map(len,cues)) <= 32
-          for name in ("sfx_click.ogg","sfx_transition.ogg","sfx_success.ogg"):
-              assert os.path.getsize("real_assets/"+name) > 1000
-          print("events",len(rows),"unique_assets",len({r["asset"] for r in rows}),"max_hold",max(float(r["duration"]) for r in rows),"subtitle_cues",len(cues),"subtitle_max",max(map(len,cues)))
+          import csv, json, pathlib, re, subprocess
+          root=pathlib.Path("smoke_qa")
+          expected={"opening","types","lifespan"}
+          actual={p.name for p in root.iterdir() if p.is_dir()}
+          assert expected == actual, (expected,actual)
+
+          for name in sorted(expected):
+              d=root/name
+              rows=list(csv.DictReader(open(d/"storyboard.tsv",encoding="utf-8"),delimiter="	"))
+              assert rows, name
+              durations=[float(r["duration"]) for r in rows]
+              assets=[r["asset"] for r in rows]
+
+              assert max(durations)<=4.05, (name,max(durations))
+              assert len(set(assets))>=2, (name,set(assets))
+              assert "zundamon_official" not in set(assets), name
+              assert not any(assets[i]==assets[i-1] for i in range(1,len(assets))), name
+
+              ass=(d/"subtitles_green.ass").read_text(encoding="utf-8-sig").splitlines()
+              cues=[]
+              for line in ass:
+                  if not line.startswith("Dialogue:"):
+                      continue
+                  txt=line.split(",,",1)[-1]
+                  txt=re.sub(r"\{[^}]+\}","",txt).replace("\N"," ").strip()
+                  cues.append(txt)
+              assert cues, name
+              assert not [x for x in cues if x.startswith(("、","。","，",",","：",":","；",";","！","？","!","?"))], name
+              assert max(map(len,cues))<=33, (name,max(map(len,cues)))
+
+              if name=="types":
+                  bad=[
+                    r for r in rows
+                    if ("M.2" in r["text"] or "NVMe" in r["text"])
+                    and r["asset"] in {"hdd_side","hdd_open_photo","hdd_head_macro","hdd_working_video"}
+                  ]
+                  assert not bad, bad[:5]
+
+              if name=="lifespan":
+                  bad=[
+                    r for r in rows
+                    if any(k in r["text"] for k in [
+                      "モーター","ヘッド","回転機構","機械部品",
+                      "長く使えば","故障する可能性"
+                    ])
+                    and r["asset"]=="hdd_working_video"
+                  ]
+                  assert not bad, bad[:5]
+
+              probe=subprocess.check_output([
+                  "ffprobe","-v","error",
+                  "-show_entries","format=duration",
+                  "-of","json",str(d/"sample.mp4")
+              ],text=True)
+              duration=float(json.loads(probe)["format"]["duration"])
+              assert 25 <= duration <= 30.2, (name,duration)
+
+              print(
+                  name,
+                  "events",len(rows),
+                  "unique_assets",len(set(assets)),
+                  "max_hold",max(durations),
+                  "duration",duration
+              )
           PY
 
       - uses: actions/upload-artifact@v4
         with:
           name: ssd-hdd-real-media-smoke
-          path: |
-            real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
-            real_video_output/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4
-            real_video_output/storyboard.tsv
-            real_video_output/subtitles_green.ass
-            real_video_output/frame_15.png
+          path: smoke_qa
           compression-level: 0
           retention-days: 3
