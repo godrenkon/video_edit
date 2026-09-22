@@ -29,9 +29,13 @@ describe('SMPTE timecode', () => {
     expect(formatSmpteTimecode(107892 / rate, rate, true)).toBe('01:00:00;00');
   });
 
-  it('uses professional drop-frame display automatically for 29.97 and 59.94 sequences', () => {
-    expect(formatEditorTimecode(1800 / (30000 / 1001), 29.97)).toBe('00:01:00;02');
-    expect(formatEditorTimecode(3600 / (60000 / 1001), 59.94)).toBe('00:01:00;04');
+  it('supports explicit DF and NDF sequence display modes', () => {
+    const rate2997 = 30000 / 1001;
+    const rate5994 = 60000 / 1001;
+    expect(formatEditorTimecode(1800 / rate2997, rate2997, 'drop-frame')).toBe('00:01:00;02');
+    expect(formatEditorTimecode(1800 / rate2997, rate2997, 'non-drop-frame')).toBe('00:01:00:00');
+    expect(formatEditorTimecode(3600 / rate5994, rate5994, 'drop-frame')).toBe('00:01:00;04');
+    expect(formatEditorTimecode(1800 / rate2997, rate2997)).toBe('00:01:00;02');
   });
 
   it('parses valid timecode and rejects frame numbers that do not exist in drop-frame notation', () => {
