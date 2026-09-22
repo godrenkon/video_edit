@@ -259,6 +259,69 @@
       "license": "CC0",
       "credit": "Sucesso — Rafael Tavares Juliani",
       "use": "ending accent"
+    },
+    {
+      "id": "laptop_hdd_open",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Laptop-hard-drive-exposed.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Laptop-hard-drive-exposed.jpg?width=1600",
+      "license": "Public Domain",
+      "credit": "Evan-Amos / Vanamo Media",
+      "use": "opened 2.5-inch laptop HDD"
+    },
+    {
+      "id": "hdd_size_compare",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Comparison_of_3.5_and_2.5_inch_hard_drives.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Comparison_of_3.5_and_2.5_inch_hard_drives.jpg?width=1600",
+      "license": "CC BY-SA 3.0",
+      "credit": "MaxVT",
+      "use": "2.5-inch vs 3.5-inch HDD comparison"
+    },
+    {
+      "id": "nas_drive_bay",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Synology_NAS_HDD_Drive_Tray.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Synology_NAS_HDD_Drive_Tray.jpg?width=1600",
+      "license": "CC BY 2.0",
+      "credit": "Tony Webster",
+      "use": "NAS HDD drive tray"
+    },
+    {
+      "id": "laptop_nvme",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:ExpressCard_to_M.2_NVMe_SSD_adapter_installed_in_Lenovo_ThinkPad_X220_ExpressCard_slot_bay.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/ExpressCard_to_M.2_NVMe_SSD_adapter_installed_in_Lenovo_ThinkPad_X220_ExpressCard_slot_bay.jpg?width=1600",
+      "license": "CC BY-SA 4.0",
+      "credit": "Siarhei V",
+      "use": "M.2 NVMe SSD installed in an opened laptop"
+    },
+    {
+      "id": "hdd_ssd_disassembled",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Disassembled_HDD_and_SSD.JPG",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Disassembled_HDD_and_SSD.JPG?width=1600",
+      "license": "CC BY-SA 2.5",
+      "credit": "Rochellesinger",
+      "use": "disassembled HDD and SSD physical comparison"
+    },
+    {
+      "id": "crucial_ssd",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:Crucial_SSD_MX300_525GB-8478.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Crucial_SSD_MX300_525GB-8478.jpg?width=1600",
+      "license": "CC BY-SA 4.0",
+      "credit": "Raimond Spekking",
+      "use": "2.5-inch SATA SSD real product photo"
+    },
+    {
+      "id": "hdd_disassembly",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:HDD_Disassembly.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/HDD_Disassembly.jpg?width=1600",
+      "license": "CC BY-SA 4.0",
+      "credit": "Ablomme1",
+      "use": "fully disassembled HDD components"
     }
   ]
 }
