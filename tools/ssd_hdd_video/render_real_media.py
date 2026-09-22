@@ -693,6 +693,80 @@ for row in rows:
             last_asset=a
     cur=row["en"]
 
+def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
+    """Merge blink-fast shots without breaking narration/media semantics.
+
+    Only merge within the same narration source sentence. The surviving
+    neighbor's asset must also be valid for the short event's phrase.
+    """
+    events=[dict(e) for e in events]
+    changed=True
+    while changed:
+        changed=False
+        i=0
+        while i < len(events):
+            e=events[i]
+            dur=e["en"]-e["st"]
+            if dur >= min_dur:
+                i+=1
+                continue
+
+            src=e.get("source_idx")
+            # Prefer merging into the previous visual so time remains contiguous.
+            if i>0:
+                p=events[i-1]
+                combined=e["en"]-p["st"]
+                if (
+                    p.get("source_idx")==src and
+                    combined <= max_dur and
+                    semantic_asset_ok(
+                        e["row"]["text"], p["asset"],
+                        e["row"].get("source_text")
+                    )
+                ):
+                    p["en"]=e["en"]
+                    del events[i]
+                    changed=True
+                    continue
+
+            # Otherwise absorb into the following visual.
+            if i+1 < len(events):
+                q=events[i+1]
+                combined=q["en"]-e["st"]
+                if (
+                    q.get("source_idx")==src and
+                    combined <= max_dur and
+                    semantic_asset_ok(
+                        e["row"]["text"], q["asset"],
+                        e["row"].get("source_text")
+                    )
+                ):
+                    q["st"]=e["st"]
+                    del events[i]
+                    changed=True
+                    continue
+
+            i+=1
+
+    # Renumber after deletions. Also repair accidental adjacent repetition
+    # created by a merge by keeping the first visual for the combined span.
+    repaired=[]
+    for e in events:
+        if (
+            repaired and
+            repaired[-1]["asset"]==e["asset"] and
+            repaired[-1].get("source_idx")==e.get("source_idx") and
+            e["en"]-repaired[-1]["st"] <= max_dur
+        ):
+            repaired[-1]["en"]=e["en"]
+        else:
+            repaired.append(e)
+
+    for n,e in enumerate(repaired):
+        e["n"]=n
+    return repaired
+
+
 # final 8 sec: actual hardware montage in 2-second cuts, then next-video title.
 ending_row={"section":"次回","text":"次回 SSDとHDDの歴史","idx":9999}
 for a in [x for x in ["hdd_open_photo","ssd_controller","nvme_m2","sata_ssd"] if optional_asset(x)]:
@@ -705,10 +779,23 @@ if cur<total:
         raise RuntimeError("no real-media asset available for ending")
     events.append({"n":n,"st":cur,"en":total,"asset":a,"slot":0,"row":ending_row})
 
+# Remove blink-fast visual changes while preserving semantic alignment.
+events=coalesce_short_events(events,min_dur=0.95,max_dur=4.05)
+
 # QA guard: no visual event longer than 4.05 s except if total ending cannot be split.
 too_long=[e for e in events if e["en"]-e["st"]>4.05]
 if too_long:
     raise RuntimeError("visual hold exceeds 4.05s: "+repr([(e["n"],e["en"]-e["st"]) for e in too_long[:10]]))
+
+blink_fast=[
+    e for e in events
+    if e["en"]-e["st"] < 0.80 and e["row"]["section"]!="次回"
+]
+if blink_fast:
+    raise RuntimeError(
+        "blink-fast visual event below 0.80s: "+
+        repr([(e["n"],e["en"]-e["st"],e["row"]["text"]) for e in blink_fast[:10]])
+    )
 
 semantic_bad=[
     (e["n"],e["asset"],e["row"]["text"])
