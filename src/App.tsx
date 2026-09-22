@@ -83,6 +83,9 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mediaFocus, setMediaFocus] = useState<{ assetId?: string; binId?: string; token: number }>({ token: 0 });
   const [shortcutOverrides, setShortcutOverrides] = useState<ShortcutOverrides>(() => loadShortcutOverrides());
+  const [mediaWidth, setMediaWidth] = useState(300);
+  const [inspectorWidth, setInspectorWidth] = useState(320);
+  const [timelineHeight, setTimelineHeight] = useState(300);
   const capabilities = useMemo(() => detectCapabilities(), []);
   const playbackOrigin = useRef<{ wallMs: number; time: number } | null>(null);
   const timeRef = useRef(0);
@@ -283,6 +286,18 @@ export default function App() {
         clips: track.clips.map((clip) => clip.id === clipId ? { ...clip, ...patch } : clip),
       })),
     }), { label, key: historyKey ?? `clip:${clipId}` });
+  }, [updateProject]);
+
+  const updateClipTransform = useCallback((clipId: string, patch: Partial<Clip['transform']>) => {
+    updateProject((p) => ({
+      ...p,
+      tracks: p.tracks.map((track) => ({
+        ...track,
+        clips: track.clips.map((clip) => clip.id === clipId
+          ? { ...clip, transform: { ...clip.transform, ...patch } }
+          : clip),
+      })),
+    }), { label: 'プレビュー変形', key: `clip:${clipId}:preview-transform` });
   }, [updateProject]);
 
   const undo = useCallback(() => {
@@ -569,37 +584,39 @@ export default function App() {
 
   const addAssetToTimeline = (assetId: string, mode: 'insert' | 'overwrite') => {
     if (rendering) return;
+    let addedClipId: string | null = null;
     updateProject((p) => {
       const asset = p.assets.find((item) => item.id === assetId);
       if (!asset) return p;
       const kind = trackKindForAsset(asset.kind);
-      const selectedTrack = selectedTrackId
-        ? p.tracks.find((track) => track.id === selectedTrackId && track.kind === kind && !track.locked)
-        : undefined;
-      const target = selectedTrack ?? p.tracks.find((track) => track.kind === kind && !track.locked);
-      if (!target) return p;
       const duration = asset.kind === 'image' ? 5 : Math.max(0.1, asset.duration);
       const incoming = defaultClip(asset.name, asset.id, time, duration);
-      return mode === 'overwrite'
-        ? overwriteClipAt(p, target.id, incoming, time)
-        : insertClipAt(p, target.id, incoming, time);
-    }, { label: mode === 'overwrite' ? '上書き編集' : '挿入編集' });
+      addedClipId = incoming.id;
+
+      if (mode === 'overwrite') {
+        const selectedTrack = selectedTrackId
+          ? p.tracks.find((track) => track.id === selectedTrackId && track.kind === kind && !track.locked)
+          : undefined;
+        const target = selectedTrack ?? p.tracks.find((track) => track.kind === kind && !track.locked);
+        return target ? overwriteClipAt(p, target.id, incoming, time) : placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
+      }
+
+      return placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
+    }, { label: mode === 'overwrite' ? '上書き編集' : '素材を配置' });
+    if (addedClipId) {
+      setSelectedClipId(addedClipId);
+      setSelectedClipIds([addedClipId]);
+    }
+    setPlaying(false);
   };
 
   const addSyntheticClip = useCallback((clip: Clip, trackKind: TrackKind, label: string) => {
     if (rendering) return;
-    const target = project.tracks.find((track) => track.kind === trackKind && !track.locked);
-    if (!target) {
-      setSaveState(`${label}: 使用できる${trackKind}トラックがありません`);
-      return;
-    }
-    updateProject((p) => ({
-      ...p,
-      tracks: p.tracks.map((track) => track.id === target.id ? { ...track, clips: [...track.clips, clip] } : track),
-    }), { label });
+    updateProject((p) => placeClipOnAvailableTrack(p, clip, trackKind, selectedTrackId), { label });
     setSelectedClipId(clip.id);
+    setSelectedClipIds([clip.id]);
     setPlaying(false);
-  }, [project.tracks, rendering, updateProject]);
+  }, [rendering, selectedTrackId, updateProject]);
 
   const createText = useCallback(() => {
     addSyntheticClip(defaultTextClip(time), 'overlay', 'テキストを追加');
@@ -926,7 +943,7 @@ export default function App() {
     setZBusy(true);
     setSaveState(request.timingCues?.length ? 'VOICEVOX timingを反映中…' : 'ずんだもん音声解析中…');
     try {
-      const { timingCues, subtitlePayload, ...zundamonRequest } = request;
+      const { timingCues, subtitlePayload, x, y, scale, ...zundamonRequest } = request;
       let cues = timingCues;
       if (!cues?.length) {
         let blob: Blob;
@@ -944,7 +961,15 @@ export default function App() {
         inPoint: 0,
         volume: 1,
         muted: false,
-        transform: { x: 0, y: 0, scale: 0.82, rotation: 0, opacity: 1, anchorX: 0.5, anchorY: 0.5 },
+        transform: {
+          x: Number.isFinite(x) ? x : 0,
+          y: Number.isFinite(y) ? y : 0,
+          scale: Number.isFinite(scale) ? Math.max(0.05, scale) : 0.82,
+          rotation: 0,
+          opacity: 1,
+          anchorX: 0.5,
+          anchorY: 0.5,
+        },
         blendMode: 'normal',
         speed: 1,
         reverse: false,
@@ -960,20 +985,13 @@ export default function App() {
           }
         : null;
       updateProject((p) => {
-        const overlay = p.tracks.find((t) => t.kind === 'overlay');
-        const audioTrack = p.tracks.find((t) => t.kind === 'audio');
-        const subtitleTrack = p.tracks.find((t) => t.kind === 'subtitle' && !t.locked);
-        return {
-          ...p,
-          tracks: p.tracks.map((track) => {
-            if (track.id === overlay?.id) return { ...track, clips: [...track.clips, zClip] };
-            if (track.id === audioTrack?.id) return { ...track, clips: [...track.clips, audioClip] };
-            if (subtitleClip && track.id === subtitleTrack?.id) return { ...track, clips: [...track.clips, subtitleClip] };
-            return track;
-          }),
-        };
+        let next = placeClipOnAvailableTrack(p, zClip, 'overlay');
+        next = placeClipOnAvailableTrack(next, audioClip, 'audio');
+        if (subtitleClip) next = placeClipOnAvailableTrack(next, subtitleClip, 'subtitle');
+        return next;
       }, { label: subtitleClip ? 'ずんだもん + VOICEVOX字幕を生成' : 'ずんだもんを生成' });
       setSelectedClipId(zClip.id);
+      setSelectedClipIds([zClip.id]);
       setSaveState(`${timingCues?.length ? 'VOICEVOX timing' : '音声解析'} / 口パク ${cues.length} 点${subtitleClip ? ' + 字幕' : ''}を生成`);
     } catch (error) {
       console.error(error);
@@ -1026,7 +1044,11 @@ export default function App() {
         <div className="warningBar"><AlertTriangle size={16} />このブラウザではOPFSが利用できないため、素材の永続保存が制限されます。Chrome系ブラウザ推奨です。</div>
       )}
 
-      <main className="editorGrid" aria-busy={rendering}>
+      <main
+        className="editorGrid"
+        aria-busy={rendering}
+        style={{ gridTemplateColumns: `${mediaWidth}px 6px minmax(0,1fr) 6px ${inspectorWidth}px` }}
+      >
         <MediaLibrary
           assets={project.assets}
           assetBins={project.assetBins ?? []}
@@ -1056,11 +1078,38 @@ export default function App() {
           onCreateSubtitle={createSubtitle}
           onCreateGenerator={createGenerator}
         />
+        <div
+          className="panelResizeHandle vertical"
+          role="separator"
+          aria-orientation="vertical"
+          title="メディアパネルの幅を変更"
+          onPointerDown={(event) => startPointerResize(event.clientX, mediaWidth, setMediaWidth, 1, 210, 520, 'x')}
+        />
         <div className="centerColumn">
-          <Preview project={project} time={time} playing={playing} onTogglePlay={() => setPlaying((v) => !v)} onTime={(v) => setTime(Math.max(0, Math.min(project.duration, v)))} />
+          <Preview
+            project={project}
+            time={time}
+            playing={playing}
+            selectedClipId={selectedClipId}
+            onSelectClip={(clipId) => {
+              setPlaying(false);
+              selectClip(clipId, false);
+            }}
+            onClearSelection={clearClipSelection}
+            onTransformClip={updateClipTransform}
+            onTogglePlay={() => setPlaying((v) => !v)}
+            onTime={(v) => setTime(Math.max(0, Math.min(project.duration, v)))}
+          />
           <ZundamonPanel assets={project.assets} busy={zBusy} onGenerate={generateZundamon} />
           <EngineStatus capabilities={capabilities} storageText={storageText} />
         </div>
+        <div
+          className="panelResizeHandle vertical"
+          role="separator"
+          aria-orientation="vertical"
+          title="インスペクターの幅を変更"
+          onPointerDown={(event) => startPointerResize(event.clientX, inspectorWidth, setInspectorWidth, -1, 250, 540, 'x')}
+        />
         <Inspector
           project={project}
           selectedClip={selectedClip}
@@ -1083,6 +1132,14 @@ export default function App() {
         />
       </main>
 
+      <div
+        className="panelResizeHandle horizontal"
+        role="separator"
+        aria-orientation="horizontal"
+        title="タイムラインの高さを変更"
+        onPointerDown={(event) => startPointerResize(event.clientY, timelineHeight, setTimelineHeight, -1, 180, 560, 'y')}
+      />
+      <div className="timelineSlot" style={{ height: timelineHeight }}>
       <Timeline
         project={project}
         time={time}
@@ -1135,8 +1192,71 @@ export default function App() {
         onToggleMuteTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, muted: !t.muted } : t) }), { label: 'トラックミュート' })}
         onToggleLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, locked: !t.locked } : t) }), { label: 'トラックロック' })}
       />
+      </div>
     </div>
   );
+}
+
+function placeClipOnAvailableTrack(project: Project, clip: Clip, kind: TrackKind, preferredTrackId?: string | null): Project {
+  const overlaps = (candidate: Clip) => {
+    const candidateEnd = candidate.start + candidate.duration;
+    const clipEnd = clip.start + clip.duration;
+    return candidate.start < clipEnd - 0.0001 && candidateEnd > clip.start + 0.0001;
+  };
+  const tracks = project.tracks;
+  const preferred = preferredTrackId
+    ? tracks.find((track) => track.id === preferredTrackId && track.kind === kind && !track.locked && !track.clips.some(overlaps))
+    : undefined;
+  const free = preferred ?? tracks.find((track) => track.kind === kind && !track.locked && !track.clips.some(overlaps));
+
+  if (free) {
+    return {
+      ...project,
+      tracks: tracks.map((track) => track.id === free.id ? { ...track, clips: [...track.clips, clip] } : track),
+    };
+  }
+
+  const sameKindCount = tracks.filter((track) => track.kind === kind).length;
+  const id = uid('track');
+  const label = kind === 'video' ? 'ビデオ' : kind === 'audio' ? 'オーディオ' : kind === 'subtitle' ? '字幕' : 'オーバーレイ';
+  const created = {
+    id,
+    name: `${label} ${sameKindCount + 1}`,
+    kind,
+    muted: false,
+    locked: false,
+    visible: true,
+    clips: [clip],
+  };
+  const firstSameKind = tracks.findIndex((track) => track.kind === kind);
+  if (firstSameKind < 0) return { ...project, tracks: [...tracks, created] };
+  return {
+    ...project,
+    tracks: [...tracks.slice(0, firstSameKind), created, ...tracks.slice(firstSameKind)],
+  };
+}
+
+function startPointerResize(
+  startPointer: number,
+  startSize: number,
+  setSize: (value: number) => void,
+  direction: 1 | -1,
+  min: number,
+  max: number,
+  axis: 'x' | 'y',
+) {
+  const move = (event: PointerEvent) => {
+    const pointer = axis === 'x' ? event.clientX : event.clientY;
+    setSize(Math.max(min, Math.min(max, startSize + (pointer - startPointer) * direction)));
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    document.body.classList.remove('resizingPanels');
+  };
+  document.body.classList.add('resizingPanels');
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up, { once: true });
 }
 
 function EngineStatus({ capabilities, storageText }: { capabilities: ReturnType<typeof detectCapabilities>; storageText: string }) {
