@@ -13,30 +13,28 @@ export function beginEditorSession() {
   if (initialUncleanObservation === null) {
     initialUncleanObservation = previous?.status === 'open';
   }
-
-  const now = Date.now();
-  const current: SessionState = { status: 'open', startedAt: now, updatedAt: now };
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(current));
-  } catch {
-    return initialUncleanObservation;
-  }
+  markEditorSessionDirty();
   return initialUncleanObservation;
+}
+
+export function markEditorSessionDirty() {
+  const previous = readSessionState();
+  const now = Date.now();
+  writeSessionState({
+    status: 'open',
+    startedAt: previous?.startedAt ?? now,
+    updatedAt: now,
+  });
 }
 
 export function markEditorSessionClean() {
   const previous = readSessionState();
   const now = Date.now();
-  const clean: SessionState = {
+  writeSessionState({
     status: 'clean',
     startedAt: previous?.startedAt ?? now,
     updatedAt: now,
-  };
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(clean));
-  } catch {
-    // A blocked localStorage should not prevent the editor from closing.
-  }
+  });
 }
 
 export function editorSessionWasUnclean() {
@@ -58,5 +56,14 @@ function readSessionState(): SessionState | null {
     };
   } catch {
     return null;
+  }
+}
+
+
+function writeSessionState(state: SessionState) {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(state));
+  } catch {
+    // A blocked localStorage should not affect editor availability.
   }
 }
