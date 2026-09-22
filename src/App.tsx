@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles } from 'lucide-react';
 import { rippleTrimClip, rollEditBoundary, slideEditClip } from './core/advancedTimelineOps';
 import { addAssetBin, assignAssetBin, removeAssetBin, renameAssetBin } from './core/assetBins';
@@ -50,13 +50,14 @@ import { deleteAssetStorageBeforeInvalidation, replaceRelinkedAssetStorage } fro
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
-import { RecoveryDialog } from './components/RecoveryDialog';
-import { SearchEverythingPalette } from './components/SearchEverythingPalette';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
 import { ZundamonPanel } from './components/ZundamonPanel';
 import type { ZundamonRequest } from './components/ZundamonPanel';
 import type { Clip, Project, TrackKind } from './types/editor';
+
+const RecoveryDialog = lazy(() => import('./components/RecoveryDialog').then((module) => ({ default: module.RecoveryDialog })));
+const SearchEverythingPalette = lazy(() => import('./components/SearchEverythingPalette').then((module) => ({ default: module.SearchEverythingPalette })));
 
 interface UpdateOptions {
   history?: boolean;
@@ -1008,26 +1009,28 @@ export default function App() {
 
   return (
     <div className="appShell">
-      {searchOpen && (
-        <SearchEverythingPalette
-          project={project}
-          open
-          onClose={() => setSearchOpen(false)}
-          onNavigate={navigateSearchResult}
-        />
-      )}
-      {showRecovery && (
-        <RecoveryDialog
-          snapshots={recoverySnapshots}
-          suspectedCrash={suspectedCrash}
-          busy={recoveryBusy}
-          onRestore={restoreSnapshot}
-          onDismiss={() => {
-            setShowRecovery(false);
-            setSaveState('現在の保存を使用');
-          }}
-        />
-      )}
+      <Suspense fallback={null}>
+        {searchOpen && (
+          <SearchEverythingPalette
+            project={project}
+            open
+            onClose={() => setSearchOpen(false)}
+            onNavigate={navigateSearchResult}
+          />
+        )}
+        {showRecovery && (
+          <RecoveryDialog
+            snapshots={recoverySnapshots}
+            suspectedCrash={suspectedCrash}
+            busy={recoveryBusy}
+            onRestore={restoreSnapshot}
+            onDismiss={() => {
+              setShowRecovery(false);
+              setSaveState('現在の保存を使用');
+            }}
+          />
+        )}
+      </Suspense>
 
       <TopBar
         projectName={project.name}
