@@ -593,14 +593,35 @@ rows=read_timestamps()
 voice=VOICE_DIR/"SSD_HDD_NARRATION_ZUNDAMON_48k.wav"
 full_total=probe_duration(voice)
 SMOKE_SECONDS=float(os.environ.get("SSD_HDD_SMOKE_SECONDS","0") or 0)
-total=min(full_total,SMOKE_SECONDS) if SMOKE_SECONDS>0 else full_total
+SMOKE_START=max(0.0,float(os.environ.get("SSD_HDD_SMOKE_START","0") or 0))
+
 if SMOKE_SECONDS>0:
+    smoke_end=min(full_total,SMOKE_START+SMOKE_SECONDS)
+    total=max(0.0,smoke_end-SMOKE_START)
     clipped=[]
     for r in rows:
-        if r["st"]>=total: break
-        x=dict(r); x["en"]=min(x["en"],total)
+        if r["en"]<=SMOKE_START:
+            continue
+        if r["st"]>=smoke_end:
+            break
+        x=dict(r)
+        x["st"]=max(r["st"],SMOKE_START)-SMOKE_START
+        x["en"]=min(r["en"],smoke_end)-SMOKE_START
         clipped.append(x)
     rows=clipped
+
+    # Trim the narration to the same window so targeted smoke samples stay in sync.
+    smoke_voice=WORK/"narration_smoke.wav"
+    run([
+        "ffmpeg","-y","-loglevel","error",
+        "-ss",f"{SMOKE_START:.3f}","-i",voice,
+        "-t",f"{total:.3f}",
+        "-ar","48000","-ac","1","-c:a","pcm_s24le",smoke_voice
+    ])
+    voice=smoke_voice
+else:
+    total=full_total
+
 zundamon=prepare_zundamon(asset("zundamon_official"))
 
 # Build global subtitles from the corrected narration timings.
