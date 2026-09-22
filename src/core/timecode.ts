@@ -1,3 +1,4 @@
+import type { ProjectTimecodeMode } from '../types/editor';
 import { frameIndexAt, normalizedFrameRate } from './timebase';
 
 export interface FrameRateSpec {
@@ -55,8 +56,14 @@ export function formatSmpteTimecode(
   return `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}${separator}${pad2(frames)}`;
 }
 
-export function formatEditorTimecode(timeSeconds: number, fps: number) {
-  return formatSmpteTimecode(timeSeconds, fps, supportsDropFrameTimecode(fps));
+export function formatEditorTimecode(
+  timeSeconds: number,
+  fps: number,
+  mode: ProjectTimecodeMode | 'auto' = 'auto',
+) {
+  const dropFrame = mode === 'drop-frame'
+    || (mode === 'auto' && supportsDropFrameTimecode(fps));
+  return formatSmpteTimecode(timeSeconds, fps, dropFrame);
 }
 
 export function parseSmpteTimecode(value: string, fps: number): number | null {
