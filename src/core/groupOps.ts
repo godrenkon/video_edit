@@ -1,7 +1,7 @@
 import type { Project } from '../types/editor';
 import { uid } from './project';
 
-export function groupSelectedClips(project: Project, clipIds: Iterable<string>) {
+export function groupSelectedClips(project: Project, clipIds: Iterable<string>, requestedGroupId?: string) {
   const selected = new Set(clipIds);
   if (selected.size < 2) return project;
 
@@ -22,7 +22,7 @@ export function groupSelectedClips(project: Project, clipIds: Iterable<string>) 
   );
   if (editableIds.size < 2) return project;
 
-  const groupId = uid('group');
+  const groupId = requestedGroupId?.trim() || uid('group');
   let changed = false;
   const tracks = project.tracks.map((track) => {
     if (track.locked) return track;
