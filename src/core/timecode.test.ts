@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatEditorTimecode,
   formatSmpteTimecode,
+  normalizeProjectTimecodeMode,
   parseSmpteTimecode,
   resolveFrameRateSpec,
   supportsDropFrameTimecode,
@@ -14,6 +15,12 @@ describe('SMPTE timecode', () => {
     expect(resolveFrameRateSpec(59.94)).toMatchObject({ nominal: 60, numerator: 60000, denominator: 1001, dropFrames: 4 });
     expect(supportsDropFrameTimecode(30)).toBe(false);
     expect(supportsDropFrameTimecode(29.97)).toBe(true);
+  });
+
+  it('normalizes project timecode mode against the sequence rate', () => {
+    expect(normalizeProjectTimecodeMode('drop-frame', 30000 / 1001)).toBe('drop-frame');
+    expect(normalizeProjectTimecodeMode('drop-frame', 24)).toBe('non-drop-frame');
+    expect(normalizeProjectTimecodeMode('invalid', 30000 / 1001)).toBe('non-drop-frame');
   });
 
   it('formats ordinary non-drop timecode by sequence frame', () => {
