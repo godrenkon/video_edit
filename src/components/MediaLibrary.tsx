@@ -1,4 +1,4 @@
-import { Captions, FileAudio, FileImage, Film, FolderOpen, FolderPlus, Palette, Plus, Search, Star, Trash2, Type } from 'lucide-react';
+import { Captions, FileAudio, FileImage, Film, FolderOpen, Palette, Plus, Search, Trash2, Type, Unplug, WandSparkles } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AssetBin, AssetMeta } from '../types/editor';
 import type { LowerThirdPreset } from '../core/project';
@@ -36,6 +36,12 @@ interface Props {
   onCreateGenerator: () => void;
 }
 
+interface AssetMenuState {
+  assetId: string;
+  x: number;
+  y: number;
+}
+
 const iconFor = (kind: AssetMeta['kind']) => {
   if (kind === 'video') return <Film size={16} />;
   if (kind === 'audio') return <FileAudio size={16} />;
@@ -43,15 +49,13 @@ const iconFor = (kind: AssetMeta['kind']) => {
 };
 
 const formatBytes = (bytes: number) => {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
 };
 
 export function MediaLibrary({
   assets,
-  assetBins,
   focusAssetId,
-  focusBinId,
   focusToken,
   timelineTime,
   onImport,
@@ -61,11 +65,6 @@ export function MediaLibrary({
   folderImportSupported,
   onAdd,
   onDelete,
-  onAssetMeta,
-  onCreateBin,
-  onRenameBin,
-  onDeleteBin,
-  onAssignBin,
   onRelink,
   proxyProgress,
   onGenerateProxy,
@@ -81,54 +80,56 @@ export function MediaLibrary({
   const [query, setQuery] = useState('');
   const [editMode, setEditMode] = useState<'insert' | 'overwrite'>('insert');
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
-  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [kindFilter, setKindFilter] = useState<'all' | AssetMeta['kind']>('all');
-  const [sortMode, setSortMode] = useState<'import' | 'name' | 'rating'>('import');
-  const [binFilter, setBinFilter] = useState('all');
-  const [newBinName, setNewBinName] = useState('');
   const [lowerThirdPreset, setLowerThirdPreset] = useState<LowerThirdPreset>('clean');
+  const [contextMenu, setContextMenu] = useState<AssetMenuState | null>(null);
+  const [relinkAssetId, setRelinkAssetId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (focusAssetId) {
-      const asset = assets.find((item) => item.id === focusAssetId);
-      if (asset) {
-        setSelectedAssetId(asset.id);
-        setBinFilter(asset.binId ?? 'all');
-      }
-      return;
-    }
-    if (focusBinId && assetBins.some((bin) => bin.id === focusBinId)) {
-      setBinFilter(focusBinId);
-      setSelectedAssetId(null);
-    }
-  }, [assetBins, assets, focusAssetId, focusBinId, focusToken]);
-  const filtered = useMemo(() => {
+    if (focusAssetId && assets.some((item) => item.id === focusAssetId)) setSelectedAssetId(focusAssetId);
+  }, [assets, focusAssetId, focusToken]);
+
+  useEffect(() => {
+    const close = () => setContextMenu(null);
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('blur', close);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('blur', close);
+      window.removeEventListener('resize', close);
+    };
+  }, []);
+
+  const visibleAssets = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return assets.filter((asset) => {
-      if (favoritesOnly && !asset.favorite) return false;
       if (kindFilter !== 'all' && asset.kind !== kindFilter) return false;
-      if (binFilter === 'unfiled' && asset.binId) return false;
-      if (binFilter !== 'all' && binFilter !== 'unfiled' && asset.binId !== binFilter) return false;
       if (!needle) return true;
-      const binName = assetBins.find((bin) => bin.id === asset.binId)?.name ?? '';
-      const haystack = [
-        asset.name,
-        asset.kind,
-        binName,
-        ...(asset.tags ?? []),
-        asset.notes ?? '',
-      ].join(' ').toLowerCase();
-      return haystack.includes(needle);
+      return [asset.name, asset.kind, ...(asset.tags ?? []), asset.notes ?? ''].join(' ').toLowerCase().includes(needle);
     });
-  }, [assetBins, assets, binFilter, favoritesOnly, kindFilter, query]);
-  const visibleAssets = useMemo(() => {
-    if (sortMode === 'import') return filtered;
-    const copy = [...filtered];
-    if (sortMode === 'name') return copy.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-    return copy.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name, 'ja'));
-  }, [filtered, sortMode]);
-  const selectedAsset = assets.find((asset) => asset.id === selectedAssetId) ?? null;
-  const activeBin = assetBins.find((bin) => bin.id === binFilter) ?? null;
+  }, [assets, kindFilter, query]);
+
+  const menuAsset = contextMenu ? assets.find((asset) => asset.id === contextMenu.assetId) ?? null : null;
+
+  const requestRelink = (assetId: string) => {
+    setRelinkAssetId(assetId);
+    setContextMenu(null);
+    relinkInput.current?.click();
+  };
+
+  const showContextMenu = (event: React.MouseEvent, assetId: string) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const menuWidth = 230;
+    const menuHeight = 250;
+    setSelectedAssetId(assetId);
+    setContextMenu({
+      assetId,
+      x: Math.max(8, Math.min(window.innerWidth - menuWidth - 8, event.clientX)),
+      y: Math.max(8, Math.min(window.innerHeight - menuHeight - 8, event.clientY)),
+    });
+  };
 
   return (
     <aside className="panel mediaPanel">
@@ -139,7 +140,7 @@ export function MediaLibrary({
           type="button"
           onClick={onImportFolder}
           disabled={!folderImportSupported}
-          title={folderImportSupported ? 'フォルダから動画・画像・音声を一括読み込み' : 'このブラウザはフォルダ読み込みに未対応'}
+          title={folderImportSupported ? 'フォルダから一括読み込み' : 'このブラウザはフォルダ読み込みに未対応'}
         ><FolderOpen size={17} /></button>
         <button className="iconBtn" type="button" onClick={() => input.current?.click()} title="素材を読み込む" aria-label="素材を読み込む"><Plus size={18} /></button>
         <input
@@ -148,174 +149,99 @@ export function MediaLibrary({
           type="file"
           multiple
           accept="video/*,audio/*,image/*"
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            if (files.length) onImport(files);
-            e.target.value = '';
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+            if (files.length) void onImport(files);
+            event.currentTarget.value = '';
+          }}
+        />
+        <input
+          ref={relinkInput}
+          hidden
+          type="file"
+          accept={relinkAssetId ? assets.find((asset) => asset.id === relinkAssetId)?.kind === 'video' ? 'video/*' : assets.find((asset) => asset.id === relinkAssetId)?.kind === 'audio' ? 'audio/*' : 'image/*' : 'video/*,audio/*,image/*'}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            const assetId = relinkAssetId;
+            if (file && assetId) onRelink(assetId, file);
+            setRelinkAssetId(null);
+            event.currentTarget.value = '';
           }}
         />
       </div>
+
       <div className="createTools" aria-label="生成クリップ">
         <button type="button" onClick={onCreateText} title="テキストクリップを追加"><Type size={14} /><span>テキスト</span></button>
         <button type="button" onClick={onCreateSubtitle} title="字幕クリップを追加"><Captions size={14} /><span>字幕</span></button>
         <button type="button" onClick={onCreateGenerator} title="背景ジェネレーターを追加"><Palette size={14} /><span>背景</span></button>
       </div>
-      <MicrophoneRecorder onImport={onImport} timelineTime={timelineTime} onPunchIn={onPunchInVoiceover} onPunchInPlayback={onPunchInPlayback} />
-      <ScreenRecorder onImport={onImport} />
-      <CameraRecorder onImport={onImport} />
-      <div className="lowerThirdCreate">
-        <span>下部テロップ</span>
-        <select value={lowerThirdPreset} onChange={(event) => setLowerThirdPreset(event.target.value as LowerThirdPreset)}>
-          <option value="clean">Clean</option>
-          <option value="accent">Accent</option>
-          <option value="minimal">Minimal</option>
-        </select>
-        <button type="button" onClick={() => onCreateLowerThird(lowerThirdPreset)}>追加</button>
-      </div>
-      <div className="mediaEditMode" aria-label="タイムライン編集モード">
-        <span>追加モード</span>
-        <div>
-          <button type="button" className={editMode === 'insert' ? 'active' : ''} onClick={() => setEditMode('insert')} title="再生ヘッド位置へ挿入し、後続クリップを押し出す">挿入</button>
-          <button type="button" className={editMode === 'overwrite' ? 'active' : ''} onClick={() => setEditMode('overwrite')} title="再生ヘッド位置の既存区間を素材で置き換える">上書き</button>
+
+      <div className="mediaQuickTools">
+        <details>
+          <summary>録音・キャプチャ</summary>
+          <MicrophoneRecorder onImport={onImport} timelineTime={timelineTime} onPunchIn={onPunchInVoiceover} onPunchInPlayback={onPunchInPlayback} />
+          <ScreenRecorder onImport={onImport} />
+          <CameraRecorder onImport={onImport} />
+        </details>
+        <div className="lowerThirdCreate">
+          <span>下部テロップ</span>
+          <select value={lowerThirdPreset} onChange={(event) => setLowerThirdPreset(event.target.value as LowerThirdPreset)}>
+            <option value="clean">Clean</option>
+            <option value="accent">Accent</option>
+            <option value="minimal">Minimal</option>
+          </select>
+          <button type="button" onClick={() => onCreateLowerThird(lowerThirdPreset)}>追加</button>
         </div>
       </div>
-      <div className="mediaSearchRow">
-        <div className="searchBox"><Search size={14} /><input placeholder="名前・タグ・メモを検索" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
-        <button type="button" className={`favoriteFilter ${favoritesOnly ? 'active' : ''}`} onClick={() => setFavoritesOnly((value) => !value)} title="お気に入りだけ表示"><Star size={13} fill={favoritesOnly ? 'currentColor' : 'none'} /></button>
+
+      <div className="mediaEditMode" aria-label="タイムライン編集モード">
+        <span>配置</span>
+        <div>
+          <button type="button" className={editMode === 'insert' ? 'active' : ''} onClick={() => setEditMode('insert')} title="再生ヘッド位置へ非破壊で配置。重なる場合は自動で追加トラックを使用">配置</button>
+          <button type="button" className={editMode === 'overwrite' ? 'active' : ''} onClick={() => setEditMode('overwrite')} title="選択中または先頭の同種トラックへ上書き">上書き</button>
+        </div>
       </div>
-      <div className="mediaFilterRow">
-        <select value={kindFilter} onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)} aria-label="素材種別フィルター">
-          <option value="all">すべて</option><option value="video">動画</option><option value="audio">音声</option><option value="image">画像</option>
-        </select>
-        <select value={binFilter} onChange={(e) => setBinFilter(e.target.value)} aria-label="素材ビンフィルター">
-          <option value="all">全ビン</option>
-          <option value="unfiled">未分類</option>
-          {assetBins.map((bin) => <option key={bin.id} value={bin.id}>{bin.name}</option>)}
-        </select>
-        <select value={sortMode} onChange={(e) => setSortMode(e.target.value as typeof sortMode)} aria-label="素材並び順">
-          <option value="import">読み込み順</option><option value="name">名前順</option><option value="rating">評価順</option>
+
+      <div className="mediaSearchRow">
+        <div className="searchBox"><Search size={14} /><input placeholder="素材を検索" value={query} onChange={(event) => setQuery(event.target.value)} /></div>
+      </div>
+      <div className="mediaFilterRow simple">
+        <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value as typeof kindFilter)} aria-label="素材種別フィルター">
+          <option value="all">すべて</option>
+          <option value="video">動画</option>
+          <option value="audio">音声</option>
+          <option value="image">画像</option>
         </select>
         <span>{visibleAssets.length}/{assets.length}</span>
       </div>
-      <div className="assetBinTools">
-        <div className="assetBinCreate">
-          <input
-            value={newBinName}
-            onChange={(e) => setNewBinName(e.target.value)}
-            maxLength={80}
-            placeholder="新しいビン"
-            aria-label="新しい素材ビン名"
-          />
-          <button
-            type="button"
-            disabled={!newBinName.trim()}
-            onClick={() => {
-              const name = newBinName.trim();
-              if (!name) return;
-              onCreateBin(name);
-              setNewBinName('');
-            }}
-            title="素材ビンを作成"
-          ><FolderPlus size={12} />作成</button>
-        </div>
-        {activeBin && (
-          <div className="assetBinEdit">
-            <input
-              value={activeBin.name}
-              onChange={(e) => onRenameBin(activeBin.id, e.target.value)}
-              maxLength={80}
-              aria-label="選択中の素材ビン名"
-            />
-            <button type="button" className="danger" onClick={() => {
-              onDeleteBin(activeBin.id);
-              setBinFilter('all');
-            }} title="このビンを削除"><Trash2 size={12} /></button>
-          </div>
-        )}
-      </div>
-      {selectedAsset && (
-        <div className="assetMetaEditor">
-          <div className="assetMetaHeader">
-            <strong title={selectedAsset.name}>{selectedAsset.name}</strong>
-            <button
-              type="button"
-              className={`favoriteAssetBtn ${selectedAsset.favorite ? 'active' : ''}`}
-              onClick={() => onAssetMeta(selectedAsset.id, { favorite: !selectedAsset.favorite })}
-              title="お気に入り"
-            ><Star size={14} fill={selectedAsset.favorite ? 'currentColor' : 'none'} /></button>
-          </div>
-          <label><span>評価</span><select value={selectedAsset.rating ?? 0} onChange={(e) => onAssetMeta(selectedAsset.id, { rating: Number(e.target.value) })}>
-            <option value={0}>なし</option><option value={1}>★</option><option value={2}>★★</option><option value={3}>★★★</option><option value={4}>★★★★</option><option value={5}>★★★★★</option>
-          </select></label>
-          <label><span>ビン</span><select value={selectedAsset.binId ?? ''} onChange={(e) => onAssignBin(selectedAsset.id, e.target.value || undefined)}>
-            <option value="">未分類</option>
-            {assetBins.map((bin) => <option key={bin.id} value={bin.id}>{bin.name}</option>)}
-          </select></label>
-          <label><span>タグ</span><input value={(selectedAsset.tags ?? []).join(', ')} placeholder="例: B-roll, ゲーム, voice" onChange={(e) => onAssetMeta(selectedAsset.id, { tags: normalizeTags(e.target.value) })} /></label>
-          <label><span>メモ</span><textarea rows={2} value={selectedAsset.notes ?? ''} onChange={(e) => onAssetMeta(selectedAsset.id, { notes: e.target.value || undefined })} /></label>
-          <div className="assetRelink">
-            <div className="assetRelinkStatus">
-              <span>元素材</span>
-              <b className={selectedAsset.objectUrl ? 'online' : 'missing'}>{selectedAsset.objectUrl ? '接続済み' : '見つかりません'}</b>
-            </div>
-            <button type="button" onClick={() => relinkInput.current?.click()}>
-              {selectedAsset.objectUrl ? '元素材を差し替え' : '元素材を再リンク'}
-            </button>
-            <input
-              ref={relinkInput}
-              hidden
-              type="file"
-              accept={selectedAsset.kind === 'video' ? 'video/*' : selectedAsset.kind === 'audio' ? 'audio/*' : 'image/*'}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) onRelink(selectedAsset.id, file);
-                event.target.value = '';
-              }}
-            />
-          </div>
-          {selectedAsset.kind === 'video' && (
-            <div className="proxyEditor">
-              <div className="proxyStatus">
-                <span>Proxy</span>
-                <b>{selectedAsset.proxyStorageName ? '有効' : proxyProgress[selectedAsset.id] !== undefined ? '生成中' : '未生成'}</b>
-              </div>
-              {proxyProgress[selectedAsset.id] !== undefined && (
-                <progress max={1} value={proxyProgress[selectedAsset.id]} aria-label="proxy生成進捗" />
-              )}
-              <div className="proxyActions">
-                {proxyProgress[selectedAsset.id] !== undefined ? (
-                  <button type="button" onClick={() => onCancelProxy(selectedAsset.id)}>中止</button>
-                ) : (
-                  <button type="button" onClick={() => onGenerateProxy(selectedAsset.id)}>
-                    {selectedAsset.proxyStorageName ? '再生成' : 'Proxy生成'}
-                  </button>
-                )}
-                <button type="button" disabled={!selectedAsset.proxyStorageName} onClick={() => onRemoveProxy(selectedAsset.id)}>解除</button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-      <div className="assetList">
+
+      <div className="assetList" onScroll={() => setContextMenu(null)}>
         {visibleAssets.length === 0 && (
           <button className="emptyImport" type="button" onClick={() => input.current?.click()}>
             <Plus size={22} />
             <strong>素材を追加</strong>
-            <span>動画・画像・音声をここに読み込む</span>
+            <span>複数ファイルを一度に読み込めます</span>
           </button>
         )}
         {visibleAssets.map((asset) => (
-          <div className={`assetRow ${selectedAssetId === asset.id ? 'selected' : ''}`} key={asset.id} onClick={() => setSelectedAssetId(asset.id)} onDoubleClick={() => onAdd(asset.id, editMode)}>
-            <div className={`assetIcon ${asset.kind}`}>{iconFor(asset.kind)}</div>
+          <div
+            className={'assetRow ' + (selectedAssetId === asset.id ? 'selected' : '')}
+            key={asset.id}
+            onClick={() => setSelectedAssetId(asset.id)}
+            onDoubleClick={() => onAdd(asset.id, editMode)}
+            onContextMenu={(event) => showContextMenu(event, asset.id)}
+            title="ダブルクリックで配置 / 右クリックでメニュー"
+          >
+            <div className={'assetIcon ' + asset.kind}>{iconFor(asset.kind)}</div>
             <div className="assetText">
-              <strong title={asset.name}>{asset.favorite ? '★ ' : ''}{asset.name}</strong>
-              <span>{asset.kind} · {formatBytes(asset.size)}{asset.duration ? ` · ${asset.duration.toFixed(1)}s` : ''}{asset.binId ? ` · ${assetBins.find((bin) => bin.id === asset.binId)?.name ?? 'bin'}` : ''}{asset.proxyStorageName ? ' · proxy' : ''}{!asset.objectUrl ? ' · offline' : ''}</span>
+              <strong title={asset.name}>{asset.name}</strong>
+              <span>{asset.kind} · {formatBytes(asset.size)}{asset.duration ? ' · ' + asset.duration.toFixed(1) + 's' : ''}{asset.proxyStorageName ? ' · proxy' : ''}{!asset.objectUrl ? ' · offline' : ''}</span>
             </div>
             <button
               className="miniBtn"
               type="button"
-              title={editMode === 'insert' ? '挿入編集でタイムラインに追加' : '上書き編集でタイムラインに追加'}
-              aria-label={`${asset.name}をタイムラインへ追加`}
+              title={editMode === 'insert' ? 'タイムラインへ配置' : 'タイムラインへ上書き'}
+              aria-label={asset.name + 'をタイムラインへ追加'}
               onClick={(event) => {
                 event.stopPropagation();
                 onAdd(asset.id, editMode);
@@ -325,7 +251,7 @@ export function MediaLibrary({
               className="miniBtn danger"
               type="button"
               title="素材を削除"
-              aria-label={`${asset.name}を削除`}
+              aria-label={asset.name + 'を削除'}
               onClick={(event) => {
                 event.stopPropagation();
                 setSelectedAssetId((current) => current === asset.id ? null : current);
@@ -335,11 +261,28 @@ export function MediaLibrary({
           </div>
         ))}
       </div>
+
+      {contextMenu && menuAsset && (
+        <div
+          className="editorContextMenu mediaContextMenu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+          role="menu"
+        >
+          <button type="button" onClick={() => { onAdd(menuAsset.id, 'insert'); setContextMenu(null); }}><Plus size={14} />タイムラインへ配置</button>
+          <button type="button" onClick={() => { onAdd(menuAsset.id, 'overwrite'); setContextMenu(null); }}><WandSparkles size={14} />上書き</button>
+          {menuAsset.kind === 'video' && (
+            proxyProgress[menuAsset.id] !== undefined
+              ? <button type="button" onClick={() => { onCancelProxy(menuAsset.id); setContextMenu(null); }}>Proxy生成を中止</button>
+              : menuAsset.proxyStorageName
+                ? <button type="button" onClick={() => { onRemoveProxy(menuAsset.id); setContextMenu(null); }}><Unplug size={14} />Proxyを解除</button>
+                : <button type="button" onClick={() => { onGenerateProxy(menuAsset.id); setContextMenu(null); }}>Proxyを生成</button>
+          )}
+          <button type="button" onClick={() => requestRelink(menuAsset.id)}>元素材を再リンク</button>
+          <hr />
+          <button type="button" className="danger" onClick={() => { onDelete(menuAsset.id); setContextMenu(null); }}><Trash2 size={14} />素材を削除</button>
+        </div>
+      )}
     </aside>
   );
-}
-
-
-function normalizeTags(value: string) {
-  return [...new Set(value.split(',').map((tag) => tag.trim()).filter(Boolean))].slice(0, 24);
 }
