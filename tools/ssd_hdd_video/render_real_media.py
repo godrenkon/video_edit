@@ -465,10 +465,16 @@ def render_event(ev,out,zundamon):
     dur=ev["en"]-ev["st"]
     text=ev["row"]["text"]
     source_text=ev["row"].get("source_text",text)
-    # If the full narration sentence explicitly compares SSD and HDD, keep
-    # both real devices on screen even if the current short phrase only
-    # contains one of the two terms.
-    if "SSD" in source_text and "HDD" in source_text:
+    # Use split-screen only when the current phrase itself names both sides,
+    # or when the sentence is explicitly comparing them. This avoids turning
+    # an entire sentence into the same comparison visual just because SSD/HDD
+    # are mentioned later in that sentence.
+    comparison_cues=("違い","比べ","比較","どちら","どっち","両方","一方","対して","vs","VS")
+    explicit_compare = ("SSD" in text and "HDD" in text) or (
+        "SSD" in source_text and "HDD" in source_text and
+        any(k in source_text for k in comparison_cues)
+    )
+    if explicit_compare:
         src=make_ssd_hdd_compare(ev["n"])
     else:
         src=asset(ev["asset"])
