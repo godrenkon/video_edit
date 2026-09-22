@@ -6,6 +6,13 @@ import type { ProjectSearchResult } from './core/projectSearch';
 import { detectCapabilities } from './core/capabilities';
 import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
+import {
+  captureProjectRuntimeUrls,
+  forgetAssetRuntimeUrls,
+  restoreProjectRuntimeUrls,
+  snapshotProjectForHistory,
+  type AssetRuntimeUrlRegistry,
+} from './core/projectHistory';
 import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClips } from './core/groupOps';
 import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
 import { addPunchInVoiceover } from './core/punchInVoiceover';
@@ -39,7 +46,7 @@ import {
   storageEstimate,
   type RecoverySnapshotInfo,
 } from './core/storage';
-import { beginEditorSession, markEditorSessionClean } from './core/session';
+import { beginEditorSession, markEditorSessionClean, markEditorSessionDirty } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { moveClipToTrack } from './core/trackPlacement';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
@@ -97,10 +104,13 @@ export default function App() {
   const timeRef = useRef(0);
   const playingRef = useRef(false);
   const punchPlaybackPrevious = useRef(false);
-  const history = useRef(new HistoryController<Project>(120, 750));
+  const historyRuntimeUrls = useRef<AssetRuntimeUrlRegistry>(new Map());
+  const history = useRef(new HistoryController<Project>(120, 750, snapshotProjectForHistory));
   const renderAbort = useRef<AbortController | null>(null);
   const proxyAbort = useRef(new Map<string, AbortController>());
   const clipClipboard = useRef<ClipClipboardPayload | null>(null);
+  const saveGeneration = useRef(0);
+  const projectDirty = useRef(false);
 
   const selectedClip = useMemo(() => {
     for (const track of project.tracks) {
@@ -138,6 +148,12 @@ export default function App() {
     setSelectedClipId(null);
   }, []);
 
+  const markProjectDirty = useCallback(() => {
+    saveGeneration.current += 1;
+    projectDirty.current = true;
+    markEditorSessionDirty();
+  }, []);
+
   useEffect(() => {
     if (selectedClipId && !selectedClipIds.includes(selectedClipId)) {
       setSelectedClipIds([selectedClipId]);
@@ -165,9 +181,11 @@ export default function App() {
     const previousSessionWasUnclean = beginEditorSession();
     setSuspectedCrash(previousSessionWasUnclean);
 
-    const markClean = () => markEditorSessionClean();
-    window.addEventListener('pagehide', markClean);
-    window.addEventListener('beforeunload', markClean);
+    const markCleanIfSaved = () => {
+      if (!projectDirty.current) markEditorSessionClean();
+    };
+    window.addEventListener('pagehide', markCleanIfSaved);
+    window.addEventListener('beforeunload', markCleanIfSaved);
 
     (async () => {
       try {
@@ -177,6 +195,8 @@ export default function App() {
           const hydratedProject = await hydrateProjectAssets(saved);
           if (!cancelled) {
             history.current.clear();
+            historyRuntimeUrls.current.clear();
+            captureProjectRuntimeUrls(hydratedProject, historyRuntimeUrls.current);
             setProject(hydratedProject);
           }
         }
@@ -209,20 +229,27 @@ export default function App() {
 
     return () => {
       cancelled = true;
-      window.removeEventListener('pagehide', markClean);
-      window.removeEventListener('beforeunload', markClean);
-      markEditorSessionClean();
+      window.removeEventListener('pagehide', markCleanIfSaved);
+      window.removeEventListener('beforeunload', markCleanIfSaved);
+      markCleanIfSaved();
     };
   }, [capabilities.opfs]);
 
   useEffect(() => {
     if (!hydrated || !capabilities.opfs) return;
+    const generation = ++saveGeneration.current;
+    projectDirty.current = true;
+    markEditorSessionDirty();
     setSaveState('変更あり');
     const timer = window.setTimeout(async () => {
       try {
         await saveProject(project);
+        if (saveGeneration.current !== generation) return;
+        projectDirty.current = false;
+        markEditorSessionClean();
         setSaveState('自動保存済み');
       } catch (error) {
+        if (saveGeneration.current !== generation) return;
         console.error(error);
         setSaveState('保存エラー');
       }
@@ -278,13 +305,15 @@ export default function App() {
     setProject((current) => {
       const mutated = mutator(current);
       if (mutated === current) return current;
+      markProjectDirty();
       const next = clampProjectDuration({ ...mutated, updatedAt: new Date().toISOString() });
       if (options.history !== false) {
+        captureProjectRuntimeUrls(current, historyRuntimeUrls.current);
         history.current.record(current, options.label ?? '編集', options.key);
       }
       return next;
     });
-  }, []);
+  }, [markProjectDirty]);
 
   const updateClip = useCallback((clipId: string, patch: Partial<Clip>, historyKey?: string, label = 'クリップ編集') => {
     updateProject((p) => ({
@@ -309,22 +338,28 @@ export default function App() {
   }, [updateProject]);
 
   const undo = useCallback(() => {
+    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
     const result = history.current.undo(project);
     if (!result) return;
     setPlaying(false);
     setSelectedClipId(null);
-    setProject(clampProjectDuration({ ...result.value, updatedAt: new Date().toISOString() }));
+    markProjectDirty();
+    const restored = restoreProjectRuntimeUrls(result.value, historyRuntimeUrls.current);
+    setProject(clampProjectDuration({ ...restored, updatedAt: new Date().toISOString() }));
     setSaveState(`元に戻す: ${result.label}`);
-  }, [project]);
+  }, [markProjectDirty, project]);
 
   const redo = useCallback(() => {
+    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
     const result = history.current.redo(project);
     if (!result) return;
     setPlaying(false);
     setSelectedClipId(null);
-    setProject(clampProjectDuration({ ...result.value, updatedAt: new Date().toISOString() }));
+    markProjectDirty();
+    const restored = restoreProjectRuntimeUrls(result.value, historyRuntimeUrls.current);
+    setProject(clampProjectDuration({ ...restored, updatedAt: new Date().toISOString() }));
     setSaveState(`やり直し: ${result.label}`);
-  }, [project]);
+  }, [markProjectDirty, project]);
 
   const restoreSnapshot = useCallback(async (snapshotId: string) => {
     setRecoveryBusy(true);
@@ -337,9 +372,12 @@ export default function App() {
       const hydratedProject = await hydrateProjectAssets(restored);
       revokeProjectUrls(project);
       history.current.clear();
+      historyRuntimeUrls.current.clear();
+      captureProjectRuntimeUrls(hydratedProject, historyRuntimeUrls.current);
       setPlaying(false);
       setTime(0);
       setSelectedClipId(null);
+      markProjectDirty();
       setProject(hydratedProject);
       await saveProject(hydratedProject);
       setShowRecovery(false);
@@ -350,7 +388,7 @@ export default function App() {
     } finally {
       setRecoveryBusy(false);
     }
-  }, [project]);
+  }, [markProjectDirty, project]);
 
   const importFiles = async (files: File[]) => {
     if (rendering) return;
@@ -559,6 +597,11 @@ export default function App() {
 
       const merged = mergeRelinkedAsset(current, replacement);
       history.current.clear();
+      forgetAssetRuntimeUrls(historyRuntimeUrls.current, assetId);
+      captureProjectRuntimeUrls(
+        { ...project, assets: project.assets.map((asset) => asset.id === assetId ? merged : asset) },
+        historyRuntimeUrls.current,
+      );
       updateProject((p) => ({
         ...p,
         assets: p.assets.map((asset) => asset.id === assetId ? merged : asset),
@@ -658,6 +701,7 @@ export default function App() {
     if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
     if (asset.proxyObjectUrl) URL.revokeObjectURL(asset.proxyObjectUrl);
     history.current.clear();
+    forgetAssetRuntimeUrls(historyRuntimeUrls.current, assetId);
     updateProject((p) => ({
       ...p,
       assets: p.assets.filter((a) => a.id !== assetId),
@@ -701,23 +745,27 @@ export default function App() {
     if (!clipClipboard.current || rendering) return;
     const result = pasteClipAt(project, clipClipboard.current, time);
     if (!result.clipId || result.project === project) return;
+    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
     history.current.record(project, 'クリップ貼り付け');
     setPlaying(false);
+    markProjectDirty();
     setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
     setSelectedClipId(result.clipId);
     setSaveState('クリップを貼り付けました');
-  }, [project, rendering, time]);
+  }, [markProjectDirty, project, rendering, time]);
 
   const duplicateSelectedClip = useCallback(() => {
     if (!selectedClipId || rendering) return;
     const result = duplicateClipAfter(project, selectedClipId);
     if (!result.clipId || result.project === project) return;
+    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
     history.current.record(project, 'クリップ複製');
     setPlaying(false);
+    markProjectDirty();
     setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
     setSelectedClipId(result.clipId);
     setSaveState('クリップを複製しました');
-  }, [project, rendering, selectedClipId]);
+  }, [markProjectDirty, project, rendering, selectedClipId]);
 
   const groupSelection = useCallback(() => {
     if (selectedClipIds.length < 2 || rendering) return;
@@ -1041,11 +1089,15 @@ export default function App() {
   }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, searchOpen, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, groupSelection, ungroupSelection, nudgeSelected, undo, redo, shortcutOverrides, shuttle, stopTransport, stepPlayhead, jumpToEditPoint, markInPoint, markOutPoint, clearInOut, addTimelineMarker, toggleTimelineSnapping, zoomTimeline, toggleNormalPlayback]);
 
   const manualSave = async () => {
+    const generation = saveGeneration.current;
     try {
       await saveProject(project);
+      if (saveGeneration.current !== generation) return;
+      projectDirty.current = false;
+      markEditorSessionClean();
       setSaveState('保存済み');
     } catch {
-      setSaveState('保存エラー');
+      if (saveGeneration.current === generation) setSaveState('保存エラー');
     }
   };
 
