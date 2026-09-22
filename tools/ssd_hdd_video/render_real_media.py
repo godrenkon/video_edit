@@ -283,6 +283,8 @@ APP_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_side","computer_components_v
 LOAD_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","computer_components_video"]
 BROWSER_MEDIA=["browser_demo_video","m2_installed","nvme_m2","sata_ssd"]
 SPEED_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","sata_vs_nvme"]
+HDD_GENERAL=["hdd_working_video","hdd_open_photo","hdd_head_macro","hdd_side","external_hdds","nas"]
+SSD_GENERAL=["sata_ssd","nvme_m2","m2_installed","external_ssd","ssd_controller","ssd_nand","ssd_install"]
 
 def strong_media_for(text):
     specific=[]
@@ -296,6 +298,17 @@ def strong_media_for(text):
         specific.append(SATA_MEDIA)
     if specific:
         return _unique([x for g in specific for x in g])
+
+    # If the narration names only one storage type, never illustrate it
+    # with media from the other side, even inside comparison/mixed chapters.
+    if "外付けSSD" in text:
+        return ["external_ssd","sata_ssd","nvme_m2","m2_installed"]
+    if "外付けHDD" in text:
+        return ["external_hdds","hdd_side","hdd_open_photo","nas"]
+    if "HDD" in text and "SSD" not in text:
+        return HDD_GENERAL
+    if "SSD" in text and "HDD" not in text:
+        return SSD_GENERAL
 
     if "ブラウザ" in text:
         return BROWSER_MEDIA
