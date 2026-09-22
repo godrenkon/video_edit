@@ -1,5 +1,17 @@
-import type { Clip, Project, Track } from '../types/editor';
+import type { Clip, Project, Track, TrackKind } from '../types/editor';
 import { findClip, snapTime } from './timelineOps';
+
+export function targetTrackForKind(project: Project, kind: TrackKind, preferredTrackId?: string | null) {
+  const explicit = project.tracks.find((track) => track.kind === kind && track.targeted && !track.locked);
+  if (explicit) return explicit;
+
+  if (preferredTrackId) {
+    const preferred = project.tracks.find((track) => track.id === preferredTrackId && track.kind === kind && !track.locked);
+    if (preferred) return preferred;
+  }
+
+  return project.tracks.find((track) => track.kind === kind && !track.locked);
+}
 
 export function clipCanLiveOnTrack(project: Project, clip: Clip, track: Track): boolean {
   if (track.kind === 'subtitle') return clip.kind === 'subtitle';
