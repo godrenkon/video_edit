@@ -1417,7 +1417,7 @@ export default function App() {
           return trimClipRight(p, id, location.clip.start + duration, time, snapThreshold);
         }, { label: '右トリム', key: `clip:${id}:trim-right` })}
         onRippleTrimClip={(id, edge, boundary) => updateProject(
-          (p) => rippleTrimClip(p, id, edge, boundary, time, snapThreshold),
+          (p) => rippleTrimClip(p, id, edge, boundary, time, snapThreshold, 'sync-lock'),
           { label: 'リップルトリム', key: `clip:${id}:ripple-trim:${edge}` },
         )}
         onRollEditClip={(id, edge, boundary) => updateProject(
