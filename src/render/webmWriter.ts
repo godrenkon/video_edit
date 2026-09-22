@@ -1,5 +1,6 @@
 import {
-  AudioBufferSource as MediabunnyAudioBufferSource,
+  AudioSample,
+  AudioSampleSource,
   BufferTarget,
   CanvasSource,
   Output,
@@ -12,6 +13,7 @@ import { runFrameRenderLoop } from './frameLoop';
 import { createOpfsRenderTarget } from './opfsRenderTarget';
 import { planAudioChunks, type AudioChunkPlan } from './renderSchedule';
 import type { RenderFrameRequest, RenderProgress } from './types';
+import type { PcmAudioBuffer } from './pcmAudio';
 
 export type WebMVideoCodec = 'vp8' | 'vp9' | 'av1';
 
@@ -20,7 +22,7 @@ export interface WebMAudioRenderOptions {
   bitrate?: number;
   chunkSeconds?: number;
   sampleRate?: number;
-  renderChunk: (startSeconds: number, durationSeconds: number, signal?: AbortSignal) => Promise<AudioBuffer>;
+  renderChunk: (startSeconds: number, durationSeconds: number, signal?: AbortSignal) => Promise<PcmAudioBuffer>;
 }
 
 export interface WebMRenderOptions {
@@ -47,7 +49,7 @@ export interface OpfsWebMRenderResult {
 class MediabunnyWebMCanvasWriter {
   private readonly output: Output;
   private readonly source: CanvasSource;
-  private readonly audioSource: MediabunnyAudioBufferSource | null;
+  private readonly audioSource: AudioSampleSource | null;
   private readonly keyFrameInterval: number;
   private started = false;
   private lastTimestampUs = -1;
@@ -63,7 +65,7 @@ class MediabunnyWebMCanvasWriter {
     this.output.addVideoTrack(this.source, { frameRate: options.fps });
 
     if (options.audio) {
-      this.audioSource = new MediabunnyAudioBufferSource({
+      this.audioSource = new AudioSampleSource({
         codec: options.audio.codec ?? 'opus',
         quality: new Quality({ bitrate: options.audio.bitrate ?? 160_000 }),
       });
@@ -92,10 +94,21 @@ class MediabunnyWebMCanvasWriter {
     this.lastTimestampUs = request.timestampUs;
   }
 
-  async addAudioBuffer(buffer: AudioBuffer) {
+  async addAudioBuffer(buffer: PcmAudioBuffer, timestamp: number) {
     if (!this.audioSource) throw new Error('WebM writer has no audio track');
     if (!this.started || this.output.state !== 'started') throw new Error('WebM writer is not ready for audio');
-    await this.audioSource.add(buffer);
+    const sample = new AudioSample({
+      data: buffer.data,
+      format: 'f32-planar',
+      numberOfChannels: buffer.numberOfChannels,
+      sampleRate: buffer.sampleRate,
+      timestamp,
+    });
+    try {
+      await this.audioSource.add(sample);
+    } finally {
+      sample.close();
+    }
   }
 
   async finalize() {
@@ -171,7 +184,7 @@ async function runRenderLoop(writer: MediabunnyWebMCanvasWriter, options: WebMRe
   const addAudioChunk = async (chunk: AudioChunkPlan) => {
     if (!options.audio) return;
     const buffer = await options.audio.renderChunk(chunk.startSeconds, chunk.durationSeconds, options.signal);
-    await writer.addAudioBuffer(buffer);
+    await writer.addAudioBuffer(buffer, chunk.startSeconds);
     nextAudioChunkIndex = chunk.index + 1;
   };
 

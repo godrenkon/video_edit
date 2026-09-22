@@ -1,7 +1,7 @@
 import type { Project } from '../types/editor';
 import { Canvas2DProjectRenderer, type RenderCanvas } from './canvas2dRenderer';
 import { sanitizeRenderFileName } from './opfsRenderTarget';
-import { resolveExportDimensions } from './projectExporter';
+import { resolveExportDimensions } from './exportDimensions';
 import { RenderAssetStore } from './renderAssetStore';
 
 export interface ProjectPngExportOptions {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { PreviewRenderCache, previewCacheFrameIndex } from '../render/previewRenderCache';
+import { PreviewRenderEngine } from '../render/previewRenderEngine';
+import { previewCacheFrameIndex } from '../render/previewRenderPlanning';
 import type { Project } from '../types/editor';
 import '../processed-preview.css';
 
@@ -15,7 +16,7 @@ export function RealtimeProcessedPreviewCanvas({
   enabled: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const cacheRef = useRef<PreviewRenderCache | null>(null);
+  const cacheRef = useRef<PreviewRenderEngine | null>(null);
   const timeRef = useRef(time);
   const [visible, setVisible] = useState(false);
 
@@ -29,7 +30,7 @@ export function RealtimeProcessedPreviewCanvas({
     if (previous) void previous.close();
 
     try {
-      cacheRef.current = new PreviewRenderCache(project, {
+      cacheRef.current = new PreviewRenderEngine(project, {
         maxWidth: 960,
         maxHeight: 540,
         maxBytes: 24 * 1024 * 1024,
@@ -71,22 +72,29 @@ export function RealtimeProcessedPreviewCanvas({
       if (targetFrame !== lastFrameIndex) {
         try {
           const frame = await cache.frame(project, targetTime, controller.signal);
-          if (!active || controller.signal.aborted) return;
-          const canvas = canvasRef.current;
-          if (!canvas) return;
-          if (canvas.width !== frame.width) canvas.width = frame.width;
-          if (canvas.height !== frame.height) canvas.height = frame.height;
-          const context = canvas.getContext('2d');
-          if (!context) return;
-          context.save();
-          context.resetTransform();
-          context.globalAlpha = 1;
-          context.globalCompositeOperation = 'copy';
-          context.filter = 'none';
-          context.drawImage(frame.bitmap, 0, 0, frame.width, frame.height);
-          context.restore();
-          lastFrameIndex = frame.frameIndex;
-          setVisible(true);
+          try {
+            if (!active || controller.signal.aborted) return;
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            if (canvas.width !== frame.width) canvas.width = frame.width;
+            if (canvas.height !== frame.height) canvas.height = frame.height;
+            const context = canvas.getContext('2d');
+            if (!context) return;
+            context.save();
+            try {
+              context.resetTransform();
+              context.globalAlpha = 1;
+              context.globalCompositeOperation = 'copy';
+              context.filter = 'none';
+              context.drawImage(frame.bitmap, 0, 0, frame.width, frame.height);
+            } finally {
+              context.restore();
+            }
+            lastFrameIndex = frame.frameIndex;
+            setVisible(true);
+          } finally {
+            frame.release();
+          }
         } catch (error) {
           const aborted = error instanceof Error && error.name === 'AbortError';
           if (!active || controller.signal.aborted || aborted) return;

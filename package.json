@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b --pretty false",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && node scripts/clean-dist.mjs && vite build && npm run check:bundle",
+    "check:bundle": "node scripts/check-bundle-size.mjs",
     "check": "npm run test && npm run typecheck && npm run build",
     "preview": "vite preview"
   },
@@ -22,9 +23,11 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@types/node": "^22.20.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
+    "es-module-lexer": "^2.3.2",
     "typescript": "7.0.2",
     "vite": "8.3.0",
     "vitest": "5.0.0"

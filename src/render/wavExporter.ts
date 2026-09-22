@@ -141,7 +141,13 @@ export function createWavHeader(totalFrames: number, sampleRate: number, channel
   return new Uint8Array(buffer);
 }
 
-export function audioBufferToPcm16(buffer: AudioBuffer, channels: number, frameCount = buffer.length) {
+interface ChannelAudioBuffer {
+  length: number;
+  numberOfChannels: number;
+  getChannelData(channel: number): Float32Array;
+}
+
+export function audioBufferToPcm16(buffer: ChannelAudioBuffer, channels: number, frameCount = buffer.length) {
   const outputChannels = Math.max(1, Math.min(2, Math.round(channels)));
   const frames = Math.max(0, Math.min(buffer.length, Math.floor(frameCount)));
   const bytes = new Uint8Array(frames * outputChannels * 2);

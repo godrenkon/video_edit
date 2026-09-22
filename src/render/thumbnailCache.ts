@@ -1,6 +1,16 @@
-import { readAssetFile, readThumbnailCache, saveThumbnailCache } from '../core/storage';
+import {
+  deleteThumbnailCachesForAsset,
+  readAssetFile,
+  readThumbnailCache,
+  saveThumbnailCache,
+} from '../core/storage';
 import type { AssetMeta } from '../types/editor';
 import { MediabunnyVideoProvider } from './mediabunnyProvider';
+import {
+  canUseMediaAnalysisWorker,
+  clearMediaAnalysisWorker,
+  renderTimelineThumbnailInWorker,
+} from './mediaAnalysisWorkerClient';
 
 const MAX_THUMBNAILS = 96;
 const MAX_PROVIDERS = 4;
@@ -20,6 +30,8 @@ interface CachedProvider {
 const thumbnails = new Map<string, CachedThumbnail>();
 const providers = new Map<string, CachedProvider>();
 const pending = new Map<string, Promise<string | null>>();
+const assetGenerations = new Map<string, number>();
+let globalGeneration = 0;
 let queue = Promise.resolve();
 
 export function videoThumbnailFingerprint(asset: AssetMeta) {
@@ -43,8 +55,10 @@ export function getTimelineThumbnail(asset: AssetMeta, sourceTime: number): Prom
 
   const existing = pending.get(key);
   if (existing) return existing;
+  const generation = thumbnailGeneration(asset.id);
 
   const task = enqueue(async () => {
+    throwIfThumbnailInvalidated(asset.id, generation);
     const secondRead = thumbnails.get(key);
     if (secondRead) {
       secondRead.lastUsed = performanceNow();
@@ -52,6 +66,7 @@ export function getTimelineThumbnail(asset: AssetMeta, sourceTime: number): Prom
     }
 
     const persisted = await readThumbnailCache(asset.id, key).catch(() => null);
+    throwIfThumbnailInvalidated(asset.id, generation);
     if (persisted) {
       const url = URL.createObjectURL(persisted);
       thumbnails.set(key, { url, lastUsed: performanceNow() });
@@ -59,30 +74,41 @@ export function getTimelineThumbnail(asset: AssetMeta, sourceTime: number): Prom
       return url;
     }
 
-    const provider = await getProvider(asset);
-    const sample = await provider.getFrameAt(Math.max(0, Math.min(asset.duration || sourceTime, sourceTime)));
-    if (!sample) return null;
-    try {
-      const blob = await drawSampleToBlob(sample);
-      if (!blob) return null;
-      await saveThumbnailCache(asset.id, key, blob).catch(() => undefined);
-      const url = URL.createObjectURL(blob);
-      thumbnails.set(key, { url, lastUsed: performanceNow() });
-      pruneThumbnails();
-      return url;
-    } finally {
-      sample.close();
+    const safeTime = Math.max(0, Math.min(asset.duration || sourceTime, sourceTime));
+    const blob = await decodeThumbnail(asset, safeTime);
+    throwIfThumbnailInvalidated(asset.id, generation);
+    if (!blob) return null;
+    await saveThumbnailCache(asset.id, key, blob).catch(() => undefined);
+    if (!isThumbnailGenerationCurrent(asset.id, generation)) {
+      await deleteThumbnailCachesForAsset(asset.id).catch(() => undefined);
+      throw thumbnailAbortError();
     }
+    const url = URL.createObjectURL(blob);
+    thumbnails.set(key, { url, lastUsed: performanceNow() });
+    pruneThumbnails();
+    return url;
   });
 
   pending.set(key, task);
-  void task.finally(() => {
-    if (pending.get(key) === task) pending.delete(key);
-  });
+  void task
+    .finally(() => {
+      if (pending.get(key) === task) pending.delete(key);
+    })
+    .catch(() => undefined);
   return task;
 }
 
 export function clearTimelineThumbnailCache(assetId?: string) {
+  if (assetId) {
+    assetGenerations.set(assetId, (assetGenerations.get(assetId) ?? 0) + 1);
+    for (const key of pending.keys()) {
+      if (key.startsWith(`${assetId}:`)) pending.delete(key);
+    }
+  } else {
+    globalGeneration += 1;
+    assetGenerations.clear();
+    pending.clear();
+  }
   for (const [key, cached] of thumbnails) {
     if (!assetId || key.startsWith(`${assetId}:`)) {
       URL.revokeObjectURL(cached.url);
@@ -90,12 +116,35 @@ export function clearTimelineThumbnailCache(assetId?: string) {
     }
   }
   if (assetId) {
+    clearMediaAnalysisWorker(assetId, 'thumbnail');
     const entry = providers.get(assetId);
     entry?.provider.close();
     providers.delete(assetId);
   } else {
+    clearMediaAnalysisWorker();
     for (const entry of providers.values()) entry.provider.close();
     providers.clear();
+  }
+}
+
+async function decodeThumbnail(asset: AssetMeta, sourceTime: number) {
+  if (canUseMediaAnalysisWorker()) {
+    try {
+      const file = await readAssetFile(asset.proxyStorageName ?? asset.storageName);
+      return await renderTimelineThumbnailInWorker(videoThumbnailFingerprint(asset), file, sourceTime);
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      console.warn('Timeline thumbnail worker failed; using the main-thread fallback', error);
+    }
+  }
+
+  const provider = await getProvider(asset);
+  const sample = await provider.getFrameAt(sourceTime);
+  if (!sample) return null;
+  try {
+    return await drawSampleToBlob(sample);
+  } finally {
+    sample.close();
   }
 }
 
@@ -182,4 +231,24 @@ function enqueue<T>(work: () => Promise<T>) {
 
 function performanceNow() {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function isAbortError(error: unknown) {
+  return typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError';
+}
+
+function thumbnailGeneration(assetId: string) {
+  return { global: globalGeneration, asset: assetGenerations.get(assetId) ?? 0 };
+}
+
+function isThumbnailGenerationCurrent(assetId: string, generation: ReturnType<typeof thumbnailGeneration>) {
+  return generation.global === globalGeneration && generation.asset === (assetGenerations.get(assetId) ?? 0);
+}
+
+function throwIfThumbnailInvalidated(assetId: string, generation: ReturnType<typeof thumbnailGeneration>) {
+  if (!isThumbnailGenerationCurrent(assetId, generation)) throw thumbnailAbortError();
+}
+
+function thumbnailAbortError() {
+  return new DOMException('Timeline thumbnail request was invalidated', 'AbortError');
 }

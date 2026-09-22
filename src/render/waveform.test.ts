@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { accumulateWaveformPeaks, parseWaveformCache, waveformBinCount, waveformFingerprint } from './waveform';
+import {
+  accumulateWaveformPeaks,
+  parseWaveformCache,
+  waveformBinCount,
+  waveformFingerprint,
+  waveformWorkerKey,
+} from './waveform';
 import type { AssetMeta } from '../types/editor';
 
 const asset: AssetMeta = {
@@ -22,6 +28,10 @@ describe('waveform planning', () => {
   it('builds a stable fingerprint and prefers a content hash', () => {
     expect(waveformFingerprint(asset)).toBe('asset.wav:1234:2');
     expect(waveformFingerprint({ ...asset, hash: 'abc' })).toBe('abc');
+  });
+
+  it('prefixes worker resources with the asset id so targeted cleanup can release them', () => {
+    expect(waveformWorkerKey(asset, 10, 100)).toBe('asset:waveform:asset.wav:1234:2:10:100');
   });
 
   it('accumulates the strongest absolute channel sample into each time bin', () => {

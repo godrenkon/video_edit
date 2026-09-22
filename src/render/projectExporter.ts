@@ -2,6 +2,7 @@ import { probeCapabilities, type BrowserCapabilityReport, type CodecCapability }
 import type { Project, ProjectExportQuality } from '../types/editor';
 import { ProjectAudioMixer, buildAudioMixSegments } from './audioMixer';
 import { Canvas2DProjectRenderer, type RenderCanvas, type RenderContext2D } from './canvas2dRenderer';
+import { resolveExportDimensions } from './exportDimensions';
 import { renderCanvasToMp4Buffer, renderCanvasToOpfsMp4 } from './mp4Writer';
 import { sanitizeRenderFileName } from './opfsRenderTarget';
 import { RenderAssetStore } from './renderAssetStore';
@@ -18,10 +19,8 @@ export interface ProjectRenderRange {
   durationSeconds: number;
 }
 
-export interface ExportDimensions {
-  width: number;
-  height: number;
-}
+export { resolveExportDimensions } from './exportDimensions';
+export type { ExportDimensions } from './exportDimensions';
 
 export type ProjectExportContainer = 'mp4' | 'webm';
 export type ProjectExportContainerPreference = ProjectExportContainer | 'auto';
@@ -96,33 +95,6 @@ export function resolveProjectExportOptions(
     outputHeight: explicitDimensions ? options.outputHeight : options.outputHeight ?? saved?.outputHeight,
     includeAudio: options.includeAudio ?? saved?.includeAudio ?? true,
   };
-}
-
-export function resolveExportDimensions(
-  project: Pick<Project, 'width' | 'height'>,
-  options: Pick<ProjectVideoExportOptions, 'outputWidth' | 'outputHeight'> = {},
-): ExportDimensions {
-  const sourceWidth = normalizeDimension(project.width);
-  const sourceHeight = normalizeDimension(project.height);
-  const requestedWidth = finitePositive(options.outputWidth);
-  const requestedHeight = finitePositive(options.outputHeight);
-
-  if (requestedWidth && requestedHeight) {
-    return { width: normalizeDimension(requestedWidth), height: normalizeDimension(requestedHeight) };
-  }
-  if (requestedWidth) {
-    return {
-      width: normalizeDimension(requestedWidth),
-      height: normalizeDimension(requestedWidth * sourceHeight / sourceWidth),
-    };
-  }
-  if (requestedHeight) {
-    return {
-      width: normalizeDimension(requestedHeight * sourceWidth / sourceHeight),
-      height: normalizeDimension(requestedHeight),
-    };
-  }
-  return { width: sourceWidth, height: sourceHeight };
 }
 
 export function selectWebMVideoCodec(codecs: CodecCapability[]): WebMVideoCodec | null {
@@ -428,11 +400,6 @@ function getRenderContext2D(canvas: RenderCanvas): RenderContext2D {
   const context = canvas.getContext('2d');
   if (!context || !('drawImage' in context)) throw new Error('2D canvas scaling is not available');
   return context as RenderContext2D;
-}
-
-function normalizeDimension(value: number) {
-  const rounded = Math.round(clamp(value, 16, 8192));
-  return rounded % 2 === 0 ? rounded : rounded + (rounded < 8192 ? 1 : -1);
 }
 
 function finitePositive(value: number | undefined) {

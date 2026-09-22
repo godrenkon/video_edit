@@ -1,4 +1,3 @@
-import type { WrappedAudioBuffer } from 'mediabunny';
 import { readAssetFile } from '../core/storage';
 import type { AssetMeta, Clip, EffectInstance, Project } from '../types/editor';
 import { clipFadeGain } from './audioEnvelope';
@@ -10,7 +9,8 @@ import {
   resolveAudioEffects,
   type AudioEffectState,
 } from './audioEffects';
-import { MediabunnyAudioProvider } from './mediabunnyAudioProvider';
+import { MediabunnyAudioProvider, type WrappedPcmAudioBuffer } from './mediabunnyAudioProvider';
+import { createPcmAudioBuffer, type PcmAudioBuffer } from './pcmAudio';
 import { applyTrackGainPan, buildAudioDuckingEnvelope, duckingGainAt, resolveTrackBusMix, type AudioDuckingEnvelope } from './trackMix';
 
 export interface AudioMixSegment {
@@ -120,13 +120,13 @@ export class ProjectAudioMixer {
     startSeconds: number,
     durationSeconds: number,
     options: AudioChunkOptions = {},
-  ): Promise<AudioBuffer> {
+  ): Promise<PcmAudioBuffer> {
     this.assertOpen();
     const sampleRate = Math.max(8_000, Math.round(options.sampleRate ?? 48_000));
     const channels = Math.max(1, Math.min(2, Math.round(options.channels ?? 2)));
     const duration = Math.max(0, durationSeconds);
     const length = Math.max(1, Math.round(duration * sampleRate));
-    const output = createAudioBuffer(length, channels, sampleRate);
+    const output = createPcmAudioBuffer(length, channels, sampleRate);
     if (duration <= 0) return output;
 
     const segments = buildAudioMixSegments(project, startSeconds, startSeconds + duration);
@@ -197,8 +197,8 @@ export class ProjectAudioMixer {
 }
 
 function mixSegment(
-  output: AudioBuffer,
-  buffers: WrappedAudioBuffer[],
+  output: PcmAudioBuffer,
+  buffers: WrappedPcmAudioBuffer[],
   segment: AudioMixSegment,
   chunkStart: number,
   effectState: AudioEffectState,
@@ -250,7 +250,7 @@ function mixSegment(
   }
 }
 
-function sampleChannel(source: AudioBuffer, channel: number, sourceFrame: number) {
+function sampleChannel(source: PcmAudioBuffer, channel: number, sourceFrame: number) {
   const safeChannel = Math.max(0, Math.min(source.numberOfChannels - 1, channel));
   const data = source.getChannelData(safeChannel);
   const leftIndex = Math.min(source.length - 1, Math.max(0, Math.floor(sourceFrame)));
@@ -259,10 +259,10 @@ function sampleChannel(source: AudioBuffer, channel: number, sourceFrame: number
   return data[leftIndex] * (1 - fraction) + data[rightIndex] * fraction;
 }
 
-function findWrappedBuffer(buffers: WrappedAudioBuffer[], sourceTime: number) {
+function findWrappedBuffer(buffers: WrappedPcmAudioBuffer[], sourceTime: number) {
   let low = 0;
   let high = buffers.length - 1;
-  let candidate: WrappedAudioBuffer | null = null;
+  let candidate: WrappedPcmAudioBuffer | null = null;
   while (low <= high) {
     const mid = (low + high) >> 1;
     const current = buffers[mid];
@@ -278,16 +278,11 @@ function findWrappedBuffer(buffers: WrappedAudioBuffer[], sourceTime: number) {
   return sourceTime < end + 1e-6 ? candidate : null;
 }
 
-function clampBuffer(buffer: AudioBuffer) {
+function clampBuffer(buffer: PcmAudioBuffer) {
   for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
     const data = buffer.getChannelData(channel);
     for (let i = 0; i < data.length; i += 1) data[i] = Math.max(-1, Math.min(1, data[i]));
   }
-}
-
-function createAudioBuffer(length: number, numberOfChannels: number, sampleRate: number) {
-  if (typeof AudioBuffer === 'undefined') throw new Error('AudioBuffer is not available in this browser context');
-  return new AudioBuffer({ length, numberOfChannels, sampleRate });
 }
 
 function throwIfAborted(signal?: AbortSignal) {

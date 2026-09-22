@@ -1,9 +1,6 @@
 import { Camera, Download, Film, Images, Music, X } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { resolveExportDimensions } from '../render/projectExporter';
-import { exportProjectPng } from '../render/stillExporter';
-import { exportProjectPngSequence } from '../render/imageSequenceExporter';
-import { exportProjectWav } from '../render/wavExporter';
+import { resolveExportDimensions } from '../render/exportDimensions';
 import type { Project, ProjectExportContainer, ProjectExportQuality, ProjectExportSettings } from '../types/editor';
 import '../export-settings.css';
 
@@ -49,6 +46,7 @@ export function ProjectExportSettingsPanel({ project, timelineTime, onChange }: 
     setWavProgress(0);
     setWavStatus('WAVを書き出しています…');
     try {
+      const { exportProjectWav } = await import('../render/wavExporter');
       const result = await exportProjectWav(project, {
         preferOpfs: true,
         signal: controller.signal,
@@ -101,6 +99,7 @@ export function ProjectExportSettingsPanel({ project, timelineTime, onChange }: 
     setSequenceProgress(0);
     setSequenceStatus('PNG連番を書き出しています…');
     try {
+      const { exportProjectPngSequence } = await import('../render/imageSequenceExporter');
       const result = await exportProjectPngSequence(project, {
         directory,
         signal: controller.signal,
@@ -128,6 +127,7 @@ export function ProjectExportSettingsPanel({ project, timelineTime, onChange }: 
     setPngBusy(true);
     setPngStatus('現在位置をPNGに描画しています…');
     try {
+      const { exportProjectPng } = await import('../render/stillExporter');
       const result = await exportProjectPng(project, timelineTime);
       downloadBlob(result.blob, result.fileName);
       setPngStatus(`${result.width}×${result.height} / ${formatTime(result.timeSeconds)} PNG 完了`);

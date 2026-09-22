@@ -1,14 +1,17 @@
 import { readAssetFile, readWaveformCache, saveWaveformCache } from '../core/storage';
 import type { AssetMeta } from '../types/editor';
 import { MediabunnyAudioProvider } from './mediabunnyAudioProvider';
+import { analyzeWaveformInWorker, canUseMediaAnalysisWorker } from './mediaAnalysisWorkerClient';
+import {
+  accumulateWaveformPeaks,
+  clampWaveformPeak,
+  parseWaveformCache,
+  waveformBinCount,
+  type WaveformData,
+} from './waveformMath';
 
-export interface WaveformData {
-  version: 1;
-  fingerprint: string;
-  duration: number;
-  samplesPerSecond: number;
-  peaks: number[];
-}
+export { accumulateWaveformPeaks, parseWaveformCache, waveformBinCount } from './waveformMath';
+export type { WaveformData } from './waveformMath';
 
 export interface WaveformOptions {
   samplesPerSecond?: number;
@@ -32,10 +35,10 @@ export function waveformCacheKey(asset: AssetMeta, samplesPerSecond = 48, maxBin
   return `v1:${asset.id}:${waveformFingerprint(asset)}:${rate}:${bins}`;
 }
 
-export function waveformBinCount(duration: number, samplesPerSecond = 48, maxBins = 12_000) {
-  if (!Number.isFinite(duration) || duration <= 0) return 0;
+export function waveformWorkerKey(asset: AssetMeta, samplesPerSecond = 48, maxBins = 12_000) {
   const rate = Math.max(4, Math.min(240, Math.round(samplesPerSecond)));
-  return Math.max(1, Math.min(Math.max(64, Math.round(maxBins)), Math.ceil(duration * rate)));
+  const bins = Math.max(64, Math.round(maxBins));
+  return `${asset.id}:waveform:${waveformFingerprint(asset)}:${rate}:${bins}`;
 }
 
 export async function getAssetWaveform(asset: AssetMeta, options: WaveformOptions = {}): Promise<WaveformData | null> {
@@ -61,43 +64,28 @@ export async function getAssetWaveform(asset: AssetMeta, options: WaveformOption
   throwIfAborted(options.signal);
   const blob = await (options.readBlob ?? defaultReadBlob)(asset);
   throwIfAborted(options.signal);
-  const provider = new MediabunnyAudioProvider(blob, { maxCacheSize: 8 * 1024 * 1024 });
-
-  try {
-    await provider.open(options.signal);
-  } catch (error) {
-    provider.close();
-    if (error instanceof Error && error.message === 'Media has no audio track') return null;
-    throw error;
-  }
-
-  const binCount = waveformBinCount(asset.duration, samplesPerSecond, maxBins);
-  const peaks = new Float32Array(binCount);
   const chunkSeconds = Math.max(5, Math.min(120, options.chunkSeconds ?? 30));
 
-  try {
-    for (let start = 0; start < asset.duration; start += chunkSeconds) {
-      throwIfAborted(options.signal);
-      const end = Math.min(asset.duration, start + chunkSeconds);
-      const buffers = await provider.readRange(start, end, options.signal);
-      for (const wrapped of buffers) {
-        const channels = Array.from(
-          { length: wrapped.buffer.numberOfChannels },
-          (_, channel) => wrapped.buffer.getChannelData(channel),
-        );
-        accumulateWaveformPeaks(
-          peaks,
-          asset.duration,
-          channels,
-          wrapped.buffer.sampleRate,
-          wrapped.timestamp,
-          start,
-          end,
-        );
-      }
+  let peaks: number[] | null = null;
+  if (canUseMediaAnalysisWorker()) {
+    try {
+      peaks = await analyzeWaveformInWorker(waveformWorkerKey(asset, samplesPerSecond, maxBins), blob, {
+        duration: asset.duration,
+        samplesPerSecond,
+        maxBins,
+        chunkSeconds,
+        signal: options.signal,
+      });
+    } catch (error) {
+      if (isAbortError(error, options.signal)) throw error;
+      if (isNoAudioTrackError(error)) return null;
+      console.warn('Media analysis worker failed; using the main-thread waveform fallback', error);
     }
-  } finally {
-    provider.close();
+  }
+
+  if (!peaks) {
+    peaks = await analyzeWaveformOnMainThread(blob, asset.duration, samplesPerSecond, maxBins, chunkSeconds, options.signal);
+    if (!peaks) return null;
   }
 
   const result: WaveformData = {
@@ -105,7 +93,7 @@ export async function getAssetWaveform(asset: AssetMeta, options: WaveformOption
     fingerprint,
     duration: asset.duration,
     samplesPerSecond,
-    peaks: Array.from(peaks, (value) => clamp(value, 0, 1)),
+    peaks,
   };
   memoryCache.set(cacheKey, result);
 
@@ -118,54 +106,63 @@ export async function getAssetWaveform(asset: AssetMeta, options: WaveformOption
   return result;
 }
 
-export function accumulateWaveformPeaks(
-  peaks: Float32Array,
-  duration: number,
-  channels: Float32Array[],
-  sampleRate: number,
-  bufferTimestamp: number,
-  rangeStart = 0,
-  rangeEnd = duration,
-) {
-  if (peaks.length === 0 || channels.length === 0 || !Number.isFinite(duration) || duration <= 0 || sampleRate <= 0) return;
-  const frameCount = Math.min(...channels.map((channel) => channel.length));
-  const safeStart = Math.max(0, rangeStart);
-  const safeEnd = Math.min(duration, Math.max(safeStart, rangeEnd));
-
-  for (let frame = 0; frame < frameCount; frame += 1) {
-    const time = bufferTimestamp + frame / sampleRate;
-    if (time < safeStart || time >= safeEnd || time < 0 || time >= duration) continue;
-    let peak = 0;
-    for (const channel of channels) peak = Math.max(peak, Math.abs(channel[frame] ?? 0));
-    const index = Math.min(peaks.length - 1, Math.floor(time / duration * peaks.length));
-    if (peak > peaks[index]) peaks[index] = peak;
-  }
-}
-
-export function parseWaveformCache(
-  json: string | null,
-  fingerprint: string,
+async function analyzeWaveformOnMainThread(
+  blob: Blob,
   duration: number,
   samplesPerSecond: number,
   maxBins: number,
-): WaveformData | null {
-  if (!json) return null;
+  chunkSeconds: number,
+  signal?: AbortSignal,
+) {
+  const provider = new MediabunnyAudioProvider(blob, { maxCacheSize: 8 * 1024 * 1024 });
+
   try {
-    const value = JSON.parse(json) as Partial<WaveformData>;
-    if (value.version !== 1 || value.fingerprint !== fingerprint) return null;
-    if (!Number.isFinite(value.duration) || Math.abs(Number(value.duration) - duration) > 0.001) return null;
-    if (value.samplesPerSecond !== samplesPerSecond || !Array.isArray(value.peaks)) return null;
-    const expected = waveformBinCount(duration, samplesPerSecond, maxBins);
-    if (value.peaks.length !== expected) return null;
-    if (!value.peaks.every((peak) => typeof peak === 'number' && Number.isFinite(peak) && peak >= 0 && peak <= 1)) return null;
-    return value as WaveformData;
-  } catch {
-    return null;
+    await provider.open(signal);
+  } catch (error) {
+    provider.close();
+    if (isNoAudioTrackError(error)) return null;
+    throw error;
   }
+
+  const binCount = waveformBinCount(duration, samplesPerSecond, maxBins);
+  const peaks = new Float32Array(binCount);
+
+  try {
+    for (let start = 0; start < duration; start += chunkSeconds) {
+      throwIfAborted(signal);
+      const end = Math.min(duration, start + chunkSeconds);
+      const buffers = await provider.readRange(start, end, signal);
+      for (const wrapped of buffers) {
+        const channels = Array.from(
+          { length: wrapped.buffer.numberOfChannels },
+          (_, channel) => wrapped.buffer.getChannelData(channel),
+        );
+        accumulateWaveformPeaks(
+          peaks,
+          duration,
+          channels,
+          wrapped.buffer.sampleRate,
+          wrapped.timestamp,
+          start,
+          end,
+        );
+      }
+    }
+  } finally {
+    provider.close();
+  }
+
+  return Array.from(peaks, clampWaveformPeak);
 }
 
-export function clearWaveformMemoryCache() {
-  memoryCache.clear();
+export function clearWaveformMemoryCache(assetId?: string) {
+  if (!assetId) {
+    memoryCache.clear();
+    return;
+  }
+  for (const key of memoryCache.keys()) {
+    if (key.startsWith(`v1:${assetId}:`)) memoryCache.delete(key);
+  }
 }
 
 async function defaultReadBlob(asset: AssetMeta) {
@@ -184,7 +181,10 @@ function throwIfAborted(signal?: AbortSignal) {
   throw new DOMException(typeof reason === 'string' ? reason : 'Operation aborted', 'AbortError');
 }
 
-function clamp(value: number, min: number, max: number) {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, value));
+function isNoAudioTrackError(error: unknown) {
+  return error instanceof Error && error.message === 'Media has no audio track';
+}
+
+function isAbortError(error: unknown, signal?: AbortSignal) {
+  return signal?.aborted || (error instanceof DOMException && error.name === 'AbortError');
 }

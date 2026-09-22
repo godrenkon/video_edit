@@ -1,9 +1,10 @@
 import type { Project } from '../types/editor';
 import { Canvas2DProjectRenderer, type RenderCanvas } from './canvas2dRenderer';
 import { RenderAssetStore } from './renderAssetStore';
+import { positivePreviewInt, previewCacheDimensions, previewCacheFrameIndex } from './previewRenderPlanning';
 
-const DEFAULT_MAX_WIDTH = 960;
-const DEFAULT_MAX_HEIGHT = 540;
+export { previewCacheDimensions, previewCacheFrameIndex } from './previewRenderPlanning';
+
 const DEFAULT_MAX_BYTES = 32 * 1024 * 1024;
 
 interface CacheEntry {
@@ -12,6 +13,12 @@ interface CacheEntry {
   height: number;
   bytes: number;
   lastUsed: number;
+}
+
+interface PendingFrame {
+  task: Promise<PreviewCachedFrame>;
+  controller: AbortController;
+  subscribers: number;
 }
 
 export interface PreviewRenderCacheOptions {
@@ -39,13 +46,14 @@ export class PreviewRenderCache {
   private readonly maxHeight: number;
   private readonly maxBytes: number;
   private readonly entries = new Map<number, CacheEntry>();
-  private readonly pending = new Map<number, Promise<PreviewCachedFrame>>();
+  private readonly pending = new Map<number, PendingFrame>();
+  private readonly scheduler = new PreviewRenderTaskQueue();
   private closed = false;
 
   constructor(project: Pick<Project, 'assets'>, options: PreviewRenderCacheOptions = {}) {
-    this.maxWidth = positiveInt(options.maxWidth, DEFAULT_MAX_WIDTH);
-    this.maxHeight = positiveInt(options.maxHeight, DEFAULT_MAX_HEIGHT);
-    this.maxBytes = positiveInt(options.maxBytes, DEFAULT_MAX_BYTES);
+    this.maxWidth = positivePreviewInt(options.maxWidth, 960);
+    this.maxHeight = positivePreviewInt(options.maxHeight, 540);
+    this.maxBytes = positivePreviewInt(options.maxBytes, DEFAULT_MAX_BYTES);
     this.assets = new RenderAssetStore(project.assets, {
       preferProxy: true,
       videoCacheBytes: options.videoCacheBytes ?? 18 * 1024 * 1024,
@@ -73,14 +81,21 @@ export class PreviewRenderCache {
     }
 
     const existing = this.pending.get(frameIndex);
-    if (existing) return existing;
+    if (existing) return this.subscribe(frameIndex, existing, signal);
 
-    const task = this.renderFrame(project, frameIndex, frameTime, signal);
-    this.pending.set(frameIndex, task);
-    void task.finally(() => {
-      if (this.pending.get(frameIndex) === task) this.pending.delete(frameIndex);
-    });
-    return task;
+    const controller = new AbortController();
+    const pending: PendingFrame = {
+      task: this.scheduler.run(() => this.renderFrame(project, frameIndex, frameTime, controller.signal)),
+      controller,
+      subscribers: 0,
+    };
+    this.pending.set(frameIndex, pending);
+    void pending.task
+      .finally(() => {
+        if (this.pending.get(frameIndex) === pending) this.pending.delete(frameIndex);
+      })
+      .catch(() => undefined);
+    return this.subscribe(frameIndex, pending, signal);
   }
 
   clear() {
@@ -91,9 +106,28 @@ export class PreviewRenderCache {
   async close() {
     if (this.closed) return;
     this.closed = true;
+    const pendingTasks = [...this.pending.values()].map((pending) => {
+      pending.controller.abort('Preview render cache closed');
+      return pending.task;
+    });
     this.clear();
     this.pending.clear();
+    await Promise.allSettled(pendingTasks);
+    await this.scheduler.drain();
     await this.assets.close();
+  }
+
+  private subscribe(frameIndex: number, pending: PendingFrame, signal?: AbortSignal) {
+    pending.subscribers += 1;
+    let released = false;
+    return awaitSharedPreviewTask(pending.task, signal, () => {
+      if (released) return;
+      released = true;
+      pending.subscribers = Math.max(0, pending.subscribers - 1);
+      if (pending.subscribers > 0 || this.pending.get(frameIndex) !== pending) return;
+      this.pending.delete(frameIndex);
+      pending.controller.abort('Preview frame is no longer requested');
+    });
   }
 
   private async renderFrame(
@@ -167,28 +201,70 @@ export class PreviewRenderCache {
   }
 }
 
-export function previewCacheFrameIndex(timeSeconds: number, fps: number, duration: number) {
-  const rate = Math.max(1, Math.min(240, Math.round(Number.isFinite(fps) ? fps : 30)));
-  const safeDuration = Math.max(0, Number.isFinite(duration) ? duration : 0);
-  const safeTime = Math.max(0, Math.min(safeDuration, Number.isFinite(timeSeconds) ? timeSeconds : 0));
-  return Math.max(0, Math.round(safeTime * rate));
+export class PreviewRenderTaskQueue {
+  private tail: Promise<void> = Promise.resolve();
+
+  run<T>(task: () => Promise<T>): Promise<T> {
+    const result = this.tail.then(task);
+    this.tail = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  drain(): Promise<void> {
+    return this.tail;
+  }
 }
 
-export function previewCacheDimensions(
-  width: number,
-  height: number,
-  maxWidth = DEFAULT_MAX_WIDTH,
-  maxHeight = DEFAULT_MAX_HEIGHT,
-) {
-  const sourceWidth = Math.max(1, Math.round(Number.isFinite(width) ? width : 1));
-  const sourceHeight = Math.max(1, Math.round(Number.isFinite(height) ? height : 1));
-  const boundWidth = positiveInt(maxWidth, DEFAULT_MAX_WIDTH);
-  const boundHeight = positiveInt(maxHeight, DEFAULT_MAX_HEIGHT);
-  const scale = Math.min(1, boundWidth / sourceWidth, boundHeight / sourceHeight);
-  return {
-    width: Math.max(1, Math.round(sourceWidth * scale)),
-    height: Math.max(1, Math.round(sourceHeight * scale)),
-  };
+export function awaitSharedPreviewTask<T>(
+  task: Promise<T>,
+  signal?: AbortSignal,
+  onSettled: () => void = () => undefined,
+): Promise<T> {
+  if (!signal) {
+    return task.then(
+      (value) => {
+        onSettled();
+        return value;
+      },
+      (error) => {
+        onSettled();
+        throw error;
+      },
+    );
+  }
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const settle = () => {
+      if (settled) return false;
+      settled = true;
+      signal.removeEventListener('abort', abort);
+      onSettled();
+      return true;
+    };
+    const abort = () => {
+      if (!settle()) return;
+      try {
+        throwIfAborted(signal);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) {
+      abort();
+      return;
+    }
+    void task.then(
+      (value) => {
+        if (!settle()) return;
+        resolve(value);
+      },
+      (error) => {
+        if (!settle()) return;
+        reject(error);
+      },
+    );
+  });
 }
 
 function createRenderCanvas(width: number, height: number): RenderCanvas {
@@ -206,10 +282,6 @@ async function canvasToImageBitmap(canvas: RenderCanvas) {
   }
   if (typeof createImageBitmap !== 'function') throw new Error('ImageBitmap is unavailable');
   return createImageBitmap(canvas as HTMLCanvasElement);
-}
-
-function positiveInt(value: number | undefined, fallback: number) {
-  return Math.max(1, Math.round(Number.isFinite(value) ? Number(value) : fallback));
 }
 
 function now() {

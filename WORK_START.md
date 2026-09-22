@@ -33,40 +33,41 @@ Implemented already:
 - Canvas 2D project compositor for current asset layers
 - deterministic WebM video encode and mux
 - chunked audio-track mix + Opus mux
+- deterministic MP4 / H.264 + AAC encode and mux
 - in/out range export
 - OPFS direct render output with memory fallback
 - export progress / cancellation / error reporting
 - editor UI video export control separated from project JSON backup
+- WAV / PNG still / streamed PNG sequence delivery
+- proxy generation / auto relink / manual original relink
+- cached waveform / decoded thumbnails / long-timeline virtualization
+- lazy-loaded decode, proxy and export runtime chunks
+- shared thumbnail/waveform analysis worker with cancellation and fallback
+- paused/effect-preview composition worker with cancellation and fallback
+- video export decode/render/worker-safe planar PCM audio-mix/encode worker with cancellation and fallback
+- build-versioned offline shell with full chunk precaching and restart-safe live-client cache routing
 - Zundamon PNG-based mouth/blink/bob prototype
 - Amplify static hosting configuration
 - regression tests and GitHub Actions CI on `main`
 
 ## Immediate implementation order
 
-1. Harden the first WebM export
+1. Harden MP4/WebM export
    - browser fixture acceptance tests
    - A/V sync tests over long durations
    - memory/resource leak checks
    - missing/unsupported media diagnostics
    - verify VP9 / VP8 / AV1 + Opus combinations on target browsers
-2. Complete render semantic parity
-   - text / subtitle / generator compositor
-   - keyframe interpolation
-   - actual effect rendering
-   - Preview and Export effect parity tests
-3. Move long-running media/render work off the main thread
-   - decode worker boundaries
-   - offline render worker
-   - bounded queues and cancellation
-4. Add proxy + relink system
-5. Complete professional timeline operations
-   - left/ripple/roll/slip/slide trim
-   - insert/overwrite/lift/extract
-   - multi-select/copy/paste
-   - transitions and handles
-6. Add MP4/H.264 + AAC delivery path
-7. Upgrade Zundamon pipeline to PSD/ZIP + VOICEVOX timing
-8. Add interchange formats and professional audio/color/VFX layers
+2. Complete remaining realtime media Worker boundaries
+   - frame-accurate playback decode worker
+   - proxy and transcript worker boundaries
+   - bounded queues, backpressure and cancellation
+3. Add WebGPU compositor with WebGL2/Canvas fallbacks
+4. Add LUT, scopes, masks, tracking and graph editor
+5. Add speech-to-text, automatic captions and text-based editing
+6. Add render queue, resumable render and browser acceptance fixtures
+7. Upgrade Zundamon pipeline to PSD/ZIP import and expression automation
+8. Add multicam, compound clips, interchange formats and plugin contracts
 
 ## Current export boundary
 
@@ -79,17 +80,17 @@ Project
  -> Canvas 2D compositor
  -> chunked audio mix
  -> WebCodecs encoding
- -> WebM / Opus mux
+ -> MP4/H.264/AAC or WebM/VP9/VP8/AV1/Opus mux
  -> OPFS direct output or memory fallback
 ```
 
-Do not treat it as the final renderer yet. Browser fixture tests, full effect/text parity, MP4 and GPU composition remain required.
+Do not treat it as the final renderer yet. Browser fixture tests, long-duration A/V sync and memory validation, and GPU composition remain required.
 
 ## Architecture rules
 
 - Preview and final export are separate pipelines, but must share timeline/effect semantics.
 - Project state contains metadata only; never store Blob, VideoFrame, AudioData, AudioBuffer, DOM nodes, GPU resources, or Object URLs in undo history.
-- Long-running decode, proxy, waveform, transcript, and render work belongs in workers. Current main-thread export code is a stepping stone and should preserve worker-safe boundaries.
+- Long-running decode, proxy, waveform, transcript, and render work belongs in workers. Video export now uses a dedicated Worker and retains the same implementation as an unsupported-browser fallback.
 - Every editing mutation should become an EditorCommand or equivalent deterministic operation.
 - Any schema change requires a migration path.
 - Every new feature must define preview behavior, export behavior, undo behavior, fallback behavior, and tests.

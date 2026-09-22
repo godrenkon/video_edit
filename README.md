@@ -4,7 +4,7 @@
 
 ブラウザだけで動く、高性能な個人用ノンリニア動画編集環境を目指すプロジェクトです。Adobe Premiere Pro / DaVinci Resolve / Final Cut Pro / Avid / YMM4 等の有用なワークフローを調査し、Chrome + AWS Amplify Hosting で一つの編集環境に統合することを長期目標にしています。
 
-> 現在: **v0.3 render foundation**。Undo/Redo、v2 project schema、OPFS recovery、タイムライン編集基盤に加え、ブラウザ能力診断、Mediabunnyによるframe decode、deterministic offline render、Canvas 2D compositor、WebM/Opus mux、進捗・キャンセル対応の初期動画書き出しまで `main` に実装しています。
+> 現在: **v0.3 production foundation**。Undo/Redo、v2 project schema、OPFS recovery、実用的なタイムライン編集、MP4/WebM/WAV/PNG出力、音声ミキサー、字幕・文字起こし、エフェクト、プロキシ、録音・画面/カメラ収録まで `main` に実装しています。重量級メディア処理は必要時だけ読み込む分割構成です。
 
 ## 現在実装済み / 整備済み
 
@@ -21,6 +21,11 @@
 - Undo / Redo履歴
 - ドラッグ/スライダー操作の履歴coalescing
 - EditorCommand基盤
+- 重量級decode / proxy / export runtimeのオンデマンド読み込み
+- production buildの初期bundleとWorker依存グラフ全体の容量budget検査
+- 動画thumbnail decode / WebP生成と音声waveform解析を共有Media Analysis Workerへ分離（自動fallback付き）
+- pause/effect preview合成をPreview Render Workerへ分離（自動fallback付き）
+- 固定公開資産まで内容指紋化したbuild-versioned PWA app shell（遅延chunk/Workerのprecache、開いたままの旧buildとService Worker再起動に対応）
 - Vitest回帰テスト
 - GitHub Actions CI: `npm test` → TypeScript check → production build
 - WebCodecs / codec / OPFS / persistent storage / WebGPU / OffscreenCanvas等のbrowser capability診断
@@ -29,13 +34,17 @@
 
 - 複数トラック
 - クリップ配置 / 移動
-- 右端トリム
+- 左右トリム / ripple trim / roll / slip / slide
 - 再生ヘッド位置で分割
 - リップル削除
 - frame単位quantize
 - 再生ヘッド / marker / 他clip端へのsnapping
 - 1frame nudge
-- トラックmute / lock
+- insert / overwrite / lift / extract
+- multi-select / copy / paste / duplicate / grouping
+- dissolve / dip-black / slide / wipe transition
+- waveform / decoded thumbnail / long timeline virtualization
+- トラックmute / solo / lock / visibility / reorder
 - speed / reverseを考慮する共通timeline evaluator
 - keyboard shortcuts
   - `Ctrl/Cmd + Z` Undo
@@ -47,7 +56,7 @@
 
 ### Offline render / Deliver
 
-最初の実動画書き出し経路を実装済みです。
+実動画書き出し経路を実装済みです。
 
 - realtime `canvas.captureStream()`ではなく、frame-stepped deterministic render
 - ProjectとPreviewで共有するtimeline evaluation
@@ -58,17 +67,22 @@
   - transform / anchor / rotation / opacity
   - crop
   - 対応blend mode
+- H.264 + AACのMP4 video encode / mux
 - VP9 / VP8 / AV1 capabilityに応じたWebM video encode
 - audio trackをchunk単位でdecode / mix
+- `AudioSampleSink` + planar Float32 PCMにより音声decode / mix / encodeもWorker内で完結
 - mute / solo / clip volume / speed / reverseを考慮する初期audio mixer
 - Opus音声をWebMへmux
 - in/out range対応
 - render progress / cancellation / error reporting
+- decode / composite / planar PCM audio mix / encode / muxを専用Export Workerへ分離（自動fallback付き）
 - 長時間向けOPFS direct output
 - OPFS非対応時のmemory output fallback
+- WAV / PNG still / PNG sequence出力
+- 720p / 1080p / 1440p / 4Kと品質preset
 - UI上で「バックアップ」と「動画書き出し」を分離
 
-現段階のWebM出力は**初期production pipeline**です。CIではunit test / typecheck / production buildまで検証していますが、長時間・多形式素材を使うbrowser fixture acceptance testは今後追加します。
+CIではunit test / typecheck / production buildまで検証しています。長時間・多形式素材を使うbrowser fixture acceptance test、長時間A/V sync、memory leakの自動検証は今後追加します。
 
 ### 編集データモデル
 
@@ -104,7 +118,7 @@
 - high-pass / low-pass
 - compressor
 
-現時点では**descriptor/data model段階のeffectが多く、全effectがPreview/Exportへ実レンダリングされる状態ではありません。** 実レンダリングはWebGPU / WebGL2 / Canvas / Web Audio系backendへ順次接続します。
+登録済み映像effectはCanvas preview/exportで共通評価され、keyframe parity testで対応漏れを検知します。今後はLUT、scope、mask、tracking、motion blurと、WebGPU / WebGL2高速化backendを追加します。
 
 ### ずんだもん / VOICEVOX
 
@@ -115,7 +129,10 @@
 - 自動瞬き
 - 上下のbob animation
 - 音声clip + 立ち絵clipの自動タイムライン配置
-- 将来の「あいうえお口パク」用vowel cue schema
+- VOICEVOX AudioQuery timing import
+- あいうえおvowel cueと口画像割り当て
+- subtitle自動配置とword highlight
+- 永続character preset
 
 ## 制作開始時に読むもの
 
@@ -130,18 +147,17 @@
 
 ## 重要: まだ未完成の中核機能
 
-WebMの初期offline exportは実装済みですが、次は以下を完成させます。
+現在の主要な未完成領域は以下です。
 
 - browser実機fixtureによるA/V sync・frame accuracy・長時間memory検証
-- text / subtitle / generatorの本番compositor接続
-- effect / keyframe結果のPreviewとExport共通化
-- MP4 / H.264 + AAC出力
-- proxy + relink
-- waveform / thumbnail cache
-- decode / render Worker化
+- frame-accurate realtime playback decode worker
 - WebGPU compositor + WebGL fallback
-- professional audio mixer / DSP / automation
-- PSD/ZIP直接読み込みとVOICEVOX timing
+- frame-accurate decoded-frame preview engine
+- LUT / scope / mask / tracking / graph editor
+- noise suppression / automation lane UI
+- speech-to-text / automatic captions / text-based timeline editing
+- multicam / compound clips / render queue / resumable render
+- PSD/ZIP直接読み込みと表情・感情automation
 
 現行export pipeline:
 
@@ -152,7 +168,7 @@ Project / Timeline
  -> Canvas 2D composite
  -> chunked audio decode + mix
  -> WebCodecs encode
- -> WebM + Opus mux
+ -> MP4 + H.264/AAC or WebM + VP9/VP8/AV1/Opus mux
  -> OPFS direct output / memory fallback
  -> download
 ```

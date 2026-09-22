@@ -41,11 +41,10 @@ import {
 import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
-import { exportProjectVideo } from './render/projectExporter';
 import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
-import { waveformCacheKey } from './render/waveform';
+import { clearWaveformMemoryCache, waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
-import { generateVideoProxy } from './render/proxyGenerator';
+import { deleteAssetStorageBeforeInvalidation, replaceRelinkedAssetStorage } from './render/assetRelinkLifecycle';
 import { Inspector } from './components/Inspector';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
@@ -53,7 +52,8 @@ import { RecoveryDialog } from './components/RecoveryDialog';
 import { SearchEverythingPalette } from './components/SearchEverythingPalette';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
-import { ZundamonPanel, type ZundamonRequest } from './components/ZundamonPanel';
+import { ZundamonPanel } from './components/ZundamonPanel';
+import type { ZundamonRequest } from './components/ZundamonPanel';
 import type { Clip, Project, TrackKind } from './types/editor';
 
 interface UpdateOptions {
@@ -441,6 +441,7 @@ export default function App() {
     }), { history: false });
 
     try {
+      const { generateVideoProxy } = await import('./render/proxyGenerator');
       const generated = await generateVideoProxy(asset, {
         signal: controller.signal,
         onProgress: (progress) => {
@@ -516,17 +517,13 @@ export default function App() {
         return;
       }
 
-      if (capabilities.opfs) {
-        await saveAssetFile(current.storageName, file);
-        if (current.proxyStorageName) await deleteAssetFile(current.proxyStorageName).catch(() => undefined);
-        await deleteWaveformCache(waveformCacheKey(current)).catch(() => undefined);
-        await deleteThumbnailCachesForAsset(assetId).catch(() => undefined);
-      }
+      await replaceRelinkedAssetStorage(current, file, waveformCacheKey(current), capabilities.opfs);
 
       proxyAbort.current.get(assetId)?.abort('Original media relinked');
       if (current.objectUrl) URL.revokeObjectURL(current.objectUrl);
       if (current.proxyObjectUrl) URL.revokeObjectURL(current.proxyObjectUrl);
       clearTimelineThumbnailCache(assetId);
+      clearWaveformMemoryCache(assetId);
 
       const merged = mergeRelinkedAsset(current, replacement);
       history.current.clear();
@@ -619,15 +616,11 @@ export default function App() {
     if (rendering) return;
     const asset = project.assets.find((a) => a.id === assetId);
     if (!asset) return;
-    if (capabilities.opfs) {
-      await deleteAssetFile(asset.storageName);
-      if (asset.proxyStorageName) await deleteAssetFile(asset.proxyStorageName).catch(() => undefined);
-      await deleteWaveformCache(waveformCacheKey(asset));
-      await deleteThumbnailCachesForAsset(assetId);
-    }
+    await deleteAssetStorageBeforeInvalidation(asset, waveformCacheKey(asset), capabilities.opfs);
     proxyAbort.current.get(assetId)?.abort('Asset deleted');
     proxyAbort.current.delete(assetId);
     clearTimelineThumbnailCache(assetId);
+    clearWaveformMemoryCache(assetId);
     if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
     if (asset.proxyObjectUrl) URL.revokeObjectURL(asset.proxyObjectUrl);
     history.current.clear();
@@ -887,6 +880,7 @@ export default function App() {
     setSaveState('動画書き出しを準備中…');
 
     try {
+      const { exportProjectVideo } = await import('./render/projectExportEngine');
       const result = await exportProjectVideo(project, {
         signal: controller.signal,
         preferOpfs: true,
@@ -984,12 +978,14 @@ export default function App() {
 
   return (
     <div className="appShell">
-      <SearchEverythingPalette
-        project={project}
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        onNavigate={navigateSearchResult}
-      />
+      {searchOpen && (
+        <SearchEverythingPalette
+          project={project}
+          open
+          onClose={() => setSearchOpen(false)}
+          onNavigate={navigateSearchResult}
+        />
+      )}
       {showRecovery && (
         <RecoveryDialog
           snapshots={recoverySnapshots}

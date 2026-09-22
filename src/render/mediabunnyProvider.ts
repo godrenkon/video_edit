@@ -1,10 +1,4 @@
-import {
-  ALL_FORMATS,
-  BlobSource,
-  Input,
-  VideoSampleSink,
-  type VideoSample,
-} from 'mediabunny';
+import type { BlobSource, Input, VideoSample, VideoSampleSink } from 'mediabunny';
 import type { MediaFrameProvider, RenderFrameRequest } from './types';
 import { recordDecodeLatency } from './decodeDiagnostics';
 
@@ -34,6 +28,9 @@ export class MediabunnyVideoProvider implements MediaFrameProvider<VideoSample> 
 
   async open(signal?: AbortSignal) {
     if (this.opened) return;
+    throwIfAborted(signal);
+
+    const { ALL_FORMATS, BlobSource, Input, VideoSampleSink } = await import('mediabunny');
     throwIfAborted(signal);
 
     const input = new Input({
