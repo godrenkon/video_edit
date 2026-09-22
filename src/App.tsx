@@ -193,6 +193,8 @@ export default function App() {
           const hydratedProject = await hydrateProjectAssets(saved);
           if (!cancelled) {
             history.current.clear();
+            historyRuntimeUrls.current.clear();
+            captureProjectRuntimeUrls(hydratedProject, historyRuntimeUrls.current);
             setProject(hydratedProject);
           }
         }
@@ -366,6 +368,8 @@ export default function App() {
       const hydratedProject = await hydrateProjectAssets(restored);
       revokeProjectUrls(project);
       history.current.clear();
+      historyRuntimeUrls.current.clear();
+      captureProjectRuntimeUrls(hydratedProject, historyRuntimeUrls.current);
       setPlaying(false);
       setTime(0);
       setSelectedClipId(null);
