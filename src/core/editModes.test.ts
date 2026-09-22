@@ -116,6 +116,16 @@ describe('insert / overwrite editing', () => {
     expect(output.tracks[3].clips[0].start).toBe(5);
   });
 
+  it('keeps insert edits on the exact fractional sequence timebase', () => {
+    const input = project([clip('a', 0, 10)]);
+    input.fps = 30000 / 1001;
+    const output = insertClipAt(input, 'video', clip('new', 0, 1), 3, 'track');
+    const inserted = output.tracks[0].clips.find((item) => item.name === 'new')!;
+    const frame = 1 / input.fps;
+    expect(inserted.start / frame).toBeCloseTo(Math.round(3 / frame), 10);
+    expect(inserted.duration / frame).toBeCloseTo(Math.round(1 / frame), 10);
+  });
+
   it('overwrite removes only the covered range and preserves both sides', () => {
     const input = project([clip('a', 0, 10, 1)]);
     const incoming = clip('new', 0, 3);
