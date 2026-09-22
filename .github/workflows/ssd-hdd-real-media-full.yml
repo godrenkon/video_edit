@@ -28,6 +28,21 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 35668057188
 
+      - name: Download licensed free SFX
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 180             -o real_assets/sfx_click.ogg             "https://commons.wikimedia.org/wiki/Special:Redirect/file/Clicker_sound.ogg"
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 180             -o real_assets/sfx_transition.ogg             "https://commons.wikimedia.org/wiki/Special:Redirect/file/Jingle_Transition.ogg"
+          curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 180             -o real_assets/sfx_success.ogg             "https://commons.wikimedia.org/wiki/Special:Redirect/file/Sucesso.ogg"
+          test -s real_assets/sfx_click.ogg
+          test -s real_assets/sfx_transition.ogg
+          test -s real_assets/sfx_success.ogg
+          cat >> real_assets/ATTRIBUTION.md <<'EOF'
+          - **sfx_click** — Maddy — CC0 — https://commons.wikimedia.org/wiki/File:Clicker_sound.ogg
+          - **sfx_transition** — Savant-fou et Malfidus — Public Domain — https://commons.wikimedia.org/wiki/File:Jingle_Transition.ogg
+          - **sfx_success** — Rafael Tavares Juliani — CC0 — https://commons.wikimedia.org/wiki/File:Sucesso.ogg
+          EOF
+
       - name: Download corrected Zundamon narration
         uses: actions/download-artifact@v4
         with:
@@ -80,6 +95,9 @@ jobs:
           bad=[x for x in cues if x.startswith(("、","。","，",",","：",":","；",";","！","？","!","?"))]
           assert not bad, "leading punctuation in subtitle: "+repr(bad[:10])
           assert max(map(len,cues)) <= 32, max(map(len,cues))
+          for name in ("sfx_click.ogg","sfx_transition.ogg","sfx_success.ogg"):
+              import os
+              assert os.path.getsize("real_assets/"+name) > 1000, name
           print("events",len(rows),"unique_assets",len(assets),"max_hold",max(durations),"duration",fmt["duration"],"subtitle_cues",len(cues),"subtitle_max",max(map(len,cues)))
           print("assets",sorted(assets))
           PY
