@@ -962,9 +962,9 @@ export default function App() {
         volume: 1,
         muted: false,
         transform: {
-          x: Number.isFinite(x) ? x : 0,
-          y: Number.isFinite(y) ? y : 0,
-          scale: Number.isFinite(scale) ? Math.max(0.05, scale) : 0.82,
+          x: typeof x === 'number' && Number.isFinite(x) ? x : 0,
+          y: typeof y === 'number' && Number.isFinite(y) ? y : 0,
+          scale: typeof scale === 'number' && Number.isFinite(scale) ? Math.max(0.05, scale) : 0.82,
           rotation: 0,
           opacity: 1,
           anchorX: 0.5,
