@@ -2,8 +2,10 @@ import type { Project } from '../types/editor';
 import {
   findClip,
   quantizeToFrame,
+  splitClipAt,
   trimClipLeft,
   trimClipRight,
+  type RippleDeleteScope,
 } from './timelineOps';
 
 export type TimelineEdge = 'left' | 'right';
@@ -19,6 +21,7 @@ export function rippleTrimClip(
   requestedBoundary: number,
   playhead?: number,
   thresholdSeconds = 0.12,
+  scope: RippleDeleteScope = 'track',
 ): Project {
   const location = findClip(project, clipId);
   if (!location || location.track.locked) return project;
@@ -34,40 +37,90 @@ export function rippleTrimClip(
   const afterTrim = findClip(trimmed, clipId);
   if (!afterTrim) return project;
   const frame = 1 / Math.max(1, project.fps);
+  const affectedTrackIds = rippleAffectedTrackIds(project, location.track.id, scope);
 
   if (edge === 'left') {
     const trimDelta = afterTrim.clip.start - originalStart;
     if (Math.abs(trimDelta) < frame / 1000) return trimmed;
-    return {
-      ...trimmed,
-      tracks: trimmed.tracks.map((track, index) => {
-        if (index !== location.trackIndex) return track;
-        return {
-          ...track,
-          clips: track.clips.map((clip) => {
-            const originalClip = location.track.clips.find((item) => item.id === clip.id);
-            if (!originalClip || originalClip.start + frame / 2 < originalStart) return clip;
-            return { ...clip, start: quantizeToFrame(Math.max(0, clip.start - trimDelta), project.fps) };
-          }),
-        };
-      }),
-    };
+    const prepared = splitOtherRippleTracksAt(trimmed, affectedTrackIds, location.track.id, originalStart);
+    return shiftRippleTracks(
+      prepared,
+      affectedTrackIds,
+      clipId,
+      originalStart,
+      -trimDelta,
+      'left',
+    );
   }
 
   const nextEnd = afterTrim.clip.start + afterTrim.clip.duration;
   const durationDelta = nextEnd - originalEnd;
   if (Math.abs(durationDelta) < frame / 1000) return trimmed;
+  const prepared = splitOtherRippleTracksAt(trimmed, affectedTrackIds, location.track.id, originalEnd);
+  return shiftRippleTracks(
+    prepared,
+    affectedTrackIds,
+    clipId,
+    originalEnd,
+    durationDelta,
+    'right',
+  );
+
+}
+
+function rippleAffectedTrackIds(project: Project, sourceTrackId: string, scope: RippleDeleteScope) {
+  return new Set(project.tracks
+    .filter((track) => {
+      if (track.locked) return false;
+      if (track.id === sourceTrackId) return true;
+      if (scope === 'all') return true;
+      return scope === 'sync-lock' && track.syncLock !== false;
+    })
+    .map((track) => track.id));
+}
+
+function splitOtherRippleTracksAt(
+  project: Project,
+  affectedTrackIds: Set<string>,
+  sourceTrackId: string,
+  boundary: number,
+) {
+  let next = project;
+  const frame = 1 / Math.max(1, project.fps);
+  for (const trackId of affectedTrackIds) {
+    if (trackId === sourceTrackId) continue;
+    const track = next.tracks.find((item) => item.id === trackId);
+    if (!track || track.locked) continue;
+    const crossing = track.clips
+      .filter((clip) => clip.start < boundary - frame / 1000
+        && clip.start + clip.duration > boundary + frame / 1000)
+      .map((clip) => clip.id);
+    for (const crossingClipId of crossing) {
+      next = splitClipAt(next, crossingClipId, boundary);
+    }
+  }
+  return next;
+}
+
+function shiftRippleTracks(
+  project: Project,
+  affectedTrackIds: Set<string>,
+  editedClipId: string,
+  boundary: number,
+  delta: number,
+  edge: TimelineEdge,
+) {
+  const frame = 1 / Math.max(1, project.fps);
   return {
-    ...trimmed,
-    tracks: trimmed.tracks.map((track, index) => {
-      if (index !== location.trackIndex) return track;
+    ...project,
+    tracks: project.tracks.map((track) => {
+      if (!affectedTrackIds.has(track.id) || track.locked) return track;
       return {
         ...track,
         clips: track.clips.map((clip) => {
-          if (clip.id === clipId) return clip;
-          const originalClip = location.track.clips.find((item) => item.id === clip.id);
-          if (!originalClip || originalClip.start < originalEnd - frame / 2) return clip;
-          return { ...clip, start: quantizeToFrame(Math.max(0, clip.start + durationDelta), project.fps) };
+          if (edge === 'right' && clip.id === editedClipId) return clip;
+          if (clip.start < boundary - frame / 2) return clip;
+          return { ...clip, start: quantizeToFrame(Math.max(0, clip.start + delta), project.fps) };
         }),
       };
     }),
