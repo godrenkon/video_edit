@@ -84,6 +84,7 @@ jobs:
           assert video["width"]==1920 and video["height"]==1080
           assert video["r_frame_rate"]=="60/1"
           assert audio["sample_rate"]=="48000"
+          assert audio["channels"]==2, audio.get("channels")
           ass=open("real_video_output/subtitles_green.ass",encoding="utf-8-sig").read().splitlines()
           cues=[]
           for line in ass:
