@@ -729,7 +729,7 @@ export default function App() {
 
   const rippleDeleteSelectedClip = useCallback(() => {
     if (!selectedClipId || rendering) return;
-    updateProject((p) => rippleDeleteClip(p, selectedClipId), { label: 'リップル削除' });
+    updateProject((p) => rippleDeleteClip(p, selectedClipId, 'sync-lock'), { label: '同期ロック付きリップル削除' });
     setSelectedClipId(null);
   }, [rendering, selectedClipId, updateProject]);
 
@@ -1426,6 +1426,7 @@ export default function App() {
         onToggleMuteTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, muted: !t.muted } : t) }), { label: 'トラックミュート' })}
         onToggleSoloTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, solo: !t.solo } : t) }), { label: 'トラックSolo' })}
         onToggleVisibleTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, visible: t.visible === false } : t) }), { label: 'トラック表示' })}
+        onToggleSyncLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, syncLock: t.syncLock === false } : t) }), { label: '同期ロック切替' })}
         onToggleLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, locked: !t.locked } : t) }), { label: 'トラックロック' })}
       />
       </div>
