@@ -41,6 +41,7 @@ interface Props {
   onToggleMuteTrack: (trackId: string) => void;
   onToggleSoloTrack: (trackId: string) => void;
   onToggleVisibleTrack: (trackId: string) => void;
+  onToggleTargetTrack: (trackId: string) => void;
   onToggleSyncLockTrack: (trackId: string) => void;
   onToggleLockTrack: (trackId: string) => void;
 }
@@ -79,6 +80,7 @@ export function Timeline(props: Props) {
     onToggleMuteTrack,
     onToggleSoloTrack,
     onToggleVisibleTrack,
+    onToggleTargetTrack,
     onToggleSyncLockTrack,
     onToggleLockTrack,
   } = props;
@@ -237,6 +239,12 @@ export function Timeline(props: Props) {
               <button className={`miniBtn ${track.muted ? 'active' : ''}`} onClick={() => onToggleMuteTrack(track.id)} title={track.muted ? 'ミュート解除' : 'ミュート'} aria-pressed={track.muted}>M</button>
               <button className={`miniBtn ${track.solo ? 'active' : ''}`} onClick={() => onToggleSoloTrack(track.id)} title="Solo" aria-pressed={Boolean(track.solo)}>S</button>
               {track.kind !== 'audio' && <button className={`miniBtn ${track.visible === false ? '' : 'active'}`} onClick={() => onToggleVisibleTrack(track.id)} title={track.visible === false ? '表示' : '非表示'}>{track.visible === false ? <EyeOff size={13} /> : <Eye size={13} />}</button>}
+              <button
+                className={`miniBtn ${track.targeted ? 'active' : ''}`}
+                onClick={() => onToggleTargetTrack(track.id)}
+                title={track.targeted ? 'ターゲット解除' : '編集ターゲットに指定'}
+                aria-pressed={Boolean(track.targeted)}
+              >T</button>
               <button
                 className={`miniBtn ${track.syncLock === false ? '' : 'active'}`}
                 onClick={() => onToggleSyncLockTrack(track.id)}
