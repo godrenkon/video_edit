@@ -2,7 +2,7 @@
 from __future__ import annotations
 import csv, json, math, os, re, subprocess, sys
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from janome.tokenizer import Tokenizer
 
 W,H,FPS=1920,1080,60
@@ -34,15 +34,101 @@ def optional_asset(asset_id):
     return sorted(xs)[0] if xs else None
 
 def prepare_zundamon(src):
+    """Extract one standing Zundamon pose from the official transparent image.
+
+    Some official distribution images contain multiple poses side-by-side.
+    The previous renderer cropped the whole alpha bbox, which could show two
+    Zundamons at once. Detect large separated alpha groups and keep one pose.
+    """
     im=Image.open(src).convert("RGBA")
     bbox=im.getchannel("A").getbbox()
     if bbox:
         im=im.crop(bbox)
+
+    alpha=im.getchannel("A")
+    w,h=im.size
+    if w > 80:
+        # Vertical alpha projection: transparent columns separate side-by-side poses.
+        proj=alpha.resize((w,1),Image.Resampling.BOX)
+        vals=list(proj.getdata())
+        active=[v > 1 for v in vals]
+
+        runs=[]
+        start=None
+        for x,on in enumerate(active+[False]):
+            if on and start is None:
+                start=x
+            elif not on and start is not None:
+                runs.append([start,x])
+                start=None
+
+        # Merge tiny internal gaps so hair/tail details do not split one pose.
+        merged=[]
+        max_gap=max(6,int(w*0.02))
+        for a,b in runs:
+            if merged and a-merged[-1][1] <= max_gap:
+                merged[-1][1]=b
+            else:
+                merged.append([a,b])
+
+        min_width=max(36,int(w*0.16))
+        large=[r for r in merged if r[1]-r[0] >= min_width]
+        if len(large) >= 2:
+            # Prefer the pose carrying the most visible alpha pixels.
+            def alpha_mass(r):
+                a,b=r
+                return sum(alpha.crop((a,0,b,h)).getdata())
+            a,b=max(large,key=alpha_mass)
+            margin=max(8,int(w*0.015))
+            im=im.crop((max(0,a-margin),0,min(w,b+margin),h))
+            bbox=im.getchannel("A").getbbox()
+            if bbox:
+                im=im.crop(bbox)
+
     pad=24
     canvas=Image.new("RGBA",(im.width+pad*2,im.height+pad*2),(0,0,0,0))
     canvas.alpha_composite(im,(pad,pad))
     out=WORK/"zundamon_cropped.png"
     canvas.save(out)
+    return out
+
+def _fit_photo(path,size):
+    im=Image.open(path).convert("RGB")
+    return ImageOps.fit(im,size,method=Image.Resampling.LANCZOS,centering=(0.5,0.5))
+
+def make_ssd_hdd_compare(n):
+    """Create a real-photo split screen whenever narration mentions both SSD and HDD."""
+    hdd_ids=["hdd_side","hdd_open_photo","hdd_head_macro"]
+    ssd_ids=["sata_ssd","nvme_m2","ssd_controller"]
+
+    hp=[optional_asset(x) for x in hdd_ids]
+    sp=[optional_asset(x) for x in ssd_ids]
+    hp=[x for x in hp if x]
+    sp=[x for x in sp if x]
+    if not hp or not sp:
+        raise RuntimeError("SSD/HDD comparison photos unavailable")
+
+    hdd=hp[n % len(hp)]
+    ssd=sp[(n//2) % len(sp)]
+    half=W//2
+    left=_fit_photo(hdd,(half,H))
+    right=_fit_photo(ssd,(W-half,H))
+
+    canvas=Image.new("RGBA",(W,H),(10,12,15,255))
+    canvas.alpha_composite(left.convert("RGBA"),(0,0))
+    canvas.alpha_composite(right.convert("RGBA"),(half,0))
+    d=ImageDraw.Draw(canvas,"RGBA")
+
+    # Central divider and unobtrusive real-photo labels.
+    d.rectangle((half-4,0,half+4,H),fill=(255,255,255,190))
+    font=ImageFont.truetype(FONT_BOLD,54)
+    d.rounded_rectangle((54,140,270,220),radius=22,fill=(10,14,20,205),outline=(255,172,76,235),width=4)
+    d.text((162,180),"HDD",font=font,fill=(255,188,100,255),anchor="mm")
+    d.rounded_rectangle((W-270,140,W-54,220),radius=22,fill=(10,14,20,205),outline=(96,218,255,235),width=4)
+    d.text((W-162,180),"SSD",font=font,fill=(110,225,255,255),anchor="mm")
+
+    out=WORK/f"compare_{n:04d}.png"
+    canvas.convert("RGB").save(out,quality=95)
     return out
 
 def probe_duration(path):
@@ -287,7 +373,19 @@ def create_overlay(row,slot,path):
     d.text((66,74),title,font=fb,fill=(230,255,230,255),anchor="lm")
     t=row["text"]
     # draw focused explanatory overlays only when useful
-    if "プラッタ" in t or "ヘッド" in t:
+    data_words=["写真","動画","ゲーム","アプリ"]
+    if sum(1 for x in data_words if x in t) >= 2:
+        d.rounded_rectangle((70,175,700,365),radius=25,fill=(5,10,18,200))
+        d.text((100,220),"保存するデータの例",font=fb,fill=(141,255,113,255))
+        chips=[("写真",100),("動画",245),("ゲーム",390),("アプリ",555)]
+        for label,x in chips:
+            d.rounded_rectangle((x,280,x+120,335),radius=16,fill=(255,255,255,24),outline=(141,255,113,150),width=2)
+            d.text((x+60,308),label,font=fs,fill=(255,255,255,255),anchor="mm")
+    elif any(k in t for k in ["どっち","どこが違う","選べば"]):
+        d.rounded_rectangle((70,180,720,355),radius=25,fill=(5,10,18,200))
+        d.text((100,225),"SSD  ←  どっち？  →  HDD",font=fb,fill=(141,255,113,255))
+        d.text((100,292),"仕組み・速度・容量・価格で比べる",font=fs,fill=(255,255,255,255))
+    elif "プラッタ" in t or "ヘッド" in t:
         d.rounded_rectangle((70,180,530,355),radius=25,fill=(5,10,18,195))
         d.text((100,225),"HDD内部",font=fb,fill=(255,185,80,255))
         d.text((100,290),"プラッタ  /  ヘッド",font=fs,fill=(255,255,255,255))
@@ -321,7 +419,13 @@ def fit_image_filter():
 
 def render_event(ev,out,zundamon):
     dur=ev["en"]-ev["st"]
-    src=asset(ev["asset"])
+    text=ev["row"]["text"]
+    # If narration explicitly says both SSD and HDD, show both real devices
+    # at the same time instead of illustrating only one side.
+    if "SSD" in text and "HDD" in text:
+        src=make_ssd_hdd_compare(ev["n"])
+    else:
+        src=asset(ev["asset"])
     overlay=WORK/f"ov_{ev['n']:04d}.png"
     create_overlay(ev["row"],ev["slot"],overlay)
     pos_right=(ev["n"]//3)%2==0
