@@ -377,6 +377,7 @@ export function Preview({
   const panelRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ clipId: string; x: number; y: number } | null>(null);
   const visuals = useMemo(() => visualTimelineItems(project, time), [project, time]);
   const audios = useMemo(() => audioTimelineItems(project, time), [project, time]);
   const selectedVisual = useMemo(
@@ -388,6 +389,18 @@ export function Preview({
     [visuals],
   );
   const aspect = `${project.width} / ${project.height}`;
+
+  useEffect(() => {
+    const closeContextMenu = () => setContextMenu(null);
+    window.addEventListener('pointerdown', closeContextMenu);
+    window.addEventListener('blur', closeContextMenu);
+    window.addEventListener('resize', closeContextMenu);
+    return () => {
+      window.removeEventListener('pointerdown', closeContextMenu);
+      window.removeEventListener('blur', closeContextMenu);
+      window.removeEventListener('resize', closeContextMenu);
+    };
+  }, []);
 
   useEffect(() => {
     const sync = () => setFullscreen(document.fullscreenElement === panelRef.current);
@@ -488,6 +501,34 @@ export function Preview({
               }
               return <VisualLayer key={clip.id} clip={clip} project={project} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} />;
             })}
+            {visuals.map(({ clip }) => {
+              const hitStyle = previewSelectionStyle(clip, project, time, project.assets);
+              return (
+                <button
+                  key={'hit-' + clip.id}
+                  type="button"
+                  className={'previewHitTarget ' + (clip.id === selectedClipId ? 'selected' : '')}
+                  style={hitStyle}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSelectClip(clip.id);
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onSelectClip(clip.id);
+                    setContextMenu({
+                      clipId: clip.id,
+                      x: Math.max(8, Math.min(window.innerWidth - 230, event.clientX)),
+                      y: Math.max(8, Math.min(window.innerHeight - 220, event.clientY)),
+                    });
+                  }}
+                  aria-label={clip.name + 'を選択'}
+                  title={clip.name}
+                />
+              );
+            })}
             {visuals.length > 0 && (
               <>
                 <PausedPreviewCanvas project={project} time={time} playing={playing} enabled={!playing} />
@@ -519,6 +560,39 @@ export function Preview({
             {visuals.length === 0 && <div className="stageEmpty"><FilmIcon /><span>タイムラインに素材を追加</span></div>}
           </div>
         </div>
+        {contextMenu && (() => {
+          const target = visuals.find(({ clip }) => clip.id === contextMenu.clipId)?.clip;
+          if (!target) return null;
+          return (
+            <div
+              className="editorContextMenu previewContextMenu"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+              onPointerDown={(event) => event.stopPropagation()}
+              role="menu"
+            >
+              <button type="button" onClick={() => {
+                onTransformClip(target.id, { x: 0, y: 0 });
+                setContextMenu(null);
+              }}>画面中央へ移動</button>
+              <button type="button" onClick={() => {
+                onTransformClip(target.id, { scale: 1 });
+                setContextMenu(null);
+              }}>拡大率を100%に戻す</button>
+              <button type="button" onClick={() => {
+                onTransformClip(target.id, {
+                  x: 0,
+                  y: 0,
+                  scale: 1,
+                  rotation: 0,
+                  opacity: 1,
+                  anchorX: 0.5,
+                  anchorY: 0.5,
+                });
+                setContextMenu(null);
+              }}>変形をリセット</button>
+            </div>
+          );
+        })()}
         {audios.map(({ clip, track }) => (
           <AudioLayer
             key={clip.id}
