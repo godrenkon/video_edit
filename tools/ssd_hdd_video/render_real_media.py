@@ -439,21 +439,52 @@ make_ass(rows,ass)
 events=[]; n=0; last_asset=None; cur=0.0
 for row in rows:
     if row["st"]>cur+0.02:
-        # chapter gap: 1.3s title beat, use a relevant real asset rather than a blank screen.
-        pool=pool_for(row["section"],row["text"])
-        a=next((x for x in pool if optional_asset(x) and x!=last_asset),next((x for x in pool if optional_asset(x)),None))
-        if a:
-            events.append({"n":n,"st":cur,"en":row["st"],"asset":a,"slot":0,"row":row}); n+=1; last_asset=a
-    dur=row["en"]-row["st"]
-    slots=max(1,math.ceil(dur/3.6))
-    pool=[x for x in pool_for(row["section"],row["text"]) if optional_asset(x)]
-    if not pool:
-        pool=["zundamon_official"]
-    for s in range(slots):
-        st=row["st"]+dur*s/slots; en=row["st"]+dur*(s+1)/slots
-        choices=[x for x in pool if x!=last_asset] or pool
-        a=choices[(row["idx"]+s)%len(choices)]
-        events.append({"n":n,"st":st,"en":en,"asset":a,"slot":s,"row":row}); n+=1; last_asset=a
+        pool=[x for x in pool_for(row["section"],row["text"]) if optional_asset(x)]
+        if not pool:
+            pool=[x for x in STORAGE_MEDIA if optional_asset(x)]
+        if not pool:
+            raise RuntimeError("no real-media assets available for chapter gap")
+        a=next((x for x in pool if x!=last_asset),pool[0])
+        gap_row=dict(row)
+        gap_row["text"]=row["section"].split("　",1)[-1]
+        events.append({
+            "n":n,"st":cur,"en":row["st"],"asset":a,
+            "slot":0,"row":gap_row,"source_idx":row["idx"]
+        })
+        n+=1
+        last_asset=a
+
+    used_in_sentence=set()
+    for seg_i,seg in enumerate(timed_phrases(row)):
+        phrase_row=dict(row)
+        phrase_row["source_text"]=row["text"]
+        phrase_row["text"]=seg["text"]
+        segdur=seg["en"]-seg["st"]
+        slots=max(1,math.ceil(segdur/3.35))
+        pool=[x for x in pool_for(row["section"],seg["text"]) if optional_asset(x)]
+        if not pool:
+            pool=[x for x in STORAGE_MEDIA if optional_asset(x)]
+        if not pool:
+            raise RuntimeError("no real-media fallback assets available")
+
+        for s in range(slots):
+            st=seg["st"]+segdur*s/slots
+            en=seg["st"]+segdur*(s+1)/slots
+
+            choices=[x for x in pool if x!=last_asset and x not in used_in_sentence]
+            if not choices:
+                choices=[x for x in pool if x!=last_asset]
+            if not choices:
+                choices=pool
+
+            a=choices[(row["idx"]+seg_i+s+n)%len(choices)]
+            events.append({
+                "n":n,"st":st,"en":en,"asset":a,
+                "slot":s,"row":phrase_row,"source_idx":row["idx"]
+            })
+            used_in_sentence.add(a)
+            n+=1
+            last_asset=a
     cur=row["en"]
 
 # final 8 sec: actual hardware montage in 2-second cuts, then next-video title.
@@ -480,6 +511,24 @@ semantic_bad=[
 ]
 if semantic_bad:
     raise RuntimeError("semantic media mismatch: "+repr(semantic_bad[:20]))
+
+bad_browser=[
+    e for e in events
+    if e["asset"]=="browser_demo_video" and "ブラウザ" not in e["row"]["text"]
+]
+if bad_browser:
+    raise RuntimeError(
+        "browser B-roll used outside browser narration: "+
+        repr([(e["n"],e["row"]["text"]) for e in bad_browser[:10]])
+    )
+
+adjacent_repeat=[
+    (events[i-1]["n"],events[i]["n"],events[i]["asset"])
+    for i in range(1,len(events))
+    if events[i-1]["asset"]==events[i]["asset"]
+]
+if adjacent_repeat:
+    raise RuntimeError("adjacent repeated real-media asset: "+repr(adjacent_repeat[:10]))
 
 with (OUT/"storyboard.tsv").open("w",encoding="utf-8") as f:
     f.write("n\tstart\tend\tduration\tasset\tsection\ttext\n")
