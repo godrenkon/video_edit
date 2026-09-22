@@ -13,6 +13,7 @@ export function createProject(): Project {
     width: 1920,
     height: 1080,
     fps: 30,
+    timecodeMode: 'non-drop-frame',
     background: '#000000',
     duration: 30,
     createdAt: now,
