@@ -200,6 +200,24 @@ describe('EditorCommand factories', () => {
     expect(first.tracks[0].clips.find((clip) => clip.id === paste!.createdClipId)?.start).toBe(14);
   });
 
+  it('pastes into the explicit unlocked target track', () => {
+    const input = makeProject();
+    input.tracks[0].targeted = false;
+    input.tracks.push({
+      ...input.tracks[0],
+      id: 'video-target',
+      name: 'Video Target',
+      targeted: true,
+      clips: [],
+    });
+    const clipboard = copyClip(input, 'clip-a')!;
+    const paste = pasteClipCommand(input, clipboard, 12)!;
+    const output = paste.apply(input);
+    expect(output.tracks.find((track) => track.id === 'video-target')?.clips.map((clip) => clip.id))
+      .toEqual([paste.createdClipId]);
+    expect(output.tracks[0].clips).toHaveLength(3);
+  });
+
   it('does not add the same prepared clip identity twice', () => {
     const input = makeProject();
     const duplicate = duplicateClipCommand(input, 'clip-a')!;
