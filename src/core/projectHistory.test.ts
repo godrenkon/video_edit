@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../types/editor';
+import { HistoryController } from './history';
 import {
   captureProjectRuntimeUrls,
   forgetAssetRuntimeUrls,
@@ -71,6 +72,26 @@ describe('project history runtime URLs', () => {
     captureProjectRuntimeUrls(current, registry);
 
     const restored = restoreProjectRuntimeUrls(snapshotProjectForHistory(current), registry);
+    expect(restored.assets[0].objectUrl).toBe('blob:source');
+    expect(restored.assets[0].proxyObjectUrl).toBe('blob:proxy');
+  });
+
+  it('restores an imported asset URL after undo then redo without storing the URL in history', () => {
+    const registry: AssetRuntimeUrlRegistry = new Map();
+    const history = new HistoryController<Project>(120, 750, snapshotProjectForHistory);
+    const initial = { ...project(), assets: [] };
+    const imported = project();
+
+    history.record(initial, 'import');
+    captureProjectRuntimeUrls(imported, registry);
+
+    const undone = history.undo(imported);
+    expect(undone?.value.assets).toHaveLength(0);
+
+    const redone = history.redo(undone!.value);
+    expect(redone?.value.assets[0].objectUrl).toBeUndefined();
+
+    const restored = restoreProjectRuntimeUrls(redone!.value, registry);
     expect(restored.assets[0].objectUrl).toBe('blob:source');
     expect(restored.assets[0].proxyObjectUrl).toBe('blob:proxy');
   });
