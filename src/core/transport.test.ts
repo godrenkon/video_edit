@@ -34,6 +34,15 @@ describe('NLE transport', () => {
     expect(quantizeTransportTime(1.019, 30, 10)).toBeCloseTo(31 / 30, 8);
   });
 
+  it('keeps shuttle and frame stepping exact at 29.97 fps', () => {
+    const rate = 30000 / 1001;
+    const frame = 1000;
+    const origin = frame / rate;
+    expect(stepTransportFrames(origin, 1, rate, 120)).toBeCloseTo((frame + 1) / rate, 12);
+    expect(transportFrameTime(origin, 1 / rate + 1e-8, rate, 120, 1)).toBeCloseTo((frame + 1) / rate, 12);
+    expect(quantizeTransportTime(origin, rate, 120)).toBeCloseTo(origin, 12);
+  });
+
   it('navigates between clip edit points across tracks', () => {
     const project = createProject();
     project.duration = 20;
