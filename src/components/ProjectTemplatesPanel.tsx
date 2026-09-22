@@ -7,6 +7,7 @@ import {
   projectSettingsPatch,
   saveProjectSettingsTemplates,
 } from '../core/projectTemplates';
+import { frameRateDisplayLabel } from '../core/timebase';
 import type { Project } from '../types/editor';
 import '../project-templates.css';
 
@@ -72,7 +73,7 @@ export function ProjectTemplatesPanel({
           {templates.length === 0 && <option value="">テンプレートなし</option>}
           {templates.map((template) => (
             <option key={template.id} value={template.id}>
-              {template.name} · {template.width}×{template.height} / {template.fps}fps
+              {template.name} · {template.width}×{template.height} / {frameRateDisplayLabel(template.fps)}fps · {template.timecodeMode === 'drop-frame' ? 'DF' : 'NDF'}
             </option>
           ))}
         </select>
