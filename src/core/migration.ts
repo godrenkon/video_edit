@@ -102,6 +102,7 @@ function migrateTrack(track: Record<string, unknown>, index: number): Track {
     kind,
     muted: Boolean(track.muted),
     locked: Boolean(track.locked),
+    syncLock: track.syncLock === undefined ? true : Boolean(track.syncLock),
     solo: Boolean(track.solo),
     visible: track.visible === undefined ? true : Boolean(track.visible),
     gain: finiteNumber(track.gain, 1, 0, 4),
