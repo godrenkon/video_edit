@@ -370,6 +370,17 @@ def pool_for(section,text):
 def contextual_pool(section, phrase_text, source_text=None):
     # Keep the technical subject of the whole sentence even after it is split
     # into shorter subtitle/visual phrases.
+    full=(source_text or phrase_text)
+
+    # The HDD motion video contains an embedded credit card in part of the clip.
+    # It is valuable in the mechanism chapter, but distracting in the
+    # lifespan/failure chapter. Use clear stills/macros there instead.
+    if "寿命" in section and any(k in full for k in [
+        "モーター","ヘッド","回転機構","機械部品","長く使えば",
+        "故障する可能性","故障要因","書き込み寿命"
+    ]):
+        return ["hdd_open_photo","hdd_head_macro","hdd_side"]
+
     strong=strong_media_for(phrase_text)
     if strong:
         return strong
