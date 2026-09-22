@@ -19,6 +19,7 @@ export interface HistoryResult<T> {
 export class HistoryController<T> {
   private past: HistoryEntry<T>[] = [];
   private future: HistoryEntry<T>[] = [];
+  private canCoalesceWithLastRecord = false;
 
   constructor(
     private readonly limit = 120,
@@ -31,7 +32,7 @@ export class HistoryController<T> {
     const last = this.past[this.past.length - 1];
 
     // Continuous drags/sliders should become one history step.
-    if (key && last?.key === key && now - last.at <= this.coalesceMs) {
+    if (this.canCoalesceWithLastRecord && key && last?.key === key && now - last.at <= this.coalesceMs) {
       last.at = now;
       this.future = [];
       return;
@@ -49,9 +50,11 @@ export class HistoryController<T> {
     }
 
     this.future = [];
+    this.canCoalesceWithLastRecord = true;
   }
 
   undo(current: T): HistoryResult<T> | null {
+    this.canCoalesceWithLastRecord = false;
     const previous = this.past.pop();
     if (!previous) return null;
 
@@ -66,6 +69,7 @@ export class HistoryController<T> {
   }
 
   redo(current: T): HistoryResult<T> | null {
+    this.canCoalesceWithLastRecord = false;
     const next = this.future.pop();
     if (!next) return null;
 
@@ -82,6 +86,7 @@ export class HistoryController<T> {
   clear() {
     this.past = [];
     this.future = [];
+    this.canCoalesceWithLastRecord = false;
   }
 
   get canUndo() {
