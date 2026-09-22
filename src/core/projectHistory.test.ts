@@ -45,6 +45,26 @@ describe('project history runtime URLs', () => {
     expect(snapshot.assets[0].storageName).toBe('source.mp4');
   });
 
+  it('deep clones metadata so later mutations cannot corrupt an older history generation', () => {
+    const current = project();
+    current.tracks = [{
+      id: 'track:1',
+      name: 'Video 1',
+      kind: 'video',
+      locked: false,
+      muted: false,
+      hidden: false,
+      clips: [],
+    }];
+    const snapshot = snapshotProjectForHistory(current);
+
+    current.tracks[0].name = 'mutated';
+    current.assets[0].name = 'mutated.mp4';
+
+    expect(snapshot.tracks[0].name).toBe('Video 1');
+    expect(snapshot.assets[0].name).toBe('clip.mp4');
+  });
+
   it('reattaches compatible runtime URLs after undo or redo', () => {
     const current = project();
     const registry: AssetRuntimeUrlRegistry = new Map();
