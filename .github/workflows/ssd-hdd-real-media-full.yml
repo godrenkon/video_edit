@@ -12,6 +12,10 @@ permissions:
   actions: read
   contents: read
 
+concurrency:
+  group: ssd-hdd-real-media-full
+  cancel-in-progress: true
+
 jobs:
   render:
     runs-on: ubuntu-24.04
