@@ -6,6 +6,13 @@ import type { ProjectSearchResult } from './core/projectSearch';
 import { detectCapabilities } from './core/capabilities';
 import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
+import {
+  captureProjectRuntimeUrls,
+  forgetAssetRuntimeUrls,
+  restoreProjectRuntimeUrls,
+  snapshotProjectForHistory,
+  type AssetRuntimeUrlRegistry,
+} from './core/projectHistory';
 import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClips } from './core/groupOps';
 import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
 import { addPunchInVoiceover } from './core/punchInVoiceover';
@@ -95,7 +102,8 @@ export default function App() {
   const timeRef = useRef(0);
   const playingRef = useRef(false);
   const punchPlaybackPrevious = useRef(false);
-  const history = useRef(new HistoryController<Project>(120, 750));
+  const historyRuntimeUrls = useRef<AssetRuntimeUrlRegistry>(new Map());
+  const history = useRef(new HistoryController<Project>(120, 750, snapshotProjectForHistory));
   const renderAbort = useRef<AbortController | null>(null);
   const proxyAbort = useRef(new Map<string, AbortController>());
   const clipClipboard = useRef<ClipClipboardPayload | null>(null);
@@ -294,6 +302,7 @@ export default function App() {
       markProjectDirty();
       const next = clampProjectDuration({ ...mutated, updatedAt: new Date().toISOString() });
       if (options.history !== false) {
+        captureProjectRuntimeUrls(current, historyRuntimeUrls.current);
         history.current.record(current, options.label ?? '編集', options.key);
       }
       return next;
@@ -323,22 +332,26 @@ export default function App() {
   }, [updateProject]);
 
   const undo = useCallback(() => {
+    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
     const result = history.current.undo(project);
     if (!result) return;
     setPlaying(false);
     setSelectedClipId(null);
     markProjectDirty();
-    setProject(clampProjectDuration({ ...result.value, updatedAt: new Date().toISOString() }));
+    const restored = restoreProjectRuntimeUrls(result.value, historyRuntimeUrls.current);
+    setProject(clampProjectDuration({ ...restored, updatedAt: new Date().toISOString() }));
     setSaveState(`元に戻す: ${result.label}`);
   }, [markProjectDirty, project]);
 
   const redo = useCallback(() => {
+    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
     const result = history.current.redo(project);
     if (!result) return;
     setPlaying(false);
     setSelectedClipId(null);
     markProjectDirty();
-    setProject(clampProjectDuration({ ...result.value, updatedAt: new Date().toISOString() }));
+    const restored = restoreProjectRuntimeUrls(result.value, historyRuntimeUrls.current);
+    setProject(clampProjectDuration({ ...restored, updatedAt: new Date().toISOString() }));
     setSaveState(`やり直し: ${result.label}`);
   }, [markProjectDirty, project]);
 
@@ -576,6 +589,8 @@ export default function App() {
 
       const merged = mergeRelinkedAsset(current, replacement);
       history.current.clear();
+      forgetAssetRuntimeUrls(historyRuntimeUrls.current, assetId);
+      captureProjectRuntimeUrls({ ...project, assets: project.assets.map((asset) => asset.id === assetId ? merged : asset) }, historyRuntimeUrls.current);
       updateProject((p) => ({
         ...p,
         assets: p.assets.map((asset) => asset.id === assetId ? merged : asset),
@@ -675,6 +690,7 @@ export default function App() {
     if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
     if (asset.proxyObjectUrl) URL.revokeObjectURL(asset.proxyObjectUrl);
     history.current.clear();
+    forgetAssetRuntimeUrls(historyRuntimeUrls.current, assetId);
     updateProject((p) => ({
       ...p,
       assets: p.assets.filter((a) => a.id !== assetId),
@@ -718,6 +734,7 @@ export default function App() {
     if (!clipClipboard.current || rendering) return;
     const result = pasteClipAt(project, clipClipboard.current, time);
     if (!result.clipId || result.project === project) return;
+    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
     history.current.record(project, 'クリップ貼り付け');
     setPlaying(false);
     markProjectDirty();
@@ -730,6 +747,7 @@ export default function App() {
     if (!selectedClipId || rendering) return;
     const result = duplicateClipAfter(project, selectedClipId);
     if (!result.clipId || result.project === project) return;
+    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
     history.current.record(project, 'クリップ複製');
     setPlaying(false);
     markProjectDirty();
