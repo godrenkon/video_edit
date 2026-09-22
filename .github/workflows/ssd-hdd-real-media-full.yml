@@ -52,7 +52,7 @@ jobs:
         run: |
           ffprobe -v error -show_streams -show_format -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > real_video_output/ffprobe.json
           python3 - <<'PY'
-          import csv, json
+          import csv, json, re
           rows=list(csv.DictReader(open("real_video_output/storyboard.tsv",encoding="utf-8"),delimiter="\t"))
           assert rows, "empty storyboard"
           durations=[float(r["duration"]) for r in rows]
@@ -69,7 +69,18 @@ jobs:
           assert video["width"]==1920 and video["height"]==1080
           assert video["r_frame_rate"]=="60/1"
           assert audio["sample_rate"]=="48000"
-          print("events",len(rows),"unique_assets",len(assets),"max_hold",max(durations),"duration",fmt["duration"])
+          ass=open("real_video_output/subtitles_green.ass",encoding="utf-8-sig").read().splitlines()
+          cues=[]
+          for line in ass:
+              if not line.startswith("Dialogue:"): continue
+              txt=line.split(",,",1)[-1]
+              txt=re.sub(r"\{[^}]+\}","",txt).replace("\\N"," ").strip()
+              cues.append(txt)
+          assert cues, "no subtitles"
+          bad=[x for x in cues if x.startswith(("、","。","，",",","：",":","；",";","！","？","!","?"))]
+          assert not bad, "leading punctuation in subtitle: "+repr(bad[:10])
+          assert max(map(len,cues)) <= 32, max(map(len,cues))
+          print("events",len(rows),"unique_assets",len(assets),"max_hold",max(durations),"duration",fmt["duration"],"subtitle_cues",len(cues),"subtitle_max",max(map(len,cues)))
           print("assets",sorted(assets))
           PY
 
@@ -94,7 +105,10 @@ jobs:
           name: ssd-hdd-real-media-final
           path: |
             real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_CLEAN.mp4
             real_video_output/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4
+            real_video_output/bgm_stem.wav
+            real_video_output/sfx_stem.wav
             real_video_output/storyboard.tsv
             real_video_output/subtitles_green.ass
             real_video_output/ATTRIBUTION.md
