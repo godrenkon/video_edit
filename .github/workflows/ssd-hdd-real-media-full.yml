@@ -5,8 +5,7 @@ on:
     branches:
       - video-build/ssd-hdd-explainer
     paths:
-      - ".github/workflows/ssd-hdd-real-media-full.yml"
-      - "tools/ssd_hdd_video/render_real_media.py"
+      - "tools/ssd_hdd_video/FULL_RENDER_TRIGGER.txt"
   workflow_dispatch:
 
 permissions:
