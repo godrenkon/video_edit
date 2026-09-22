@@ -34,13 +34,14 @@ function asset(id: string, duration = 30): AssetMeta {
   };
 }
 
-function track(clips: Clip[], locked = false): Track {
+function track(clips: Clip[], locked = false, id = 'track', syncLock = true): Track {
   return {
-    id: 'track',
-    name: 'Video',
+    id,
+    name: id,
     kind: 'video',
     muted: false,
     locked,
+    syncLock,
     visible: true,
     clips,
   };
@@ -76,6 +77,32 @@ describe('advanced timeline operations', () => {
       ['b', 3, 4],
       ['c', 8, 2],
     ]);
+  });
+
+  it('propagates ripple trims across sync-locked tracks only', () => {
+    const input = project(
+      [clip('a', 0, 5), clip('b', 5, 3)],
+      [asset('a'), asset('b'), asset('sync'), asset('free'), asset('locked')],
+    );
+    input.tracks.push(
+      track([clip('sync', 4, 4)], false, 'sync', true),
+      track([clip('free', 6, 2)], false, 'free', false),
+      track([clip('locked', 6, 2)], true, 'locked', true),
+    );
+
+    const output = rippleTrimClip(input, 'a', 'right', 3, undefined, 0, 'sync-lock');
+    expect(output.tracks[0].clips.map((item) => [item.id, item.start])).toEqual([
+      ['a', 0],
+      ['b', 3],
+    ]);
+
+    const synced = [...output.tracks[1].clips].sort((a, b) => a.start - b.start);
+    expect(synced.map((item) => [item.start, item.duration])).toEqual([
+      [4, 1],
+      [3, 3],
+    ].sort((a, b) => a[0] - b[0]));
+    expect(output.tracks[2].clips[0].start).toBe(6);
+    expect(output.tracks[3].clips[0].start).toBe(6);
   });
 
   it('ripple-trims a left edge while keeping the incoming edit point anchored', () => {
