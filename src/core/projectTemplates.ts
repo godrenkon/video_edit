@@ -1,5 +1,6 @@
 import type { Project, ProjectExportSettings } from '../types/editor';
 import { uid } from './project';
+import { canonicalProjectFrameRate } from './timebase';
 
 export interface ProjectSettingsTemplate {
   id: string;
@@ -8,6 +9,7 @@ export interface ProjectSettingsTemplate {
   width: number;
   height: number;
   fps: number;
+  timecodeMode?: Project['timecodeMode'];
   background: string;
   exportSettings?: ProjectExportSettings;
 }
@@ -17,7 +19,7 @@ const MAX_TEMPLATES = 32;
 
 export function createProjectSettingsTemplate(
   name: string,
-  project: Pick<Project, 'width' | 'height' | 'fps' | 'background' | 'exportSettings'>,
+  project: Pick<Project, 'width' | 'height' | 'fps' | 'timecodeMode' | 'background' | 'exportSettings'>,
   now = new Date(),
 ): ProjectSettingsTemplate {
   const safeName = normalizeProjectTemplateName(name);
@@ -28,7 +30,8 @@ export function createProjectSettingsTemplate(
     createdAt: now.toISOString(),
     width: clampInt(project.width, 16, 16384),
     height: clampInt(project.height, 16, 16384),
-    fps: clampInt(project.fps, 1, 240),
+    fps: canonicalProjectFrameRate(project.fps),
+    timecodeMode: project.timecodeMode ?? 'non-drop-frame',
     background: normalizeColor(project.background),
     exportSettings: cloneExportSettings(project.exportSettings),
   };
@@ -39,6 +42,7 @@ export function projectSettingsPatch(template: ProjectSettingsTemplate): Partial
     width: template.width,
     height: template.height,
     fps: template.fps,
+    timecodeMode: template.timecodeMode ?? 'non-drop-frame',
     background: template.background,
     exportSettings: cloneExportSettings(template.exportSettings),
   };
@@ -94,7 +98,8 @@ function parseTemplate(value: unknown): ProjectSettingsTemplate | null {
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : '',
     width: clampInt(value.width, 16, 16384),
     height: clampInt(value.height, 16, 16384),
-    fps: clampInt(value.fps, 1, 240),
+    fps: canonicalProjectFrameRate(clampNumber(value.fps, 1, 240)),
+    timecodeMode: value.timecodeMode === 'drop-frame' ? 'drop-frame' : 'non-drop-frame',
     background: normalizeColor(value.background),
     exportSettings: parseExportSettings(value.exportSettings),
   };
@@ -122,6 +127,11 @@ function normalizeColor(value: unknown) {
 
 function clampInt(value: unknown, min: number, max: number) {
   const numeric = typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : min;
+  return Math.max(min, Math.min(max, numeric));
+}
+
+function clampNumber(value: unknown, min: number, max: number) {
+  const numeric = typeof value === 'number' && Number.isFinite(value) ? value : min;
   return Math.max(min, Math.min(max, numeric));
 }
 
