@@ -1,6 +1,7 @@
 import { cloneEffectValue, evaluateEffectParameter, sortedValidKeyframes } from './keyframes';
 import type { Clip, EffectInstance, EffectParameter, Project, Track } from '../types/editor';
 import { uid } from './project';
+import { quantizeFrameTime } from './timebase';
 
 export interface ClipLocation {
   track: Track;
@@ -21,8 +22,7 @@ export function findClip(project: Project, clipId: string): ClipLocation | null 
 }
 
 export function quantizeToFrame(time: number, fps: number) {
-  const safeFps = Math.max(1, fps || 30);
-  return Math.max(0, Math.round(time * safeFps) / safeFps);
+  return quantizeFrameTime(time, fps);
 }
 
 export function snapTime(
