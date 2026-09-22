@@ -20,10 +20,10 @@ export function createProject(): Project {
     assets: [],
     markers: [],
     tracks: [
-      { id: uid('track'), name: 'オーバーレイ', kind: 'overlay', muted: false, locked: false, visible: true, clips: [] },
-      { id: uid('track'), name: '字幕', kind: 'subtitle', muted: false, locked: false, visible: true, clips: [] },
-      { id: uid('track'), name: 'ビデオ 1', kind: 'video', muted: false, locked: false, visible: true, clips: [] },
-      { id: uid('track'), name: 'オーディオ 1', kind: 'audio', muted: false, locked: false, visible: true, clips: [] },
+      { id: uid('track'), name: 'オーバーレイ', kind: 'overlay', muted: false, locked: false, syncLock: true, visible: true, clips: [] },
+      { id: uid('track'), name: '字幕', kind: 'subtitle', muted: false, locked: false, syncLock: true, visible: true, clips: [] },
+      { id: uid('track'), name: 'ビデオ 1', kind: 'video', muted: false, locked: false, syncLock: true, visible: true, clips: [] },
+      { id: uid('track'), name: 'オーディオ 1', kind: 'audio', muted: false, locked: false, syncLock: true, visible: true, clips: [] },
     ],
   };
 }
