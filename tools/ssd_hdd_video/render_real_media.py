@@ -127,34 +127,94 @@ Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
             tags="{\\fad(55,65)\\fscx94\\fscy94\\t(0,100,\\fscx100\\fscy100)}"
             f.write(f"Dialogue: 0,{ass_time(st)},{ass_time(en)},Main,,0,0,0,,{tags}{ass_markup(s)}\n")
 
+def _unique(xs):
+    out=[]
+    for x in xs:
+        if x not in out:
+            out.append(x)
+    return out
+
+HDD_INTERNAL=["hdd_working_video","hdd_open_photo","hdd_head_macro","hdd_side"]
+SSD_INTERNAL=["ssd_nand","ssd_controller","sata_ssd","nvme_m2"]
+M2_MEDIA=["nvme_m2","m2_installed","sata_vs_nvme","pc_m2_hdd_inside"]
+SATA_MEDIA=["sata_ssd","sata_connector","sata_data_power","sata_vs_nvme"]
+NAS_MEDIA=["nas","server_rack","external_hdds","pc_m2_hdd_inside"]
+EXTERNAL_MEDIA=["external_ssd","external_hdds","sata_ssd","hdd_side"]
+RAM_MEDIA=["ram_ddr4","motherboard","pc_m2_hdd_inside"]
+PC_MEDIA=["motherboard","pc_m2_hdd_inside","computer_components_video","ssd_install"]
+SPEED_MEDIA=["browser_demo_video","computer_components_video","m2_installed","nvme_m2","sata_ssd","hdd_working_video"]
+
+def strong_media_for(text):
+    """Return only semantically strong media candidates for a sentence.
+    If a technical object is explicitly named, never dilute it with generic chapter B-roll.
+    """
+    groups=[]
+    if any(k in text for k in ["プラッタ","ヘッド","5400RPM","7200RPM","RPM","CMR","SMR","モーター","回転機構","回転音","カリカリ"]):
+        groups.append(HDD_INTERNAL)
+    if any(k in text for k in ["NAND","TLC","QLC","コントローラー","TBW","フラッシュメモリ"]):
+        groups.append(SSD_INTERNAL)
+    if any(k in text for k in ["M.2","NVMe","PCIe"]):
+        groups.append(M2_MEDIA)
+    if "SATA" in text:
+        groups.append(SATA_MEDIA)
+    if "NAS" in text:
+        groups.append(NAS_MEDIA)
+    if any(k in text for k in ["外付け","USB"]):
+        groups.append(EXTERNAL_MEDIA)
+    if "RAM" in text:
+        groups.append(RAM_MEDIA)
+    if any(k in text for k in ["Windows","アプリ","ブラウザ","ゲーム","ロード","起動時間","起動"]):
+        groups.append(SPEED_MEDIA)
+    if any(k in text for k in ["バックアップ","3-2-1","別の場所","クラウド"]):
+        groups.append(["nas","external_hdds","external_ssd","server_rack"])
+    if any(k in text for k in ["ノートパソコン","小型PC","薄いノート"]):
+        groups.append(["m2_installed","nvme_m2","external_ssd","pc_m2_hdd_inside"])
+    if any(k in text for k in ["消費電力","発熱","熱く"]):
+        groups.append(["nvme_m2","m2_installed","motherboard","sata_ssd"])
+    if any(k in text for k in ["動作音","振動","衝撃"]):
+        groups.append(["hdd_working_video","hdd_open_photo","hdd_head_macro","sata_ssd","nvme_m2"])
+    if any(k in text for k in ["容量あたり","大容量","価格","1TB","2TB","4TB","8TB","16TB"]):
+        groups.append(["hdd_side","external_hdds","nas","sata_ssd","external_ssd","nvme_m2"])
+    if not groups:
+        return []
+    return _unique([x for g in groups for x in g])
+
 def pool_for(section,text):
+    # Explicit technical terms always win over broad chapter-level rotation.
+    strong=strong_media_for(text)
+    if strong:
+        return strong
+
     sec=section
     if "HDDとは" in sec:
-        if "ヘッド" in text: return ["hdd_head_macro","hdd_working_video","hdd_open_photo"]
-        if "プラッタ" in text: return ["hdd_open_photo","hdd_working_video","hdd_head_macro"]
-        return ["hdd_working_video","hdd_open_photo","hdd_side","hdd_head_macro"]
+        return HDD_INTERNAL
     if "SSDとは" in sec:
-        if "NAND" in text: return ["ssd_nand","ssd_controller","sata_ssd","nvme_m2"]
-        return ["ssd_controller","ssd_nand","sata_ssd","nvme_m2","computer_components_video"]
+        return ["ssd_controller","ssd_nand","sata_ssd","nvme_m2","m2_installed"]
     if "何が違う" in sec:
-        return ["hdd_open_photo","sata_ssd","hdd_head_macro","nvme_m2","motherboard"]
+        return ["hdd_working_video","hdd_open_photo","hdd_head_macro","sata_ssd","nvme_m2","m2_installed"]
     if "速度" in sec:
-        return ["browser_demo_video","computer_components_video","nvme_m2","m2_installed","sata_ssd","hdd_working_video"]
+        return SPEED_MEDIA
     if "種類" in sec:
-        return ["sata_ssd","nvme_m2","m2_installed","sata_vs_nvme","sata_connector","sata_data_power","hdd_side","ssd_controller"]
+        return ["sata_ssd","nvme_m2","m2_installed","sata_vs_nvme","sata_connector","sata_data_power","hdd_side","ssd_controller","ssd_nand"]
     if "容量" in sec:
         return ["hdd_side","external_hdds","external_ssd","sata_ssd","nas","server_rack","nvme_m2"]
     if "寿命" in sec:
-        return ["ssd_nand","ssd_controller","hdd_head_macro","hdd_open_photo"]
+        return ["ssd_nand","ssd_controller","hdd_head_macro","hdd_open_photo","hdd_working_video"]
     if "バックアップ" in sec:
-        return ["nas","server_rack","motherboard","sata_ssd"]
+        return ["nas","external_hdds","external_ssd","server_rack","pc_m2_hdd_inside"]
     if "用途" in sec:
         return ["motherboard","pc_m2_hdd_inside","ssd_install","m2_installed","nas","server_rack","browser_demo_video","nvme_m2","external_ssd","external_hdds"]
     if "最終" in sec:
-        return ["nvme_m2","hdd_open_photo","sata_ssd","nas","motherboard"]
+        return ["hdd_open_photo","hdd_working_video","sata_ssd","nvme_m2","nas","motherboard"]
     if "第1章" in sec:
         return ["ram_ddr4","motherboard","pc_m2_hdd_inside","ssd_install","sata_ssd","hdd_side","browser_demo_video"]
-    return ["pc_m2_hdd_inside","hdd_open_photo","nvme_m2","sata_ssd","motherboard","external_ssd","external_hdds"]
+    return ["external_hdds","external_ssd","pc_m2_hdd_inside","hdd_open_photo","sata_ssd","nvme_m2","motherboard"]
+
+def semantic_asset_ok(text, asset_id):
+    strong=strong_media_for(text)
+    if not strong:
+        return True
+    return asset_id in set(strong)
 
 def is_video(p):
     return p.suffix.lower() in (".mp4",".webm",".mov",".mkv")
@@ -310,6 +370,14 @@ if cur<total:
 too_long=[e for e in events if e["en"]-e["st"]>4.05]
 if too_long:
     raise RuntimeError("visual hold exceeds 4.05s: "+repr([(e["n"],e["en"]-e["st"]) for e in too_long[:10]]))
+
+semantic_bad=[
+    (e["n"],e["asset"],e["row"]["text"])
+    for e in events
+    if not semantic_asset_ok(e["row"]["text"],e["asset"])
+]
+if semantic_bad:
+    raise RuntimeError("semantic media mismatch: "+repr(semantic_bad[:20]))
 
 with (OUT/"storyboard.tsv").open("w",encoding="utf-8") as f:
     f.write("n\tstart\tend\tduration\tasset\tsection\ttext\n")
