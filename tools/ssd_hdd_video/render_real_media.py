@@ -259,7 +259,7 @@ def pool_for(section,text):
     if "寿命" in sec:
         return ["ssd_nand","ssd_controller","hdd_head_macro","hdd_open_photo","hdd_working_video"]
     if "バックアップ" in sec:
-        return ["nas","external_hdds","external_ssd","server_rack","pc_m2_hdd_inside"]
+        return ["nas","external_hdds","external_ssd","server_rack"]
     if "用途" in sec:
         return ["motherboard","pc_m2_hdd_inside","ssd_install","m2_installed","nas","server_rack","nvme_m2","external_ssd","external_hdds"]
     if "最終" in sec:
@@ -443,14 +443,19 @@ make_ass(rows,ass)
 events=[]; n=0; last_asset=None; cur=0.0
 for row in rows:
     if row["st"]>cur+0.02:
-        pool=[x for x in pool_for(row["section"],row["text"]) if optional_asset(x)]
+        # Chapter-gap visuals must match the chapter title itself, not the first
+        # narration sentence after the gap. This keeps chapter transitions
+        # semantically accurate (e.g. price -> capacity media, backup -> NAS/external drives).
+        gap_row=dict(row)
+        gap_row["text"]=row["section"].split("　",1)[-1]
+        pool=[x for x in pool_for(row["section"],gap_row["text"]) if optional_asset(x)]
+        if not pool:
+            pool=[x for x in pool_for(row["section"],row["text"]) if optional_asset(x)]
         if not pool:
             pool=[x for x in STORAGE_MEDIA if optional_asset(x)]
         if not pool:
             raise RuntimeError("no real-media assets available for chapter gap")
         a=next((x for x in pool if x!=last_asset),pool[0])
-        gap_row=dict(row)
-        gap_row["text"]=row["section"].split("　",1)[-1]
         events.append({
             "n":n,"st":cur,"en":row["st"],"asset":a,
             "slot":0,"row":gap_row,"source_idx":row["idx"]
