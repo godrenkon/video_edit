@@ -676,9 +676,9 @@ export function Preview({
         <div className="transport">
           <button className="iconBtn" type="button" onClick={() => onTime(0)} aria-label="先頭へ移動" title="先頭へ移動"><SkipBack size={17} /></button>
           <button className="playBtn" type="button" onClick={onTogglePlay} aria-label={playing ? '一時停止' : '再生'} title={playing ? '一時停止' : '再生'}>{playing ? <Pause size={20} /> : <Play size={20} />}</button>
-          <span className="timecode">{formatEditorTimecode(time, project.fps)}</span>
+          <span className="timecode">{formatEditorTimecode(time, project.fps, project.timecodeMode)}</span>
           <input type="range" min={0} max={project.duration} step={1 / project.fps} value={time} onChange={(e) => onTime(Number(e.target.value))} />
-          <span className="timecode dim">{formatEditorTimecode(project.duration, project.fps)}</span>
+          <span className="timecode dim">{formatEditorTimecode(project.duration, project.fps, project.timecodeMode)}</span>
           <Volume2 size={16} className="dim" />
         </div>
       </div>
