@@ -32,6 +32,12 @@ export function supportsDropFrameTimecode(fps: number) {
   return resolveFrameRateSpec(fps).dropFrames > 0;
 }
 
+export function normalizeProjectTimecodeMode(mode: unknown, fps: number): ProjectTimecodeMode {
+  return mode === 'drop-frame' && supportsDropFrameTimecode(fps)
+    ? 'drop-frame'
+    : 'non-drop-frame';
+}
+
 export function formatSmpteTimecode(
   timeSeconds: number,
   fps: number,
