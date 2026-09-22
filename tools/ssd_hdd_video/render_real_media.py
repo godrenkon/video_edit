@@ -287,6 +287,12 @@ HDD_GENERAL=["hdd_working_video","hdd_open_photo","hdd_head_macro","hdd_side","e
 SSD_GENERAL=["sata_ssd","nvme_m2","m2_installed","external_ssd","ssd_controller","ssd_nand","ssd_install"]
 
 def strong_media_for(text):
+    # In comparative sentences, prioritize the subject device over a component
+    # mentioned only for contrast. Example: "一方HDDには同じNANDの..."
+    # is still explaining HDD, not presenting SSD internals.
+    if "HDD" in text and "SSD" not in text and "NAND" in text:
+        return HDD_GENERAL
+
     specific=[]
     if any(k in text for k in ["プラッタ","ヘッド","5400RPM","7200RPM","RPM","CMR","SMR","モーター","回転機構","回転音","カリカリ"]):
         specific.append(HDD_INTERNAL)
