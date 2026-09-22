@@ -44,4 +44,44 @@ describe('HistoryController', () => {
     expect(history.undo({ value: 2 })?.value).toEqual({ value: 1 });
     expect(history.undo({ value: 1 })).toBeNull();
   });
+
+  it('does not coalesce a new edit into history created by redo', () => {
+    const history = new HistoryController<State>(120, 750, cloneState);
+
+    history.record({ value: 0 }, 'drag', 'clip:1:transform');
+    expect(history.undo({ value: 1 })?.value).toEqual({ value: 0 });
+    expect(history.redo({ value: 0 })?.value).toEqual({ value: 1 });
+
+    history.record({ value: 1 }, 'drag', 'clip:1:transform');
+    expect(history.undo({ value: 2 })?.value).toEqual({ value: 1 });
+    expect(history.undo({ value: 1 })?.value).toEqual({ value: 0 });
+  });
+
+  it('keeps 100 sequential undo and redo operations reversible', () => {
+    const history = new HistoryController<State>(120, 0, cloneState);
+    let current: State = { value: 0 };
+
+    for (let value = 1; value <= 100; value += 1) {
+      history.record(current, `edit ${value}`);
+      current = { value };
+    }
+
+    for (let value = 99; value >= 0; value -= 1) {
+      const result = history.undo(current);
+      expect(result?.value).toEqual({ value });
+      current = result!.value;
+    }
+    expect(history.canUndo).toBe(false);
+    expect(history.canRedo).toBe(true);
+
+    for (let value = 1; value <= 100; value += 1) {
+      const result = history.redo(current);
+      expect(result?.value).toEqual({ value });
+      current = result!.value;
+    }
+    expect(current).toEqual({ value: 100 });
+    expect(history.canUndo).toBe(true);
+    expect(history.canRedo).toBe(false);
+  });
+
 });

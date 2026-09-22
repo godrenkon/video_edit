@@ -9,6 +9,7 @@ const THUMBNAIL_DIR = 'thumbnails';
 const SNAPSHOT_COUNT = 8;
 const SNAPSHOT_INTERVAL_MS = 30_000;
 let lastSnapshotAt = 0;
+let saveQueue: Promise<void> = Promise.resolve();
 
 export interface RecoverySnapshotInfo {
   id: string;
@@ -115,17 +116,28 @@ export async function deleteThumbnailCachesForAsset(assetId: string) {
   }
 }
 
-export async function saveProject(project: Project) {
-  const r = await root();
+export function saveProject(project: Project) {
   const safeProject = serializableProject(project);
   const json = JSON.stringify(safeProject, null, 2);
 
+  const pending = saveQueue.then(() => persistProjectJson(json));
+  // A failed write must reject its own caller without permanently poisoning
+  // later autosaves. Serializing the writes also guarantees an older, slower
+  // save can never overwrite a newer project generation.
+  saveQueue = pending.catch(() => undefined);
+  return pending;
+}
+
+async function persistProjectJson(json: string) {
+  const r = await root();
   const now = Date.now();
   if (now - lastSnapshotAt >= SNAPSHOT_INTERVAL_MS) {
-    await writeSnapshot(r, json, now).catch((error) => {
+    try {
+      await writeSnapshot(r, json, now);
+      lastSnapshotAt = now;
+    } catch (error) {
       console.warn('Failed to write recovery snapshot', error);
-    });
-    lastSnapshotAt = now;
+    }
   }
 
   const handle = await r.getFileHandle(PROJECT_FILE, { create: true });
