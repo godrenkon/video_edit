@@ -39,7 +39,7 @@ import {
   storageEstimate,
   type RecoverySnapshotInfo,
 } from './core/storage';
-import { beginEditorSession, markEditorSessionClean } from './core/session';
+import { beginEditorSession, markEditorSessionClean, markEditorSessionDirty } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { moveClipToTrack } from './core/trackPlacement';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
@@ -99,6 +99,8 @@ export default function App() {
   const renderAbort = useRef<AbortController | null>(null);
   const proxyAbort = useRef(new Map<string, AbortController>());
   const clipClipboard = useRef<ClipClipboardPayload | null>(null);
+  const saveGeneration = useRef(0);
+  const projectDirty = useRef(false);
 
   const selectedClip = useMemo(() => {
     for (const track of project.tracks) {
@@ -163,9 +165,11 @@ export default function App() {
     const previousSessionWasUnclean = beginEditorSession();
     setSuspectedCrash(previousSessionWasUnclean);
 
-    const markClean = () => markEditorSessionClean();
-    window.addEventListener('pagehide', markClean);
-    window.addEventListener('beforeunload', markClean);
+    const markCleanIfSaved = () => {
+      if (!projectDirty.current) markEditorSessionClean();
+    };
+    window.addEventListener('pagehide', markCleanIfSaved);
+    window.addEventListener('beforeunload', markCleanIfSaved);
 
     (async () => {
       try {
@@ -207,20 +211,27 @@ export default function App() {
 
     return () => {
       cancelled = true;
-      window.removeEventListener('pagehide', markClean);
-      window.removeEventListener('beforeunload', markClean);
-      markEditorSessionClean();
+      window.removeEventListener('pagehide', markCleanIfSaved);
+      window.removeEventListener('beforeunload', markCleanIfSaved);
+      markCleanIfSaved();
     };
   }, [capabilities.opfs]);
 
   useEffect(() => {
     if (!hydrated || !capabilities.opfs) return;
+    const generation = ++saveGeneration.current;
+    projectDirty.current = true;
+    markEditorSessionDirty();
     setSaveState('変更あり');
     const timer = window.setTimeout(async () => {
       try {
         await saveProject(project);
+        if (saveGeneration.current !== generation) return;
+        projectDirty.current = false;
+        markEditorSessionClean();
         setSaveState('自動保存済み');
       } catch (error) {
+        if (saveGeneration.current !== generation) return;
         console.error(error);
         setSaveState('保存エラー');
       }
@@ -881,11 +892,15 @@ export default function App() {
   }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, searchOpen, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, groupSelection, ungroupSelection, nudgeSelected, undo, redo, shortcutOverrides]);
 
   const manualSave = async () => {
+    const generation = saveGeneration.current;
     try {
       await saveProject(project);
+      if (saveGeneration.current !== generation) return;
+      projectDirty.current = false;
+      markEditorSessionClean();
       setSaveState('保存済み');
     } catch {
-      setSaveState('保存エラー');
+      if (saveGeneration.current === generation) setSaveState('保存エラー');
     }
   };
 
