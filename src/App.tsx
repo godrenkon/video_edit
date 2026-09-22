@@ -5,6 +5,7 @@ import type { ProjectSearchResult } from './core/projectSearch';
 import { detectCapabilities } from './core/capabilities';
 import {
   deleteClipsCommand,
+  duplicateClipCommand,
   groupClipsCommand,
   insertClipCommand,
   moveClipCommand,
@@ -13,6 +14,7 @@ import {
   nudgeClipCommand,
   nudgeClipsCommand,
   overwriteClipCommand,
+  pasteClipCommand,
   rippleDeleteCommand,
   rippleTrimCommand,
   rollEditCommand,
@@ -23,7 +25,7 @@ import {
   ungroupClipsCommand,
   type EditorCommand,
 } from './core/commands';
-import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
+import { copyClip, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
 import {
   captureProjectRuntimeUrls,
@@ -766,29 +768,25 @@ export default function App() {
 
   const pasteCopiedClip = useCallback(() => {
     if (!clipClipboard.current || rendering) return;
-    const result = pasteClipAt(project, clipClipboard.current, time);
-    if (!result.clipId || result.project === project) return;
-    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
-    history.current.record(project, 'クリップ貼り付け');
+    const editorCommand = pasteClipCommand(project, clipClipboard.current, time);
+    if (!editorCommand?.createdClipId) return;
     setPlaying(false);
-    markProjectDirty();
-    setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
-    setSelectedClipId(result.clipId);
+    executeEditorCommand(editorCommand);
+    setSelectedClipId(editorCommand.createdClipId);
+    setSelectedClipIds([editorCommand.createdClipId]);
     setSaveState('クリップを貼り付けました');
-  }, [markProjectDirty, project, rendering, time]);
+  }, [executeEditorCommand, project, rendering, time]);
 
   const duplicateSelectedClip = useCallback(() => {
     if (!selectedClipId || rendering) return;
-    const result = duplicateClipAfter(project, selectedClipId);
-    if (!result.clipId || result.project === project) return;
-    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
-    history.current.record(project, 'クリップ複製');
+    const editorCommand = duplicateClipCommand(project, selectedClipId);
+    if (!editorCommand?.createdClipId) return;
     setPlaying(false);
-    markProjectDirty();
-    setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
-    setSelectedClipId(result.clipId);
+    executeEditorCommand(editorCommand);
+    setSelectedClipId(editorCommand.createdClipId);
+    setSelectedClipIds([editorCommand.createdClipId]);
     setSaveState('クリップを複製しました');
-  }, [markProjectDirty, project, rendering, selectedClipId]);
+  }, [executeEditorCommand, project, rendering, selectedClipId]);
 
   const groupSelection = useCallback(() => {
     if (selectedClipIds.length < 2 || rendering) return;
