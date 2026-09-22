@@ -33,6 +33,18 @@ def optional_asset(asset_id):
     xs=[p for p in ASSET_DIR.glob(asset_id+".*") if p.is_file()]
     return sorted(xs)[0] if xs else None
 
+def prepare_zundamon(src):
+    im=Image.open(src).convert("RGBA")
+    bbox=im.getchannel("A").getbbox()
+    if bbox:
+        im=im.crop(bbox)
+    pad=24
+    canvas=Image.new("RGBA",(im.width+pad*2,im.height+pad*2),(0,0,0,0))
+    canvas.alpha_composite(im,(pad,pad))
+    out=WORK/"zundamon_cropped.png"
+    canvas.save(out)
+    return out
+
 def probe_duration(path):
     s=subprocess.check_output([
         "ffprobe","-v","error","-show_entries","format=duration",
@@ -146,7 +158,7 @@ YCbCr Matrix: TV.709
 
 [V4+ Styles]
 Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding
-Style: Main,Noto Sans CJK JP,86,&H008DFF71,&H008DFF71,&H00101010,&H80000000,-1,0,0,0,100,100,0,0,1,9,4,2,80,80,68,1
+Style: Main,Noto Sans CJK JP,94,&H008DFF71,&H008DFF71,&H00101010,&H80000000,-1,0,0,0,100,100,0,0,1,10,4,2,80,80,62,1
 
 [Events]
 Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
@@ -172,7 +184,7 @@ NAS_MEDIA=["nas","server_rack","external_hdds","pc_m2_hdd_inside"]
 EXTERNAL_MEDIA=["external_ssd","external_hdds","sata_ssd","hdd_side"]
 RAM_MEDIA=["ram_ddr4","motherboard","pc_m2_hdd_inside"]
 PC_MEDIA=["motherboard","pc_m2_hdd_inside","computer_components_video","ssd_install"]
-SPEED_MEDIA=["browser_demo_video","computer_components_video","m2_installed","nvme_m2","sata_ssd","hdd_working_video"]
+SPEED_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","pc_m2_hdd_inside"]
 
 def strong_media_for(text):
     """Return only semantically strong media candidates for a sentence.
@@ -233,11 +245,11 @@ def pool_for(section,text):
     if "バックアップ" in sec:
         return ["nas","external_hdds","external_ssd","server_rack","pc_m2_hdd_inside"]
     if "用途" in sec:
-        return ["motherboard","pc_m2_hdd_inside","ssd_install","m2_installed","nas","server_rack","browser_demo_video","nvme_m2","external_ssd","external_hdds"]
+        return ["motherboard","pc_m2_hdd_inside","ssd_install","m2_installed","nas","server_rack","nvme_m2","external_ssd","external_hdds"]
     if "最終" in sec:
         return ["hdd_open_photo","hdd_working_video","sata_ssd","nvme_m2","nas","motherboard"]
     if "第1章" in sec:
-        return ["ram_ddr4","motherboard","pc_m2_hdd_inside","ssd_install","sata_ssd","hdd_side","browser_demo_video"]
+        return ["ram_ddr4","motherboard","pc_m2_hdd_inside","ssd_install","sata_ssd","hdd_side","external_ssd","external_hdds"]
     return ["external_hdds","external_ssd","pc_m2_hdd_inside","hdd_open_photo","sata_ssd","nvme_m2","motherboard"]
 
 def semantic_asset_ok(text, asset_id):
@@ -317,7 +329,7 @@ def render_event(ev,out,zundamon):
       base_filter,
       "[base]drawbox=x=0:y=0:w=iw:h=ih:color=black@0.10:t=fill[b0]",
       f"[1:v]format=rgba[ov];[b0][ov]overlay=0:0[b1]",
-      "[2:v]format=rgba,scale=-1:390[z]",
+      "[2:v]format=rgba,scale=-1:560[z]",
       f"[b1][z]overlay=x='{zx}':y='{zy}':format=auto,fade=t=in:st=0:d=0.10,fade=t=out:st={max(0,dur-.10):.3f}:d=0.10,format=yuv420p[v]"
     ]
     cmd += ["-filter_complex",";".join(fc),"-map","[v]","-t",f"{dur:.3f}","-r",str(FPS),
@@ -406,7 +418,7 @@ if SMOKE_SECONDS>0:
         x=dict(r); x["en"]=min(x["en"],total)
         clipped.append(x)
     rows=clipped
-zundamon=asset("zundamon_official")
+zundamon=prepare_zundamon(asset("zundamon_official"))
 
 # Build global subtitles from the corrected narration timings.
 ass=OUT/"subtitles_green.ass"
