@@ -32,6 +32,7 @@ interface Props {
   project: Project;
   time: number;
   playing: boolean;
+  transportRate: number;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onClearSelection: () => void;
@@ -131,28 +132,28 @@ function assetLayerStyles(
   };
 }
 
-function VisualLayer({ clip, asset, project, time, playing }: { clip: Clip; asset?: AssetMeta; project: Project; time: number; playing: boolean }) {
+function VisualLayer({ clip, asset, project, time, playing, transportRate }: { clip: Clip; asset?: AssetMeta; project: Project; time: number; playing: boolean; transportRate: number }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const sourceTime = clipSourceTime(clip, time);
-  const playbackRate = Math.max(0.0625, Math.min(16, clip.speed ?? 1));
+  const playbackRate = Math.max(0.0625, Math.min(16, (clip.speed ?? 1) * Math.max(0.0625, Math.abs(transportRate))));
   const syncTolerance = previewSyncTolerance(project.fps);
   const frozen = typeof clip.freezeFrameAt === 'number' && Number.isFinite(clip.freezeFrameAt);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (clip.reverse || frozen || !playing || Math.abs(video.currentTime - sourceTime) > syncTolerance) {
+    if (clip.reverse || transportRate < 0 || frozen || !playing || Math.abs(video.currentTime - sourceTime) > syncTolerance) {
       video.currentTime = Math.max(0, sourceTime);
     }
-  }, [clip.reverse, frozen, playing, sourceTime, syncTolerance]);
+  }, [clip.reverse, frozen, playing, sourceTime, syncTolerance, transportRate]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     video.playbackRate = playbackRate;
-    if (playing && !clip.reverse && !frozen) video.play().catch(() => undefined);
+    if (playing && transportRate > 0 && !clip.reverse && !frozen) video.play().catch(() => undefined);
     else video.pause();
-  }, [clip.reverse, frozen, playbackRate, playing]);
+  }, [clip.reverse, frozen, playbackRate, playing, transportRate]);
 
   if (!asset) return null;
   const mediaUrl = asset.kind === 'video' ? (asset.proxyObjectUrl ?? asset.objectUrl) : asset.objectUrl;
@@ -303,12 +304,12 @@ function VisualEffectOverlays({ clip, time }: { clip: Clip; time: number }) {
   );
 }
 
-function AudioLayer({ clip, asset, time, playing, trackMuted, trackGain, trackPan, fps }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean; trackMuted: boolean; trackGain: number; trackPan: number; fps: number }) {
+function AudioLayer({ clip, asset, time, playing, transportRate, trackMuted, trackGain, trackPan, fps }: { clip: Clip; asset?: AssetMeta; time: number; playing: boolean; transportRate: number; trackMuted: boolean; trackGain: number; trackPan: number; fps: number }) {
   const ref = useRef<HTMLAudioElement>(null);
   const graphRef = useRef<PreviewAudioGraph | null>(null);
   const sourceTime = clipSourceTime(clip, time);
   const localTime = clipLocalTime(clip, time);
-  const playbackRate = Math.max(0.0625, Math.min(16, clip.speed ?? 1));
+  const playbackRate = Math.max(0.0625, Math.min(16, (clip.speed ?? 1) * Math.max(0.0625, Math.abs(transportRate))));
   const syncTolerance = previewSyncTolerance(fps);
 
   useEffect(() => {
@@ -341,23 +342,23 @@ function AudioLayer({ clip, asset, time, playing, trackMuted, trackGain, trackPa
     const el = ref.current;
     if (!el) return;
     el.volume = Math.max(0, Math.min(1, clip.volume));
-    el.muted = clip.muted || trackMuted || Boolean(clip.reverse);
+    el.muted = clip.muted || trackMuted || Boolean(clip.reverse) || transportRate < 0;
     el.playbackRate = playbackRate;
-    if (clip.reverse || !playing || Math.abs(el.currentTime - sourceTime) > syncTolerance) {
+    if (clip.reverse || transportRate < 0 || !playing || Math.abs(el.currentTime - sourceTime) > syncTolerance) {
       el.currentTime = Math.max(0, sourceTime);
     }
-  }, [clip.muted, clip.reverse, clip.volume, playbackRate, playing, sourceTime, syncTolerance, trackMuted]);
+  }, [clip.muted, clip.reverse, clip.volume, playbackRate, playing, sourceTime, syncTolerance, trackMuted, transportRate]);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (playing && !clip.reverse) {
+    if (playing && transportRate > 0 && !clip.reverse) {
       graphRef.current?.resume().catch(() => undefined);
       el.play().catch(() => undefined);
     } else {
       el.pause();
     }
-  }, [clip.reverse, playing]);
+  }, [clip.reverse, playing, transportRate]);
 
   if (!asset?.objectUrl) return null;
   return <audio ref={ref} src={asset.objectUrl} preload="auto" />;
@@ -367,6 +368,7 @@ export function Preview({
   project,
   time,
   playing,
+  transportRate,
   selectedClipId,
   onSelectClip,
   onClearSelection,
@@ -391,6 +393,7 @@ export function Preview({
     [visuals],
   );
   const aspect = `${project.width} / ${project.height}`;
+  const realtimePlayback = playing && transportRate > 0;
 
   useEffect(() => {
     const closeContextMenu = () => setContextMenu(null);
@@ -516,8 +519,9 @@ export function Preview({
         <div className="previewToolbar">
           <span>{project.width}×{project.height}</span>
           <span>{project.fps} fps</span>
-          <PreviewAudioMeter playing={playing} />
+          <PreviewAudioMeter playing={realtimePlayback} />
           <PlaybackDiagnostics time={time} playing={playing} fps={project.fps} />
+          {playing && <span className="dim" title="シャトル速度">{transportRate > 0 ? '▶' : '◀'} {Math.abs(transportRate)}×</span>}
           <button
             className={`miniBtn ${showGuides ? 'active' : ''}`}
             type="button"
@@ -553,7 +557,7 @@ export function Preview({
               if (clip.kind === 'text' || clip.kind === 'subtitle' || clip.kind === 'generator') {
                 return <SyntheticLayer key={clip.id} clip={clip} project={project} time={time} />;
               }
-              return <VisualLayer key={clip.id} clip={clip} project={project} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={playing} />;
+              return <VisualLayer key={clip.id} clip={clip} project={project} asset={project.assets.find((asset) => asset.id === clip.assetId)} time={time} playing={realtimePlayback} transportRate={transportRate} />;
             })}
             {visuals.map(({ clip }) => {
               const hitStyle = previewSelectionStyle(clip, project, time, project.assets);
@@ -585,12 +589,12 @@ export function Preview({
             })}
             {visuals.length > 0 && (
               <>
-                <PausedPreviewCanvas project={project} time={time} playing={playing} enabled={!playing} />
+                <PausedPreviewCanvas project={project} time={time} playing={realtimePlayback} enabled={!realtimePlayback} />
                 <RealtimeProcessedPreviewCanvas
                   project={project}
                   time={time}
-                  playing={playing}
-                  enabled={playing && requiresProcessedPreview}
+                  playing={realtimePlayback}
+                  enabled={realtimePlayback && requiresProcessedPreview}
                 />
               </>
             )}
@@ -663,7 +667,8 @@ export function Preview({
             trackPan={track.pan ?? 0}
             asset={project.assets.find((asset) => asset.id === clip.assetId)}
             time={time}
-            playing={playing}
+            playing={realtimePlayback}
+            transportRate={transportRate}
             fps={project.fps}
           />
         ))}

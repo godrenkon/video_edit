@@ -43,7 +43,8 @@ import { beginEditorSession, markEditorSessionClean } from './core/session';
 import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
 import { moveClipToTrack } from './core/trackPlacement';
 import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
-import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
+import { quantizePreviewTime } from './render/previewClock';
+import { adjacentEditPoint, nextShuttleRate, quantizeTransportTime, stepTransportFrames, transportFrameTime } from './core/transport';
 import { clearWaveformMemoryCache, waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
 import { deleteAssetStorageBeforeInvalidation, replaceRelinkedAssetStorage } from './render/assetRelinkLifecycle';
@@ -71,6 +72,7 @@ export default function App() {
   const [selectedClipIds, setSelectedClipIds] = useState<string[]>([]);
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [shuttleRate, setShuttleRate] = useState(1);
   const [zoom, setZoom] = useState(48);
   const [hydrated, setHydrated] = useState(false);
   const [saveState, setSaveState] = useState('起動中…');
@@ -252,15 +254,17 @@ export default function App() {
     const tick = (now: number) => {
       const origin = playbackOrigin.current;
       if (!origin) return;
-      const next = previewFrameTime(
+      const next = transportFrameTime(
         origin.time,
         (now - origin.wallMs) / 1000,
         project.fps,
         project.duration,
+        shuttleRate,
       );
       timeRef.current = next;
       setTime(next);
-      if (next >= project.duration) {
+      const reachedBoundary = shuttleRate >= 0 ? next >= project.duration : next <= 0;
+      if (reachedBoundary) {
         setPlaying(false);
         return;
       }
@@ -268,7 +272,7 @@ export default function App() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, project.duration, project.fps]);
+  }, [playing, project.duration, project.fps, shuttleRate]);
 
   const updateProject = useCallback((mutator: (p: Project) => Project, options: UpdateOptions = {}) => {
     setProject((current) => {
@@ -739,6 +743,92 @@ export default function App() {
     );
   }, [rendering, selectedClipIds, updateProject]);
 
+  const toggleNormalPlayback = useCallback(() => {
+    if (playingRef.current) {
+      setPlaying(false);
+      return;
+    }
+    setShuttleRate(1);
+    setPlaying(true);
+  }, []);
+
+  const shuttle = useCallback((direction: -1 | 1) => {
+    setShuttleRate((current) => nextShuttleRate(playingRef.current ? current : 0, direction));
+    setPlaying(true);
+  }, []);
+
+  const stopTransport = useCallback(() => {
+    setPlaying(false);
+  }, []);
+
+  const stepPlayhead = useCallback((frames: number) => {
+    setPlaying(false);
+    setTime((current) => stepTransportFrames(current, frames, project.fps, project.duration));
+  }, [project.duration, project.fps]);
+
+  const jumpToEditPoint = useCallback((direction: -1 | 1) => {
+    setPlaying(false);
+    setTime((current) => adjacentEditPoint(project, current, direction));
+  }, [project]);
+
+  const markInPoint = useCallback(() => {
+    setPlaying(false);
+    updateProject((p) => {
+      const point = quantizeTransportTime(timeRef.current, p.fps, p.duration);
+      return {
+        ...p,
+        inPoint: point,
+        outPoint: p.outPoint != null && p.outPoint < point ? undefined : p.outPoint,
+      };
+    }, { label: 'In点を設定' });
+  }, [updateProject]);
+
+  const markOutPoint = useCallback(() => {
+    setPlaying(false);
+    updateProject((p) => {
+      const point = quantizeTransportTime(timeRef.current, p.fps, p.duration);
+      return {
+        ...p,
+        inPoint: p.inPoint != null && p.inPoint > point ? undefined : p.inPoint,
+        outPoint: point,
+      };
+    }, { label: 'Out点を設定' });
+  }, [updateProject]);
+
+  const clearInOut = useCallback(() => {
+    updateProject((p) => ({ ...p, inPoint: undefined, outPoint: undefined }), { label: 'In/Outを消去' });
+  }, [updateProject]);
+
+  const addTimelineMarker = useCallback(() => {
+    updateProject((p) => {
+      const markerTime = quantizeTransportTime(timeRef.current, p.fps, p.duration);
+      const existingIndex = (p.markers ?? []).findIndex((marker) => Math.abs(marker.time - markerTime) < 0.5 / Math.max(1, p.fps));
+      if (existingIndex >= 0) {
+        return {
+          ...p,
+          markers: (p.markers ?? []).map((marker, index) => index === existingIndex
+            ? { ...marker, time: markerTime }
+            : marker),
+        };
+      }
+      return {
+        ...p,
+        markers: [
+          ...(p.markers ?? []),
+          { id: uid('marker'), time: markerTime, name: 'マーカー', color: '#ffc86b' },
+        ],
+      };
+    }, { label: 'マーカーを追加' });
+  }, [updateProject]);
+
+  const toggleTimelineSnapping = useCallback(() => {
+    setSnappingEnabled((value) => !value);
+  }, []);
+
+  const zoomTimeline = useCallback((delta: number) => {
+    setZoom((current) => Math.max(20, Math.min(120, current + delta)));
+  }, []);
+
   const updateShortcutOverrides = useCallback((next: ShortcutOverrides) => {
     setShortcutOverrides(next);
     saveShortcutOverrides(next);
@@ -821,6 +911,76 @@ export default function App() {
         redo();
         return;
       }
+      if (shortcutMatches(e, 'shuttle-reverse', shortcutOverrides)) {
+        e.preventDefault();
+        shuttle(-1);
+        return;
+      }
+      if (shortcutMatches(e, 'shuttle-stop', shortcutOverrides)) {
+        e.preventDefault();
+        stopTransport();
+        return;
+      }
+      if (shortcutMatches(e, 'shuttle-forward', shortcutOverrides)) {
+        e.preventDefault();
+        shuttle(1);
+        return;
+      }
+      if (shortcutMatches(e, 'step-back', shortcutOverrides)) {
+        e.preventDefault();
+        stepPlayhead(-1);
+        return;
+      }
+      if (shortcutMatches(e, 'step-forward', shortcutOverrides)) {
+        e.preventDefault();
+        stepPlayhead(1);
+        return;
+      }
+      if (shortcutMatches(e, 'previous-edit', shortcutOverrides)) {
+        e.preventDefault();
+        jumpToEditPoint(-1);
+        return;
+      }
+      if (shortcutMatches(e, 'next-edit', shortcutOverrides)) {
+        e.preventDefault();
+        jumpToEditPoint(1);
+        return;
+      }
+      if (shortcutMatches(e, 'mark-in', shortcutOverrides)) {
+        e.preventDefault();
+        markInPoint();
+        return;
+      }
+      if (shortcutMatches(e, 'mark-out', shortcutOverrides)) {
+        e.preventDefault();
+        markOutPoint();
+        return;
+      }
+      if (shortcutMatches(e, 'clear-in-out', shortcutOverrides)) {
+        e.preventDefault();
+        clearInOut();
+        return;
+      }
+      if (shortcutMatches(e, 'add-marker', shortcutOverrides)) {
+        e.preventDefault();
+        addTimelineMarker();
+        return;
+      }
+      if (shortcutMatches(e, 'toggle-snapping', shortcutOverrides)) {
+        e.preventDefault();
+        toggleTimelineSnapping();
+        return;
+      }
+      if (shortcutMatches(e, 'zoom-in', shortcutOverrides)) {
+        e.preventDefault();
+        zoomTimeline(10);
+        return;
+      }
+      if (shortcutMatches(e, 'zoom-out', shortcutOverrides)) {
+        e.preventDefault();
+        zoomTimeline(-10);
+        return;
+      }
       if (shortcutMatches(e, 'split', shortcutOverrides)) {
         e.preventDefault();
         splitSelectedClip();
@@ -863,7 +1023,7 @@ export default function App() {
       }
       if (shortcutMatches(e, 'play-pause', shortcutOverrides)) {
         e.preventDefault();
-        setPlaying((value) => !value);
+        toggleNormalPlayback();
         return;
       }
       if (selectedClipId && shortcutMatches(e, 'ripple-delete', shortcutOverrides)) {
@@ -878,7 +1038,7 @@ export default function App() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, searchOpen, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, groupSelection, ungroupSelection, nudgeSelected, undo, redo, shortcutOverrides]);
+  }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, searchOpen, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, groupSelection, ungroupSelection, nudgeSelected, undo, redo, shortcutOverrides, shuttle, stopTransport, stepPlayhead, jumpToEditPoint, markInPoint, markOutPoint, clearInOut, addTimelineMarker, toggleTimelineSnapping, zoomTimeline, toggleNormalPlayback]);
 
   const manualSave = async () => {
     try {
@@ -1096,6 +1256,7 @@ export default function App() {
             project={project}
             time={time}
             playing={playing}
+            transportRate={shuttleRate}
             selectedClipId={selectedClipId}
             onSelectClip={(clipId) => {
               setPlaying(false);
@@ -1103,8 +1264,11 @@ export default function App() {
             }}
             onClearSelection={clearClipSelection}
             onTransformClip={updateClipTransform}
-            onTogglePlay={() => setPlaying((v) => !v)}
-            onTime={(v) => setTime(Math.max(0, Math.min(project.duration, v)))}
+            onTogglePlay={toggleNormalPlayback}
+            onTime={(v) => {
+              setPlaying(false);
+              setTime(Math.max(0, Math.min(project.duration, v)));
+            }}
           />
           <ZundamonPanel assets={project.assets} busy={zBusy} onGenerate={generateZundamon} />
           <EngineStatus capabilities={capabilities} storageText={storageText} />
@@ -1153,7 +1317,7 @@ export default function App() {
         selectedClipId={selectedClipId}
         selectedClipIds={selectedClipIds}
         snappingEnabled={snappingEnabled}
-        onToggleSnapping={() => setSnappingEnabled((value) => !value)}
+        onToggleSnapping={toggleTimelineSnapping}
         onZoom={setZoom}
         onTime={(v) => { setPlaying(false); setTime(v); }}
         onSelect={selectClip}
