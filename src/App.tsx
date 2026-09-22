@@ -4,10 +4,14 @@ import { addAssetBin, assignAssetBin, removeAssetBin, renameAssetBin } from './c
 import type { ProjectSearchResult } from './core/projectSearch';
 import { detectCapabilities } from './core/capabilities';
 import {
+  deleteClipsCommand,
+  groupClipsCommand,
   insertClipCommand,
   moveClipCommand,
+  moveClipsCommand,
   moveClipToTrackCommand,
   nudgeClipCommand,
+  nudgeClipsCommand,
   overwriteClipCommand,
   rippleDeleteCommand,
   rippleTrimCommand,
@@ -16,6 +20,7 @@ import {
   splitClipCommand,
   trimLeftCommand,
   trimRightCommand,
+  ungroupClipsCommand,
   type EditorCommand,
 } from './core/commands';
 import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
@@ -27,7 +32,7 @@ import {
   snapshotProjectForHistory,
   type AssetRuntimeUrlRegistry,
 } from './core/projectHistory';
-import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClips } from './core/groupOps';
+import { groupClipIds, selectedHasGroup } from './core/groupOps';
 import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
 import { addPunchInVoiceover } from './core/punchInVoiceover';
 import { loadShortcutOverrides, saveShortcutOverrides, shortcutMatches, type ShortcutOverrides } from './core/shortcuts';
@@ -62,7 +67,7 @@ import {
 import { beginEditorSession, markEditorSessionClean, markEditorSessionDirty } from './core/session';
 import { findClip } from './core/timelineOps';
 import { targetTrackForKind } from './core/trackPlacement';
-import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
+import { existingClipIds } from './core/multiSelectionOps';
 import { quantizePreviewTime } from './render/previewClock';
 import { adjacentEditPoint, nextShuttleRate, quantizeTransportTime, stepTransportFrames, transportFrameTime } from './core/transport';
 import { clearWaveformMemoryCache, waveformCacheKey } from './render/waveform';
@@ -734,12 +739,9 @@ export default function App() {
 
   const removeSelectedClip = useCallback(() => {
     if (selectedClipIds.length === 0 || rendering) return;
-    const ids = [...selectedClipIds];
-    updateProject((p) => deleteSelectedClips(p, ids), {
-      label: ids.length > 1 ? `${ids.length}クリップ削除` : 'クリップ削除',
-    });
+    executeEditorCommand(deleteClipsCommand(selectedClipIds));
     clearClipSelection();
-  }, [clearClipSelection, rendering, selectedClipIds, updateProject]);
+  }, [clearClipSelection, executeEditorCommand, rendering, selectedClipIds]);
 
   const splitSelectedClip = useCallback(() => {
     if (!selectedClipId || !selectedClip || rendering) return;
@@ -790,31 +792,23 @@ export default function App() {
 
   const groupSelection = useCallback(() => {
     if (selectedClipIds.length < 2 || rendering) return;
-    updateProject((p) => groupSelectedClips(p, selectedClipIds), { label: 'クリップをグループ化' });
+    executeEditorCommand(groupClipsCommand(selectedClipIds));
     setSaveState('選択クリップをグループ化しました');
-  }, [rendering, selectedClipIds, updateProject]);
+  }, [executeEditorCommand, rendering, selectedClipIds]);
 
   const ungroupSelection = useCallback(() => {
     if (selectedClipIds.length === 0 || rendering) return;
-    updateProject((p) => ungroupSelectedClips(p, selectedClipIds), { label: 'グループを解除' });
+    executeEditorCommand(ungroupClipsCommand(selectedClipIds));
     setSaveState('グループを解除しました');
-  }, [rendering, selectedClipIds, updateProject]);
+  }, [executeEditorCommand, rendering, selectedClipIds]);
 
   const nudgeSelected = useCallback((frames: number) => {
     if (selectedClipIds.length === 0 || rendering) return;
     const ids = [...selectedClipIds];
-    if (ids.length === 1) {
-      executeEditorCommand(nudgeClipCommand(ids[0], frames));
-      return;
-    }
-    updateProject(
-      (p) => nudgeSelectedClips(p, ids, frames),
-      {
-        label: '選択クリップをフレーム移動',
-        key: `multi:nudge:${ids.join(',')}`,
-      },
-    );
-  }, [executeEditorCommand, rendering, selectedClipIds, updateProject]);
+    executeEditorCommand(ids.length === 1
+      ? nudgeClipCommand(ids[0], frames)
+      : nudgeClipsCommand(ids, frames));
+  }, [executeEditorCommand, rendering, selectedClipIds]);
 
   const toggleNormalPlayback = useCallback(() => {
     if (playingRef.current) {
@@ -1405,10 +1399,7 @@ export default function App() {
         onTime={(v) => { setPlaying(false); setTime(v); }}
         onSelect={selectClip}
         onClearSelection={clearClipSelection}
-        onMoveSelectedByDelta={(delta) => updateProject(
-          (p) => moveSelectedClipsByDelta(p, selectedClipIds, delta),
-          { label: '選択クリップ移動', key: `multi:move:${selectedClipIds.join(',')}` },
-        )}
+        onMoveSelectedByDelta={(delta) => executeEditorCommand(moveClipsCommand(selectedClipIds, delta))}
         onSplitSelected={splitSelectedClip}
         onDeleteSelected={removeSelectedClip}
         onDuplicateSelected={duplicateSelectedClip}
