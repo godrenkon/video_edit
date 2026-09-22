@@ -164,6 +164,19 @@ describe('migrateProject', () => {
     expect(project.tracks[0].clips[0].transitionOut).toEqual({ kind: 'dip-black', duration: 1 });
   });
 
+  it('preserves explicit sync-lock opt-outs during migration', () => {
+    const project = migrateProject({
+      version: 2,
+      assets: [],
+      tracks: [
+        { id: 'synced', kind: 'video', syncLock: true, clips: [] },
+        { id: 'excluded', kind: 'audio', syncLock: false, clips: [] },
+      ],
+    });
+    expect(project.tracks[0].syncLock).toBe(true);
+    expect(project.tracks[1].syncLock).toBe(false);
+  });
+
   it('drops invalid bus assignments and malformed bus lists safely', () => {
     const project = migrateProject({
       version: 2,
