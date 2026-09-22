@@ -99,7 +99,7 @@ def _fit_photo(path,size):
 def make_ssd_hdd_compare(n):
     """Create a real-photo split screen whenever narration mentions both SSD and HDD."""
     hdd_ids=["hdd_side","hdd_open_photo","hdd_head_macro"]
-    ssd_ids=["sata_ssd","nvme_m2","ssd_controller"]
+    ssd_ids=["sata_ssd","nvme_m2","external_ssd","m2_installed"]
 
     hp=[optional_asset(x) for x in hdd_ids]
     sp=[optional_asset(x) for x in ssd_ids]
@@ -481,9 +481,12 @@ def render_event(ev,out,zundamon):
     # an entire sentence into the same comparison visual just because SSD/HDD
     # are mentioned later in that sentence.
     comparison_cues=("違い","比べ","比較","どちら","どっち","両方","一方","対して","vs","VS")
-    explicit_compare = ("SSD" in text and "HDD" in text) or (
-        "SSD" in source_text and "HDD" in source_text and
-        any(k in source_text for k in comparison_cues)
+    # Split-screen is reserved for a phrase that is actually comparing both
+    # storage types. Merely mentioning SSD/HDD names in a sentence should not
+    # force the same two-column composition over and over.
+    explicit_compare = (
+        "SSD" in text and "HDD" in text and
+        any(k in (text + source_text) for k in comparison_cues)
     )
     if explicit_compare:
         src=make_ssd_hdd_compare(ev["n"])
@@ -512,7 +515,7 @@ def render_event(ev,out,zundamon):
       base_filter,
       "[base]drawbox=x=0:y=0:w=iw:h=ih:color=black@0.10:t=fill[b0]",
       f"[1:v]format=rgba,setpts=PTS-STARTPTS[ov];[b0][ov]overlay=0:0[b1]",
-      "[2:v]format=rgba,scale=-1:560,setpts=PTS-STARTPTS[z]",
+      "[2:v]format=rgba,scale=-1:640,setpts=PTS-STARTPTS[z]",
       f"[b1][z]overlay=x='{zx}':y='{zy}':format=auto,format=yuv420p[v]"
     ]
     cmd += ["-filter_complex",";".join(fc),"-map","[v]","-t",f"{dur:.3f}","-r",str(FPS),
