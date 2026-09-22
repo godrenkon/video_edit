@@ -19,6 +19,8 @@ export function addTrack(project: Project, kind: TrackKind, options: AddTrackOpt
     kind,
     muted: false,
     locked: false,
+    syncLock: true,
+    targeted: false,
     visible: true,
     gain: 1,
     pan: 0,
