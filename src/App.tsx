@@ -138,6 +138,12 @@ export default function App() {
     setSelectedClipId(null);
   }, []);
 
+  const markProjectDirty = useCallback(() => {
+    saveGeneration.current += 1;
+    projectDirty.current = true;
+    markEditorSessionDirty();
+  }, []);
+
   useEffect(() => {
     if (selectedClipId && !selectedClipIds.includes(selectedClipId)) {
       setSelectedClipIds([selectedClipId]);
@@ -285,13 +291,14 @@ export default function App() {
     setProject((current) => {
       const mutated = mutator(current);
       if (mutated === current) return current;
+      markProjectDirty();
       const next = clampProjectDuration({ ...mutated, updatedAt: new Date().toISOString() });
       if (options.history !== false) {
         history.current.record(current, options.label ?? '編集', options.key);
       }
       return next;
     });
-  }, []);
+  }, [markProjectDirty]);
 
   const updateClip = useCallback((clipId: string, patch: Partial<Clip>, historyKey?: string, label = 'クリップ編集') => {
     updateProject((p) => ({
@@ -320,6 +327,7 @@ export default function App() {
     if (!result) return;
     setPlaying(false);
     setSelectedClipId(null);
+    markProjectDirty();
     setProject(clampProjectDuration({ ...result.value, updatedAt: new Date().toISOString() }));
     setSaveState(`元に戻す: ${result.label}`);
   }, [project]);
@@ -347,6 +355,7 @@ export default function App() {
       setPlaying(false);
       setTime(0);
       setSelectedClipId(null);
+      markProjectDirty();
       setProject(hydratedProject);
       await saveProject(hydratedProject);
       setShowRecovery(false);
@@ -710,6 +719,7 @@ export default function App() {
     if (!result.clipId || result.project === project) return;
     history.current.record(project, 'クリップ貼り付け');
     setPlaying(false);
+    markProjectDirty();
     setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
     setSelectedClipId(result.clipId);
     setSaveState('クリップを貼り付けました');
@@ -721,6 +731,7 @@ export default function App() {
     if (!result.clipId || result.project === project) return;
     history.current.record(project, 'クリップ複製');
     setPlaying(false);
+    markProjectDirty();
     setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
     setSelectedClipId(result.clipId);
     setSaveState('クリップを複製しました');
