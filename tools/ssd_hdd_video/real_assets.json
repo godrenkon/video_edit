@@ -232,6 +232,33 @@
       "license": "CC BY-SA 4.0",
       "credit": "Bubba73",
       "use": "SATA data and power connectors"
+    },
+    {
+      "id": "sfx_click",
+      "kind": "audio",
+      "source": "https://commons.wikimedia.org/wiki/File:Clicker_sound.ogg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Clicker_sound.ogg",
+      "license": "CC0",
+      "credit": "Clicker sound — Maddy",
+      "use": "important-point click accent"
+    },
+    {
+      "id": "sfx_transition",
+      "kind": "audio",
+      "source": "https://commons.wikimedia.org/wiki/File:Jingle_Transition.ogg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Jingle_Transition.ogg",
+      "license": "Public Domain",
+      "credit": "Jingle Transition — Savant-fou et Malfidus",
+      "use": "chapter transition accent"
+    },
+    {
+      "id": "sfx_success",
+      "kind": "audio",
+      "source": "https://commons.wikimedia.org/wiki/File:Sucesso.ogg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Sucesso.ogg",
+      "license": "CC0",
+      "credit": "Sucesso — Rafael Tavares Juliani",
+      "use": "ending accent"
     }
   ]
 }
