@@ -43,6 +43,21 @@ describe('NLE transport', () => {
     expect(quantizeTransportTime(origin, rate, 120)).toBeCloseTo(origin, 12);
   });
 
+  it('limits edit-point navigation to explicitly targeted unlocked tracks', () => {
+    const project = createProject();
+    project.duration = 20;
+    const video = project.tracks.find((item) => item.kind === 'video')!;
+    const overlay = project.tracks.find((item) => item.kind === 'overlay')!;
+    project.tracks = project.tracks.map((track) => {
+      if (track.id === video.id) return { ...track, targeted: true, clips: [defaultTextClip(4, 2)] };
+      if (track.id === overlay.id) return { ...track, targeted: false, clips: [defaultTextClip(2, 2)] };
+      return { ...track, targeted: false };
+    });
+
+    expect(adjacentEditPoint(project, 0, 1)).toBe(4);
+    expect(adjacentEditPoint(project, 4, 1)).toBe(6);
+  });
+
   it('navigates between clip edit points across tracks', () => {
     const project = createProject();
     project.duration = 20;
