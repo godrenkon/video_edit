@@ -85,7 +85,7 @@ describe('advanced timeline operations', () => {
       [asset('a'), asset('b'), asset('sync'), asset('free'), asset('locked')],
     );
     input.tracks.push(
-      track([clip('sync', 4, 4)], false, 'sync', true),
+      track([clip('overlap', 4, 4), clip('sync', 6, 2)], false, 'sync', true),
       track([clip('free', 6, 2)], false, 'free', false),
       track([clip('locked', 6, 2)], true, 'locked', true),
     );
@@ -97,10 +97,10 @@ describe('advanced timeline operations', () => {
     ]);
 
     const synced = [...output.tracks[1].clips].sort((a, b) => a.start - b.start);
-    expect(synced.map((item) => [item.start, item.duration])).toEqual([
-      [4, 1],
-      [3, 3],
-    ].sort((a, b) => a[0] - b[0]));
+    expect(synced.map((item) => [item.id, item.start, item.duration])).toEqual([
+      ['sync', 4, 2],
+      ['overlap', 4, 4],
+    ].sort((a, b) => a[1] - b[1] || String(a[0]).localeCompare(String(b[0]))));
     expect(output.tracks[2].clips[0].start).toBe(6);
     expect(output.tracks[3].clips[0].start).toBe(6);
   });
