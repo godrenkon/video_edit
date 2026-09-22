@@ -102,7 +102,9 @@ export function splitClipAt(project: Project, clipId: string, absoluteTime: numb
   };
 }
 
-export function rippleDeleteClip(project: Project, clipId: string, allUnlockedTracks = false): Project {
+export type RippleDeleteScope = 'track' | 'sync-lock' | 'all';
+
+export function rippleDeleteClip(project: Project, clipId: string, scope: RippleDeleteScope = 'track'): Project {
   const location = findClip(project, clipId);
   if (!location || location.track.locked) return project;
 
@@ -113,13 +115,19 @@ export function rippleDeleteClip(project: Project, clipId: string, allUnlockedTr
   return {
     ...project,
     tracks: project.tracks.map((track, index) => {
-      const shouldRipple = allUnlockedTracks ? !track.locked : index === location.trackIndex;
+      const shouldRipple = scope === 'all'
+        ? !track.locked
+        : scope === 'sync-lock'
+          ? !track.locked && track.syncLock !== false
+          : index === location.trackIndex;
       if (!shouldRipple) return track;
 
       const clips = track.clips
         .filter((clip) => clip.id !== clipId)
         .map((clip) => {
-          if (clip.start >= gapEnd) return { ...clip, start: Math.max(gapStart, clip.start - gapDuration) };
+          if (clip.start >= gapEnd) {
+            return { ...clip, start: quantizeToFrame(Math.max(gapStart, clip.start - gapDuration), project.fps) };
+          }
           return clip;
         });
       return { ...track, clips };
