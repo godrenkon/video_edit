@@ -76,3 +76,58 @@ it('serializes overlapping saves so an older slow write cannot replace a newer p
   expect(projectWrite).toBe(2);
   expect(JSON.parse(files.get('project.json')!).name).toBe('newer');
 });
+
+
+it('allows a later save to proceed after an earlier queued write fails', async () => {
+  const files = new Map<string, string>();
+  let projectWrite = 0;
+
+  const fileHandle = (path: string) => ({
+    async createWritable() {
+      let staged = '';
+      return {
+        async write(value: unknown) {
+          staged = String(value);
+        },
+        async close() {
+          if (path === 'project.json') {
+            projectWrite += 1;
+            if (projectWrite === 1) throw new Error('simulated write failure');
+          }
+          files.set(path, staged);
+        },
+      };
+    },
+  });
+
+  const snapshotDirectory = {
+    async getFileHandle(name: string) {
+      return fileHandle(`snapshots/${name}`);
+    },
+  };
+
+  const rootDirectory = {
+    async getDirectoryHandle(name: string) {
+      if (name !== 'snapshots') throw new Error(`Unexpected directory: ${name}`);
+      return snapshotDirectory;
+    },
+    async getFileHandle(name: string) {
+      return fileHandle(name);
+    },
+  };
+
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      storage: {
+        getDirectory: async () => rootDirectory,
+      },
+    },
+  });
+
+  await expect(saveProject(project('failed'))).rejects.toThrow('simulated write failure');
+  await expect(saveProject(project('recovered'))).resolves.toBeUndefined();
+
+  expect(projectWrite).toBe(2);
+  expect(JSON.parse(files.get('project.json')!).name).toBe('recovered');
+});
