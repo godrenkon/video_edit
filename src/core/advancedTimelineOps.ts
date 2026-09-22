@@ -2,7 +2,6 @@ import type { Project } from '../types/editor';
 import {
   findClip,
   quantizeToFrame,
-  splitClipAt,
   trimClipLeft,
   trimClipRight,
   type RippleDeleteScope,
@@ -42,9 +41,8 @@ export function rippleTrimClip(
   if (edge === 'left') {
     const trimDelta = afterTrim.clip.start - originalStart;
     if (Math.abs(trimDelta) < frame / 1000) return trimmed;
-    const prepared = splitOtherRippleTracksAt(trimmed, affectedTrackIds, location.track.id, originalStart);
     return shiftRippleTracks(
-      prepared,
+      trimmed,
       affectedTrackIds,
       clipId,
       originalStart,
@@ -56,9 +54,8 @@ export function rippleTrimClip(
   const nextEnd = afterTrim.clip.start + afterTrim.clip.duration;
   const durationDelta = nextEnd - originalEnd;
   if (Math.abs(durationDelta) < frame / 1000) return trimmed;
-  const prepared = splitOtherRippleTracksAt(trimmed, affectedTrackIds, location.track.id, originalEnd);
   return shiftRippleTracks(
-    prepared,
+    trimmed,
     affectedTrackIds,
     clipId,
     originalEnd,
@@ -77,29 +74,6 @@ function rippleAffectedTrackIds(project: Project, sourceTrackId: string, scope: 
       return scope === 'sync-lock' && track.syncLock !== false;
     })
     .map((track) => track.id));
-}
-
-function splitOtherRippleTracksAt(
-  project: Project,
-  affectedTrackIds: Set<string>,
-  sourceTrackId: string,
-  boundary: number,
-) {
-  let next = project;
-  const frame = 1 / Math.max(1, project.fps);
-  for (const trackId of affectedTrackIds) {
-    if (trackId === sourceTrackId) continue;
-    const track = next.tracks.find((item) => item.id === trackId);
-    if (!track || track.locked) continue;
-    const crossing = track.clips
-      .filter((clip) => clip.start < boundary - frame / 1000
-        && clip.start + clip.duration > boundary + frame / 1000)
-      .map((clip) => clip.id);
-    for (const crossingClipId of crossing) {
-      next = splitClipAt(next, crossingClipId, boundary);
-    }
-  }
-  return next;
 }
 
 function shiftRippleTracks(
