@@ -192,6 +192,10 @@ NAS_MEDIA=["nas","server_rack","external_hdds","pc_m2_hdd_inside"]
 EXTERNAL_MEDIA=["external_ssd","external_hdds","sata_ssd","hdd_side"]
 RAM_MEDIA=["ram_ddr4","motherboard","pc_m2_hdd_inside"]
 PC_MEDIA=["motherboard","pc_m2_hdd_inside","computer_components_video","ssd_install"]
+STORAGE_MEDIA=["pc_m2_hdd_inside","external_ssd","external_hdds","sata_ssd","hdd_side","nvme_m2"]
+APP_MEDIA=["pc_m2_hdd_inside","m2_installed","nvme_m2","sata_ssd","hdd_side","computer_components_video"]
+LOAD_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","pc_m2_hdd_inside"]
+BROWSER_MEDIA=["browser_demo_video","pc_m2_hdd_inside","nvme_m2","sata_ssd"]
 SPEED_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","pc_m2_hdd_inside"]
 
 def strong_media_for(text):
