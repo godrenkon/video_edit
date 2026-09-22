@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Clip, Project } from '../types/editor';
 import {
+  deleteClipsCommand,
+  groupClipsCommand,
   moveClipCommand,
+  moveClipsCommand,
   moveClipToTrackCommand,
   nudgeClipCommand,
+  nudgeClipsCommand,
   replayEditorCommands,
   rippleDeleteCommand,
   rippleTrimCommand,
@@ -11,6 +15,7 @@ import {
   splitClipCommand,
   trimLeftCommand,
   trimRightCommand,
+  ungroupClipsCommand,
   type EditorCommandPayload,
 } from './commands';
 
@@ -149,6 +154,29 @@ describe('EditorCommand factories', () => {
     const rippled = rippleTrimCommand('clip-a', 'right', 4, undefined, 0, 'sync-lock').apply(input);
     expect(rippled.tracks[0].clips.find((clip) => clip.id === 'clip-a')?.duration).toBe(3);
     expect(rippled.tracks[0].clips.find((clip) => clip.id === 'clip-b')?.start).toBe(4);
+  });
+
+  it('replays multi-clip movement, grouping and deletion with captured identities', () => {
+    const input = makeProject();
+    const grouped = groupClipsCommand(['clip-a', 'clip-b'], 'group-fixed');
+    const payloads: EditorCommandPayload[] = [
+      grouped.payload,
+      moveClipsCommand(['clip-b', 'clip-a'], 1).payload,
+      nudgeClipsCommand(['clip-a', 'clip-b'], 1).payload,
+      ungroupClipsCommand(['clip-a']).payload,
+      deleteClipsCommand(['clip-c']).payload,
+    ];
+    const output = replayEditorCommands(input, JSON.parse(JSON.stringify(payloads)) as EditorCommandPayload[]);
+
+    expect(grouped.payload).toEqual({
+      type: 'group-clips',
+      clipIds: ['clip-a', 'clip-b'],
+      groupId: 'group-fixed',
+    });
+    expect(output.tracks[0].clips.map((clip) => clip.id)).toEqual(['clip-a', 'clip-b']);
+    expect(output.tracks[0].clips.every((clip) => clip.groupId === undefined)).toBe(true);
+    expect(output.tracks[0].clips[0].start).toBeCloseTo(2 + 1 / 30, 10);
+    expect(output.tracks[0].clips[1].start).toBeCloseTo(6 + 1 / 30, 10);
   });
 
   it('keeps replay a no-op when command preconditions fail', () => {
