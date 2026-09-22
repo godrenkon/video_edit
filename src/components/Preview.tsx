@@ -1,4 +1,4 @@
-import { Grid3X3, Maximize2, Minimize2, Pause, Play, RotateCw, SkipBack, Volume2 } from 'lucide-react';
+import { Maximize2, Minimize2, Pause, Play, SkipBack, Volume2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   audioTimelineItems,
@@ -524,7 +524,7 @@ export function Preview({
             onClick={() => setShowGuides((value) => !value)}
             title={showGuides ? 'ガイドを非表示' : 'ガイドを表示'}
             aria-pressed={showGuides}
-          ><Grid3X3 size={14} /></button>
+          ><span aria-hidden="true">#</span></button>
           <button className="miniBtn" type="button" onClick={toggleFullscreen} title={fullscreen ? 'フルスクリーンを終了' : 'フルスクリーン'} aria-label={fullscreen ? 'フルスクリーンを終了' : 'フルスクリーン'}>
             {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
@@ -607,7 +607,7 @@ export function Preview({
                   onPointerDown={beginRotateSelected}
                   aria-label="回転"
                   title="ドラッグで回転 / Shiftで15°スナップ"
-                ><RotateCw size={10} /></button>
+                ><span aria-hidden="true">↻</span></button>
                 <button
                   type="button"
                   className="previewScaleHandle"
