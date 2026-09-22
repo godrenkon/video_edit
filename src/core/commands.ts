@@ -22,7 +22,7 @@ export function rippleDeleteCommand(clipId: string, allUnlockedTracks = false): 
   return {
     id: id('ripple-delete'),
     label: 'リップル削除',
-    apply: (project) => rippleDeleteClip(project, clipId, allUnlockedTracks),
+    apply: (project) => rippleDeleteClip(project, clipId, allUnlockedTracks ? 'all' : 'track'),
   };
 }
 
