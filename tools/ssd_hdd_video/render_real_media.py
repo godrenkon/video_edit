@@ -436,11 +436,11 @@ def render_event(ev,out,zundamon):
         srcdur=probe_duration(src)
         seek=(ev["n"]*3.7)%max(0.1,srcdur-1.0)
         base_inputs=["-stream_loop","-1","-ss",f"{seek:.2f}","-i",src]
-        base_filter=f"[0:v]{fit_image_filter()},fps={FPS},setsar=1[base]"
+        base_filter=f"[0:v]{fit_image_filter()},fps={FPS},setpts=PTS-STARTPTS,setsar=1[base]"
     else:
         base_inputs=["-loop","1","-framerate",str(FPS),"-i",src]
         # Slow zoom, never a static still.
-        base_filter=f"[0:v]scale=2100:-1:force_original_aspect_ratio=increase,zoompan=z='min(zoom+0.00035,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS},setsar=1[base]"
+        base_filter=f"[0:v]scale=2100:-1:force_original_aspect_ratio=increase,zoompan=z='min(zoom+0.00035,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS},setpts=PTS-STARTPTS,setsar=1[base]"
     cmd=["ffmpeg","-y","-loglevel","error",*base_inputs,
          "-loop","1","-i",overlay,
          "-loop","1","-i",zundamon]
@@ -448,8 +448,8 @@ def render_event(ev,out,zundamon):
     fc=[
       base_filter,
       "[base]drawbox=x=0:y=0:w=iw:h=ih:color=black@0.10:t=fill[b0]",
-      f"[1:v]format=rgba[ov];[b0][ov]overlay=0:0[b1]",
-      "[2:v]format=rgba,scale=-1:560[z]",
+      f"[1:v]format=rgba,setpts=PTS-STARTPTS[ov];[b0][ov]overlay=0:0[b1]",
+      "[2:v]format=rgba,scale=-1:560,setpts=PTS-STARTPTS[z]",
       f"[b1][z]overlay=x='{zx}':y='{zy}':format=auto,fade=t=in:st=0:d=0.10,fade=t=out:st={max(0,dur-.10):.3f}:d=0.10,format=yuv420p[v]"
     ]
     cmd += ["-filter_complex",";".join(fc),"-map","[v]","-t",f"{dur:.3f}","-r",str(FPS),
@@ -657,7 +657,14 @@ for e in events:
 concat=WORK/"video_concat.txt"
 concat.write_text("\n".join(f"file '{p.resolve()}'" for p in clips),encoding="utf-8")
 visual=WORK/"visual.mp4"
-run(["ffmpeg","-y","-loglevel","error","-f","concat","-safe","0","-i",concat,"-c","copy",visual])
+run([
+    "ffmpeg","-y","-loglevel","error",
+    "-f","concat","-safe","0","-i",concat,
+    "-an","-vf",f"fps={FPS},format=yuv420p,setpts=N/({FPS}*TB)",
+    "-c:v","libx264","-preset","ultrafast","-crf","14",
+    "-g",str(FPS*2),"-keyint_min",str(FPS*2),"-sc_threshold","0",
+    "-movflags","+faststart",visual
+])
 clean_visual=OUT/"SSD_HDD_REAL_MEDIA_CLEAN.mp4"
 run(["ffmpeg","-y","-loglevel","error","-i",visual,"-c:v","copy","-an",clean_visual])
 
