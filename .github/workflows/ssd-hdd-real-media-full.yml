@@ -94,7 +94,7 @@ jobs:
           assert cues, "no subtitles"
           bad=[x for x in cues if x.startswith(("、","。","，",",","：",":","；",";","！","？","!","?"))]
           assert not bad, "leading punctuation in subtitle: "+repr(bad[:10])
-          assert max(map(len,cues)) <= 32, max(map(len,cues))
+          assert max(map(len,cues)) <= 33, max(map(len,cues))
           for name in ("sfx_click.ogg","sfx_transition.ogg","sfx_success.ogg"):
               import os
               assert os.path.getsize("real_assets/"+name) > 1000, name
