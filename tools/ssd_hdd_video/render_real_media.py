@@ -270,21 +270,21 @@ def _unique(xs):
             out.append(x)
     return out
 
-HDD_INTERNAL=["hdd_working_video","hdd_open_photo","hdd_head_macro","hdd_side"]
-SSD_INTERNAL=["ssd_nand","ssd_controller","sata_ssd","nvme_m2"]
-M2_MEDIA=["nvme_m2","m2_installed","sata_vs_nvme","ssd_install"]
-SATA_MEDIA=["sata_ssd","sata_connector","sata_data_power","sata_vs_nvme"]
-NAS_MEDIA=["nas","server_rack","external_hdds","external_ssd"]
-EXTERNAL_MEDIA=["external_ssd","external_hdds","sata_ssd","hdd_side"]
-RAM_MEDIA=["ram_ddr4","motherboard","m2_installed"]
-PC_MEDIA=["motherboard","m2_installed","ssd_install","nvme_m2","sata_ssd"]
-STORAGE_MEDIA=["external_ssd","sata_ssd","nvme_m2","hdd_side","hdd_open_photo","m2_installed","sata_vs_nvme","external_hdds"]
-APP_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_side","motherboard","ssd_install"]
-LOAD_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","motherboard"]
-BROWSER_MEDIA=["browser_demo_video","m2_installed","nvme_m2","sata_ssd"]
-SPEED_MEDIA=["m2_installed","nvme_m2","sata_ssd","hdd_working_video","sata_vs_nvme"]
-HDD_GENERAL=["hdd_working_video","hdd_open_photo","hdd_head_macro","hdd_side","external_hdds","nas"]
-SSD_GENERAL=["sata_ssd","nvme_m2","m2_installed","external_ssd","ssd_controller","ssd_nand","ssd_install"]
+HDD_INTERNAL=["hdd_working_video","hdd_open_photo","hdd_head_macro","laptop_hdd_open","hdd_side","hdd_ssd_disassembled","external_hdd_laptop"]
+SSD_INTERNAL=["ssd_nand","ssd_controller","sata_ssd","crucial_ssd","nvme_m2","laptop_nvme","m2_installed"]
+M2_MEDIA=["nvme_m2","m2_installed","laptop_nvme","pc_m2_hdd_inside","sata_vs_nvme","ssd_install"]
+SATA_MEDIA=["sata_ssd","crucial_ssd","sata_connector","sata_data_power","sata_vs_nvme"]
+NAS_MEDIA=["nas","nas_drive_bay","server_rack","external_hdds","external_ssd","external_hdd_laptop"]
+EXTERNAL_MEDIA=["external_ssd","external_hdds","external_hdd_laptop","sata_ssd","hdd_side"]
+RAM_MEDIA=["ram_ddr4","pc_m2_hdd_inside","motherboard","m2_installed"]
+PC_MEDIA=["pc_m2_hdd_inside","motherboard","m2_installed","ssd_install","laptop_nvme","nvme_m2","sata_ssd","crucial_ssd"]
+STORAGE_MEDIA=["hdd_ssd_disassembled","pc_m2_hdd_inside","external_ssd","external_hdds","external_hdd_laptop","sata_ssd","crucial_ssd","nvme_m2","laptop_nvme","hdd_side","hdd_open_photo","m2_installed","sata_vs_nvme","nas_drive_bay"]
+APP_MEDIA=["pc_m2_hdd_inside","m2_installed","laptop_nvme","nvme_m2","sata_ssd","crucial_ssd","motherboard","ssd_install","hdd_side"]
+LOAD_MEDIA=["pc_m2_hdd_inside","m2_installed","laptop_nvme","nvme_m2","sata_ssd","crucial_ssd","hdd_working_video","motherboard"]
+BROWSER_MEDIA=["browser_demo_video","pc_m2_hdd_inside","m2_installed","laptop_nvme","nvme_m2","sata_ssd"]
+SPEED_MEDIA=["m2_installed","laptop_nvme","nvme_m2","sata_ssd","crucial_ssd","hdd_working_video","sata_vs_nvme","pc_m2_hdd_inside"]
+HDD_GENERAL=["hdd_working_video","hdd_open_photo","hdd_head_macro","laptop_hdd_open","hdd_side","external_hdds","external_hdd_laptop","nas","nas_drive_bay","hdd_ssd_disassembled"]
+SSD_GENERAL=["sata_ssd","crucial_ssd","nvme_m2","laptop_nvme","m2_installed","external_ssd","ssd_controller","ssd_nand","ssd_install","hdd_ssd_disassembled"]
 
 def strong_media_for(text):
     # In comparative sentences, prioritize the subject device over a component
@@ -329,9 +329,9 @@ def strong_media_for(text):
     if any(k in text for k in ["外付け","USB"]):
         return EXTERNAL_MEDIA
     if any(k in text for k in ["バックアップ","3-2-1","別の場所","クラウド"]):
-        return ["nas","external_hdds","external_ssd","server_rack"]
+        return ["nas","nas_drive_bay","external_hdds","external_hdd_laptop","external_ssd","server_rack"]
     if any(k in text for k in ["ノートパソコン","小型PC","薄いノート"]):
-        return ["m2_installed","nvme_m2","external_ssd","ssd_install"]
+        return ["m2_installed","laptop_nvme","nvme_m2","external_ssd","ssd_install","pc_m2_hdd_inside"]
     if any(k in text for k in ["消費電力","発熱","熱く"]):
         return ["nvme_m2","m2_installed","motherboard","sata_ssd"]
     if any(k in text for k in ["動作音","振動","衝撃"]):
@@ -551,10 +551,34 @@ def make_bgm(total):
     return out
 
 def make_sfx(rows,total):
-    """Build a restrained stereo SFX stem from licensed free effects."""
+    """Build a restrained stereo SFX stem.
+
+    Prefer licensed free effects when present. If external hosts rate-limit
+    downloads, generate simple original tones locally so the final video never
+    loses chapter/correction accents.
+    """
     transition=optional_asset("sfx_transition")
     click=optional_asset("sfx_click")
     success=optional_asset("sfx_success")
+
+    if not transition:
+        transition=WORK/"sfx_transition_generated.wav"
+        run(["ffmpeg","-y","-loglevel","error","-f","lavfi","-i",
+             "sine=frequency=620:duration=0.65","-af",
+             "volume=-11dB,afade=t=in:st=0:d=0.05,afade=t=out:st=0.38:d=0.27,aresample=48000",
+             "-ar","48000","-ac","2","-c:a","pcm_s16le",transition])
+    if not click:
+        click=WORK/"sfx_click_generated.wav"
+        run(["ffmpeg","-y","-loglevel","error","-f","lavfi","-i",
+             "sine=frequency=1250:duration=0.16","-af",
+             "volume=-9dB,afade=t=out:st=0.05:d=0.11,aresample=48000",
+             "-ar","48000","-ac","2","-c:a","pcm_s16le",click])
+    if not success:
+        success=WORK/"sfx_success_generated.wav"
+        run(["ffmpeg","-y","-loglevel","error","-f","lavfi","-i",
+             "sine=frequency=880:duration=0.85","-af",
+             "volume=-12dB,afade=t=in:st=0:d=0.04,afade=t=out:st=0.48:d=0.37,aresample=48000",
+             "-ar","48000","-ac","2","-c:a","pcm_s16le",success])
     events=[]
 
     # Chapter starts.
@@ -768,51 +792,100 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
             repaired.append(e)
 
     # A merge can also make the last shot of one sentence equal to the first
-    # shot of the next sentence. Never allow the exact same real-media asset
-    # to appear in adjacent shots: swap the latter shot to another
-    # semantically-valid asset rather than weakening the QA rule.
-    for i in range(1,len(repaired)):
-        prev=repaired[i-1]
-        e=repaired[i]
-        if prev["asset"] != e["asset"]:
-            continue
+    # shot of the next sentence. Repair repeatedly until every adjacent shot
+    # uses a genuinely different real-media asset. The semantic QA rule stays
+    # strict; we broaden only with media that is valid for that narration.
+    for _pass in range(8):
+        changed=False
+        i=1
+        while i < len(repaired):
+            prev=repaired[i-1]
+            e=repaired[i]
+            if prev["asset"] != e["asset"]:
+                i+=1
+                continue
 
-        source_text=e["row"].get("source_text") or e["row"]["text"]
-        pool=[
-            x for x in contextual_pool(
-                e["row"]["section"],
-                e["row"]["text"],
-                source_text
-            )
-            if optional_asset(x)
-        ]
-        # Broaden only to generic storage media that still pass the semantic
-        # checker. Avoid matching both the previous and the next shot so the
-        # repair cannot merely move the duplicate one boundary forward.
-        pool += [x for x in STORAGE_MEDIA if optional_asset(x) and x not in pool]
-        next_asset=repaired[i+1]["asset"] if i+1 < len(repaired) else None
-        candidates=[
-            x for x in pool
-            if x != prev["asset"]
-            and x != next_asset
-            and semantic_asset_ok(
-                e["row"]["text"],
-                x,
-                source_text
-            )
-        ]
-        if not candidates:
+            source_text=e["row"].get("source_text") or e["row"]["text"]
+            prev_source=prev["row"].get("source_text") or prev["row"]["text"]
+
+            # If the two adjacent events are really one continuous shot and
+            # together remain under the hard hold limit, merge instead of
+            # producing an artificial cut to the same picture.
+            if (
+                e["en"]-prev["st"] <= max_dur and
+                semantic_asset_ok(e["row"]["text"],prev["asset"],source_text)
+            ):
+                prev["en"]=e["en"]
+                del repaired[i]
+                changed=True
+                continue
+
+            pools=[
+                contextual_pool(e["row"]["section"],e["row"]["text"],source_text),
+                strong_media_for(source_text),
+                pool_for(e["row"]["section"],source_text),
+                PC_MEDIA,
+                STORAGE_MEDIA,
+            ]
+            pool=_unique([
+                x for group in pools for x in group
+                if optional_asset(x)
+            ])
+            next_asset=repaired[i+1]["asset"] if i+1 < len(repaired) else None
+            recent={x["asset"] for x in repaired[max(0,i-3):i]}
+
             candidates=[
                 x for x in pool
                 if x != prev["asset"]
-                and semantic_asset_ok(
-                    e["row"]["text"],
-                    x,
-                    source_text
-                )
+                and x != next_asset
+                and x not in recent
+                and semantic_asset_ok(e["row"]["text"],x,source_text)
             ]
-        if candidates:
-            e["asset"]=candidates[(e.get("source_idx",0)+i)%len(candidates)]
+            if not candidates:
+                candidates=[
+                    x for x in pool
+                    if x != prev["asset"]
+                    and x != next_asset
+                    and semantic_asset_ok(e["row"]["text"],x,source_text)
+                ]
+            if not candidates:
+                candidates=[
+                    x for x in pool
+                    if x != prev["asset"]
+                    and semantic_asset_ok(e["row"]["text"],x,source_text)
+                ]
+
+            if candidates:
+                e["asset"]=candidates[(e.get("source_idx",0)+i+_pass)%len(candidates)]
+                changed=True
+                i+=1
+                continue
+
+            # Last semantic-safe option: change the previous shot instead.
+            prev_pool=_unique([
+                x for group in [
+                    contextual_pool(prev["row"]["section"],prev["row"]["text"],prev_source),
+                    strong_media_for(prev_source),
+                    pool_for(prev["row"]["section"],prev_source),
+                    PC_MEDIA,
+                    STORAGE_MEDIA,
+                ]
+                for x in group if optional_asset(x)
+            ])
+            before_asset=repaired[i-2]["asset"] if i>=2 else None
+            prev_candidates=[
+                x for x in prev_pool
+                if x != e["asset"]
+                and x != before_asset
+                and semantic_asset_ok(prev["row"]["text"],x,prev_source)
+            ]
+            if prev_candidates:
+                prev["asset"]=prev_candidates[(prev.get("source_idx",0)+i+_pass)%len(prev_candidates)]
+                changed=True
+            i+=1
+
+        if not changed:
+            break
 
     for n,e in enumerate(repaired):
         e["n"]=n
@@ -873,7 +946,7 @@ adjacent_repeat=[
     if events[i-1]["asset"]==events[i]["asset"]
 ]
 if adjacent_repeat:
-    raise RuntimeError("adjacent repeated real-media asset: "+repr(adjacent_repeat[:10]))
+    raise RuntimeError("adjacent repeated real-media asset: "+repr([(events[i-1]["n"],events[i]["n"],events[i]["asset"],events[i-1]["row"]["text"],events[i]["row"]["text"]) for i in range(1,len(events)) if events[i-1]["asset"]==events[i]["asset"]][:10]))
 
 with (OUT/"storyboard.tsv").open("w",encoding="utf-8") as f:
     f.write("n\tstart\tend\tduration\tasset\tsection\ttext\n")
