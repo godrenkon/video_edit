@@ -748,8 +748,8 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
 
             i+=1
 
-    # Renumber after deletions. Also repair accidental adjacent repetition
-    # created by a merge by keeping the first visual for the combined span.
+    # Merge exact adjacent duplicates from the same narration source only when
+    # the resulting hold remains within the hard maximum.
     repaired=[]
     for e in events:
         if (
@@ -761,6 +761,53 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
             repaired[-1]["en"]=e["en"]
         else:
             repaired.append(e)
+
+    # A merge can also make the last shot of one sentence equal to the first
+    # shot of the next sentence. Never allow the exact same real-media asset
+    # to appear in adjacent shots: swap the latter shot to another
+    # semantically-valid asset rather than weakening the QA rule.
+    for i in range(1,len(repaired)):
+        prev=repaired[i-1]
+        e=repaired[i]
+        if prev["asset"] != e["asset"]:
+            continue
+
+        source_text=e["row"].get("source_text") or e["row"]["text"]
+        pool=[
+            x for x in contextual_pool(
+                e["row"]["section"],
+                e["row"]["text"],
+                source_text
+            )
+            if optional_asset(x)
+        ]
+        # Broaden only to generic storage media that still pass the semantic
+        # checker. Avoid matching both the previous and the next shot so the
+        # repair cannot merely move the duplicate one boundary forward.
+        pool += [x for x in STORAGE_MEDIA if optional_asset(x) and x not in pool]
+        next_asset=repaired[i+1]["asset"] if i+1 < len(repaired) else None
+        candidates=[
+            x for x in pool
+            if x != prev["asset"]
+            and x != next_asset
+            and semantic_asset_ok(
+                e["row"]["text"],
+                x,
+                source_text
+            )
+        ]
+        if not candidates:
+            candidates=[
+                x for x in pool
+                if x != prev["asset"]
+                and semantic_asset_ok(
+                    e["row"]["text"],
+                    x,
+                    source_text
+                )
+            ]
+        if candidates:
+            e["asset"]=candidates[(e.get("source_idx",0)+i)%len(candidates)]
 
     for n,e in enumerate(repaired):
         e["n"]=n
