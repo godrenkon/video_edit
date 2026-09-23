@@ -214,6 +214,18 @@ describe('timeline operations', () => {
     expect(output.tracks[3].clips[0].start).toBe(8);
   });
 
+  it('always deletes and ripples the source track even when its sync lock is disabled', () => {
+    const input = project([
+      track('v1', [clip('delete', 2, 3), clip('after', 6, 2)], false, false),
+      track('v2', [clip('other', 7, 1)]),
+      track('unlinked', [clip('free', 7, 1)], false, false),
+    ]);
+    const output = rippleDeleteClip(input, 'delete', 'sync-lock');
+    expect(output.tracks[0].clips.map((item) => [item.id, item.start])).toEqual([['after', 3]]);
+    expect(output.tracks[1].clips[0].start).toBe(4);
+    expect(output.tracks[2].clips[0].start).toBe(7);
+  });
+
   it('can still ripple all unlocked tracks explicitly', () => {
     const input = project([
       track('v1', [clip('delete', 2, 3), clip('after', 6, 2)]),
