@@ -18,7 +18,7 @@ interface Props {
   onPunchInPlayback: (active: boolean) => void;
   onImportFolder: () => void;
   folderImportSupported: boolean;
-  onAdd: (assetId: string, mode: 'insert' | 'overwrite') => void;
+  onAdd: (assetId: string, mode: 'place' | 'insert' | 'overwrite') => void;
   onDelete: (assetId: string) => void;
   onAssetMeta: (assetId: string, patch: Partial<AssetMeta>) => void;
   onCreateBin: (name: string) => void;
@@ -78,7 +78,7 @@ export function MediaLibrary({
   const input = useRef<HTMLInputElement>(null);
   const relinkInput = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
-  const [editMode, setEditMode] = useState<'insert' | 'overwrite'>('insert');
+  const [editMode, setEditMode] = useState<'place' | 'insert' | 'overwrite'>('place');
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<'all' | AssetMeta['kind']>('all');
   const [lowerThirdPreset, setLowerThirdPreset] = useState<LowerThirdPreset>('clean');
@@ -197,7 +197,8 @@ export function MediaLibrary({
       <div className="mediaEditMode" aria-label="タイムライン編集モード">
         <span>配置</span>
         <div>
-          <button type="button" className={editMode === 'insert' ? 'active' : ''} onClick={() => setEditMode('insert')} title="再生ヘッド位置へ非破壊で配置。重なる場合は自動で追加トラックを使用">配置</button>
+          <button type="button" className={editMode === 'place' ? 'active' : ''} onClick={() => setEditMode('place')} title="再生ヘッド位置へ配置。重なる場合は自動で追加トラックを使用">配置</button>
+          <button type="button" className={editMode === 'insert' ? 'active' : ''} onClick={() => setEditMode('insert')} title="対象トラックへ挿入し、同期ロックされたトラックを右へ送る">挿入</button>
           <button type="button" className={editMode === 'overwrite' ? 'active' : ''} onClick={() => setEditMode('overwrite')} title="選択中または先頭の同種トラックへ上書き">上書き</button>
         </div>
       </div>
@@ -240,7 +241,7 @@ export function MediaLibrary({
             <button
               className="miniBtn"
               type="button"
-              title={editMode === 'insert' ? 'タイムラインへ配置' : 'タイムラインへ上書き'}
+              title={editMode === 'place' ? 'タイムラインへ配置' : editMode === 'insert' ? 'タイムラインへ挿入' : 'タイムラインへ上書き'}
               aria-label={asset.name + 'をタイムラインへ追加'}
               onClick={(event) => {
                 event.stopPropagation();

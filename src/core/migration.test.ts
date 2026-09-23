@@ -89,6 +89,7 @@ describe('migrateProject', () => {
     expect(project.tracks[0]).toMatchObject({
       muted: false,
       locked: false,
+      syncLock: true,
       visible: true,
       solo: false,
       gain: 4,
@@ -111,6 +112,27 @@ describe('migrateProject', () => {
         opacity: 0.75,
       },
     });
+  });
+
+  it('canonicalizes fractional sequence rates and preserves explicit timecode mode', () => {
+    const project = migrateProject({
+      version: 2,
+      fps: 29.97,
+      timecodeMode: 'drop-frame',
+      assets: [],
+      tracks: [],
+    });
+    expect(project.fps).toBe(30000 / 1001);
+    expect(project.timecodeMode).toBe('drop-frame');
+
+    const invalidMode = migrateProject({
+      version: 2,
+      fps: 24,
+      timecodeMode: 'drop-frame',
+      assets: [],
+      tracks: [],
+    });
+    expect(invalidMode.timecodeMode).toBe('non-drop-frame');
   });
 
   it('preserves valid export settings and normalizes clip fades', () => {
@@ -161,6 +183,19 @@ describe('migrateProject', () => {
       transitionIn: { kind: 'dissolve', duration: 4 },
     });
     expect(project.tracks[0].clips[0].transitionOut).toEqual({ kind: 'dip-black', duration: 1 });
+  });
+
+  it('preserves explicit sync-lock opt-outs during migration', () => {
+    const project = migrateProject({
+      version: 2,
+      assets: [],
+      tracks: [
+        { id: 'synced', kind: 'video', syncLock: true, targeted: true, clips: [] },
+        { id: 'excluded', kind: 'audio', syncLock: false, targeted: false, clips: [] },
+      ],
+    });
+    expect(project.tracks[0]).toMatchObject({ syncLock: true, targeted: true });
+    expect(project.tracks[1]).toMatchObject({ syncLock: false, targeted: false });
   });
 
   it('drops invalid bus assignments and malformed bus lists safely', () => {

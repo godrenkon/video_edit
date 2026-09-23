@@ -1,16 +1,43 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cpu, Database, Gauge, HardDrive, Sparkles } from 'lucide-react';
-import { rippleTrimClip, rollEditBoundary, slideEditClip } from './core/advancedTimelineOps';
 import { addAssetBin, assignAssetBin, removeAssetBin, renameAssetBin } from './core/assetBins';
 import type { ProjectSearchResult } from './core/projectSearch';
 import { detectCapabilities } from './core/capabilities';
-import { copyClip, duplicateClipAfter, pasteClipAt, type ClipClipboardPayload } from './core/clipboardOps';
+import {
+  deleteClipsCommand,
+  duplicateClipCommand,
+  groupClipsCommand,
+  insertClipCommand,
+  moveClipCommand,
+  moveClipsCommand,
+  moveClipToTrackCommand,
+  nudgeClipCommand,
+  nudgeClipsCommand,
+  overwriteClipCommand,
+  pasteClipCommand,
+  rippleDeleteCommand,
+  rippleTrimCommand,
+  rollEditCommand,
+  slideEditCommand,
+  splitClipCommand,
+  trimLeftCommand,
+  trimRightCommand,
+  ungroupClipsCommand,
+  type EditorCommand,
+} from './core/commands';
+import { copyClip, type ClipClipboardPayload } from './core/clipboardOps';
 import { HistoryController } from './core/history';
-import { groupClipIds, groupSelectedClips, selectedHasGroup, ungroupSelectedClips } from './core/groupOps';
+import {
+  captureProjectRuntimeUrls,
+  forgetAssetRuntimeUrls,
+  restoreProjectRuntimeUrls,
+  snapshotProjectForHistory,
+  type AssetRuntimeUrlRegistry,
+} from './core/projectHistory';
+import { groupClipIds, selectedHasGroup } from './core/groupOps';
 import { pickMediaFilesFromFolder, supportsDirectoryPicker } from './core/folderImport';
 import { addPunchInVoiceover } from './core/punchInVoiceover';
 import { loadShortcutOverrides, saveShortcutOverrides, shortcutMatches, type ShortcutOverrides } from './core/shortcuts';
-import { overwriteClipAt } from './core/editModes';
 import { placeClipOnAvailableTrack } from './core/freePlacement';
 import { analyzeMouthCues, buildAssetMeta, mergeRelinkedAsset } from './core/media';
 import {
@@ -39,25 +66,26 @@ import {
   storageEstimate,
   type RecoverySnapshotInfo,
 } from './core/storage';
-import { beginEditorSession, markEditorSessionClean } from './core/session';
-import { findClip, moveClip, nudgeClip, rippleDeleteClip, splitClipAt, trimClipLeft, trimClipRight } from './core/timelineOps';
-import { moveClipToTrack } from './core/trackPlacement';
-import { deleteSelectedClips, existingClipIds, moveSelectedClipsByDelta, nudgeSelectedClips } from './core/multiSelectionOps';
-import { previewFrameTime, quantizePreviewTime } from './render/previewClock';
+import { beginEditorSession, markEditorSessionClean, markEditorSessionDirty } from './core/session';
+import { findClip } from './core/timelineOps';
+import { targetTrackForKind } from './core/trackPlacement';
+import { existingClipIds } from './core/multiSelectionOps';
+import { quantizePreviewTime } from './render/previewClock';
+import { adjacentEditPoint, nextShuttleRate, quantizeTransportTime, stepTransportFrames, transportFrameTime } from './core/transport';
 import { clearWaveformMemoryCache, waveformCacheKey } from './render/waveform';
 import { clearTimelineThumbnailCache } from './render/thumbnailCache';
 import { deleteAssetStorageBeforeInvalidation, replaceRelinkedAssetStorage } from './render/assetRelinkLifecycle';
-import { Inspector } from './components/Inspector';
-import { MediaLibrary } from './components/MediaLibrary';
 import { Preview } from './components/Preview';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
-import { ZundamonPanel } from './components/ZundamonPanel';
 import type { ZundamonRequest } from './components/ZundamonPanel';
 import type { Clip, Project, TrackKind } from './types/editor';
 
 const RecoveryDialog = lazy(() => import('./components/RecoveryDialog').then((module) => ({ default: module.RecoveryDialog })));
 const SearchEverythingPalette = lazy(() => import('./components/SearchEverythingPalette').then((module) => ({ default: module.SearchEverythingPalette })));
+const MediaLibrary = lazy(() => import('./components/MediaLibrary').then((module) => ({ default: module.MediaLibrary })));
+const Inspector = lazy(() => import('./components/Inspector').then((module) => ({ default: module.Inspector })));
+const ZundamonPanel = lazy(() => import('./components/ZundamonPanel').then((module) => ({ default: module.ZundamonPanel })));
 
 interface UpdateOptions {
   history?: boolean;
@@ -71,6 +99,7 @@ export default function App() {
   const [selectedClipIds, setSelectedClipIds] = useState<string[]>([]);
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [shuttleRate, setShuttleRate] = useState(1);
   const [zoom, setZoom] = useState(48);
   const [hydrated, setHydrated] = useState(false);
   const [saveState, setSaveState] = useState('起動中…');
@@ -95,10 +124,13 @@ export default function App() {
   const timeRef = useRef(0);
   const playingRef = useRef(false);
   const punchPlaybackPrevious = useRef(false);
-  const history = useRef(new HistoryController<Project>(120, 750));
+  const historyRuntimeUrls = useRef<AssetRuntimeUrlRegistry>(new Map());
+  const history = useRef(new HistoryController<Project>(120, 750, snapshotProjectForHistory));
   const renderAbort = useRef<AbortController | null>(null);
   const proxyAbort = useRef(new Map<string, AbortController>());
   const clipClipboard = useRef<ClipClipboardPayload | null>(null);
+  const saveGeneration = useRef(0);
+  const projectDirty = useRef(false);
 
   const selectedClip = useMemo(() => {
     for (const track of project.tracks) {
@@ -136,6 +168,12 @@ export default function App() {
     setSelectedClipId(null);
   }, []);
 
+  const markProjectDirty = useCallback(() => {
+    saveGeneration.current += 1;
+    projectDirty.current = true;
+    markEditorSessionDirty();
+  }, []);
+
   useEffect(() => {
     if (selectedClipId && !selectedClipIds.includes(selectedClipId)) {
       setSelectedClipIds([selectedClipId]);
@@ -163,9 +201,11 @@ export default function App() {
     const previousSessionWasUnclean = beginEditorSession();
     setSuspectedCrash(previousSessionWasUnclean);
 
-    const markClean = () => markEditorSessionClean();
-    window.addEventListener('pagehide', markClean);
-    window.addEventListener('beforeunload', markClean);
+    const markCleanIfSaved = () => {
+      if (!projectDirty.current) markEditorSessionClean();
+    };
+    window.addEventListener('pagehide', markCleanIfSaved);
+    window.addEventListener('beforeunload', markCleanIfSaved);
 
     (async () => {
       try {
@@ -175,6 +215,8 @@ export default function App() {
           const hydratedProject = await hydrateProjectAssets(saved);
           if (!cancelled) {
             history.current.clear();
+            historyRuntimeUrls.current.clear();
+            captureProjectRuntimeUrls(hydratedProject, historyRuntimeUrls.current);
             setProject(hydratedProject);
           }
         }
@@ -207,20 +249,27 @@ export default function App() {
 
     return () => {
       cancelled = true;
-      window.removeEventListener('pagehide', markClean);
-      window.removeEventListener('beforeunload', markClean);
-      markEditorSessionClean();
+      window.removeEventListener('pagehide', markCleanIfSaved);
+      window.removeEventListener('beforeunload', markCleanIfSaved);
+      markCleanIfSaved();
     };
   }, [capabilities.opfs]);
 
   useEffect(() => {
     if (!hydrated || !capabilities.opfs) return;
+    const generation = ++saveGeneration.current;
+    projectDirty.current = true;
+    markEditorSessionDirty();
     setSaveState('変更あり');
     const timer = window.setTimeout(async () => {
       try {
         await saveProject(project);
+        if (saveGeneration.current !== generation) return;
+        projectDirty.current = false;
+        markEditorSessionClean();
         setSaveState('自動保存済み');
       } catch (error) {
+        if (saveGeneration.current !== generation) return;
         console.error(error);
         setSaveState('保存エラー');
       }
@@ -252,15 +301,17 @@ export default function App() {
     const tick = (now: number) => {
       const origin = playbackOrigin.current;
       if (!origin) return;
-      const next = previewFrameTime(
+      const next = transportFrameTime(
         origin.time,
         (now - origin.wallMs) / 1000,
         project.fps,
         project.duration,
+        shuttleRate,
       );
       timeRef.current = next;
       setTime(next);
-      if (next >= project.duration) {
+      const reachedBoundary = shuttleRate >= 0 ? next >= project.duration : next <= 0;
+      if (reachedBoundary) {
         setPlaying(false);
         return;
       }
@@ -268,19 +319,28 @@ export default function App() {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, project.duration, project.fps]);
+  }, [playing, project.duration, project.fps, shuttleRate]);
 
   const updateProject = useCallback((mutator: (p: Project) => Project, options: UpdateOptions = {}) => {
     setProject((current) => {
       const mutated = mutator(current);
       if (mutated === current) return current;
+      markProjectDirty();
       const next = clampProjectDuration({ ...mutated, updatedAt: new Date().toISOString() });
       if (options.history !== false) {
+        captureProjectRuntimeUrls(current, historyRuntimeUrls.current);
         history.current.record(current, options.label ?? '編集', options.key);
       }
       return next;
     });
-  }, []);
+  }, [markProjectDirty]);
+
+  const executeEditorCommand = useCallback((editorCommand: EditorCommand) => {
+    updateProject(editorCommand.apply, {
+      label: editorCommand.label,
+      key: editorCommand.coalesceKey,
+    });
+  }, [updateProject]);
 
   const updateClip = useCallback((clipId: string, patch: Partial<Clip>, historyKey?: string, label = 'クリップ編集') => {
     updateProject((p) => ({
@@ -305,22 +365,28 @@ export default function App() {
   }, [updateProject]);
 
   const undo = useCallback(() => {
+    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
     const result = history.current.undo(project);
     if (!result) return;
     setPlaying(false);
     setSelectedClipId(null);
-    setProject(clampProjectDuration({ ...result.value, updatedAt: new Date().toISOString() }));
+    markProjectDirty();
+    const restored = restoreProjectRuntimeUrls(result.value, historyRuntimeUrls.current);
+    setProject(clampProjectDuration({ ...restored, updatedAt: new Date().toISOString() }));
     setSaveState(`元に戻す: ${result.label}`);
-  }, [project]);
+  }, [markProjectDirty, project]);
 
   const redo = useCallback(() => {
+    captureProjectRuntimeUrls(project, historyRuntimeUrls.current);
     const result = history.current.redo(project);
     if (!result) return;
     setPlaying(false);
     setSelectedClipId(null);
-    setProject(clampProjectDuration({ ...result.value, updatedAt: new Date().toISOString() }));
+    markProjectDirty();
+    const restored = restoreProjectRuntimeUrls(result.value, historyRuntimeUrls.current);
+    setProject(clampProjectDuration({ ...restored, updatedAt: new Date().toISOString() }));
     setSaveState(`やり直し: ${result.label}`);
-  }, [project]);
+  }, [markProjectDirty, project]);
 
   const restoreSnapshot = useCallback(async (snapshotId: string) => {
     setRecoveryBusy(true);
@@ -333,9 +399,12 @@ export default function App() {
       const hydratedProject = await hydrateProjectAssets(restored);
       revokeProjectUrls(project);
       history.current.clear();
+      historyRuntimeUrls.current.clear();
+      captureProjectRuntimeUrls(hydratedProject, historyRuntimeUrls.current);
       setPlaying(false);
       setTime(0);
       setSelectedClipId(null);
+      markProjectDirty();
       setProject(hydratedProject);
       await saveProject(hydratedProject);
       setShowRecovery(false);
@@ -346,7 +415,7 @@ export default function App() {
     } finally {
       setRecoveryBusy(false);
     }
-  }, [project]);
+  }, [markProjectDirty, project]);
 
   const importFiles = async (files: File[]) => {
     if (rendering) return;
@@ -555,6 +624,11 @@ export default function App() {
 
       const merged = mergeRelinkedAsset(current, replacement);
       history.current.clear();
+      forgetAssetRuntimeUrls(historyRuntimeUrls.current, assetId);
+      captureProjectRuntimeUrls(
+        { ...project, assets: project.assets.map((asset) => asset.id === assetId ? merged : asset) },
+        historyRuntimeUrls.current,
+      );
       updateProject((p) => ({
         ...p,
         assets: p.assets.map((asset) => asset.id === assetId ? merged : asset),
@@ -586,7 +660,7 @@ export default function App() {
     }
   }, [rendering]);
 
-  const addAssetToTimeline = (assetId: string, mode: 'insert' | 'overwrite') => {
+  const addAssetToTimeline = (assetId: string, mode: 'place' | 'insert' | 'overwrite') => {
     if (rendering) return;
     let addedClipId: string | null = null;
     updateProject((p) => {
@@ -597,16 +671,17 @@ export default function App() {
       const incoming = defaultClip(asset.name, asset.id, time, duration);
       addedClipId = incoming.id;
 
+      const target = targetTrackForKind(p, kind, selectedTrackId);
+
       if (mode === 'overwrite') {
-        const selectedTrack = selectedTrackId
-          ? p.tracks.find((track) => track.id === selectedTrackId && track.kind === kind && !track.locked)
-          : undefined;
-        const target = selectedTrack ?? p.tracks.find((track) => track.kind === kind && !track.locked);
-        return target ? overwriteClipAt(p, target.id, incoming, time) : placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
+        return target ? overwriteClipCommand(target.id, incoming, time).apply(p) : placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
+      }
+      if (mode === 'insert') {
+        return target ? insertClipCommand(target.id, incoming, time, 'sync-lock').apply(p) : placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
       }
 
       return placeClipOnAvailableTrack(p, incoming, kind, selectedTrackId);
-    }, { label: mode === 'overwrite' ? '上書き編集' : '素材を配置' });
+    }, { label: mode === 'overwrite' ? '上書き編集' : mode === 'insert' ? '挿入編集' : '素材を配置' });
     if (addedClipId) {
       setSelectedClipId(addedClipId);
       setSelectedClipIds([addedClipId]);
@@ -654,6 +729,7 @@ export default function App() {
     if (asset.objectUrl) URL.revokeObjectURL(asset.objectUrl);
     if (asset.proxyObjectUrl) URL.revokeObjectURL(asset.proxyObjectUrl);
     history.current.clear();
+    forgetAssetRuntimeUrls(historyRuntimeUrls.current, assetId);
     updateProject((p) => ({
       ...p,
       assets: p.assets.filter((a) => a.id !== assetId),
@@ -665,25 +741,22 @@ export default function App() {
 
   const removeSelectedClip = useCallback(() => {
     if (selectedClipIds.length === 0 || rendering) return;
-    const ids = [...selectedClipIds];
-    updateProject((p) => deleteSelectedClips(p, ids), {
-      label: ids.length > 1 ? `${ids.length}クリップ削除` : 'クリップ削除',
-    });
+    executeEditorCommand(deleteClipsCommand(selectedClipIds));
     clearClipSelection();
-  }, [clearClipSelection, rendering, selectedClipIds, updateProject]);
+  }, [clearClipSelection, executeEditorCommand, rendering, selectedClipIds]);
 
   const splitSelectedClip = useCallback(() => {
     if (!selectedClipId || !selectedClip || rendering) return;
     const frame = 1 / Math.max(1, project.fps);
     if (time < selectedClip.start + frame || time > selectedClip.start + selectedClip.duration - frame) return;
-    updateProject((p) => splitClipAt(p, selectedClipId, time), { label: 'クリップ分割' });
-  }, [project.fps, rendering, selectedClip, selectedClipId, time, updateProject]);
+    executeEditorCommand(splitClipCommand(selectedClipId, time));
+  }, [executeEditorCommand, project.fps, rendering, selectedClip, selectedClipId, time]);
 
   const rippleDeleteSelectedClip = useCallback(() => {
     if (!selectedClipId || rendering) return;
-    updateProject((p) => rippleDeleteClip(p, selectedClipId), { label: 'リップル削除' });
+    executeEditorCommand(rippleDeleteCommand(selectedClipId, 'sync-lock'));
     setSelectedClipId(null);
-  }, [rendering, selectedClipId, updateProject]);
+  }, [executeEditorCommand, rendering, selectedClipId]);
 
   const copySelectedClip = useCallback(() => {
     if (!selectedClipId || rendering) return;
@@ -695,49 +768,131 @@ export default function App() {
 
   const pasteCopiedClip = useCallback(() => {
     if (!clipClipboard.current || rendering) return;
-    const result = pasteClipAt(project, clipClipboard.current, time);
-    if (!result.clipId || result.project === project) return;
-    history.current.record(project, 'クリップ貼り付け');
+    const editorCommand = pasteClipCommand(project, clipClipboard.current, time);
+    if (!editorCommand?.createdClipId) return;
     setPlaying(false);
-    setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
-    setSelectedClipId(result.clipId);
+    executeEditorCommand(editorCommand);
+    setSelectedClipId(editorCommand.createdClipId);
+    setSelectedClipIds([editorCommand.createdClipId]);
     setSaveState('クリップを貼り付けました');
-  }, [project, rendering, time]);
+  }, [executeEditorCommand, project, rendering, time]);
 
   const duplicateSelectedClip = useCallback(() => {
     if (!selectedClipId || rendering) return;
-    const result = duplicateClipAfter(project, selectedClipId);
-    if (!result.clipId || result.project === project) return;
-    history.current.record(project, 'クリップ複製');
+    const editorCommand = duplicateClipCommand(project, selectedClipId);
+    if (!editorCommand?.createdClipId) return;
     setPlaying(false);
-    setProject(clampProjectDuration({ ...result.project, updatedAt: new Date().toISOString() }));
-    setSelectedClipId(result.clipId);
+    executeEditorCommand(editorCommand);
+    setSelectedClipId(editorCommand.createdClipId);
+    setSelectedClipIds([editorCommand.createdClipId]);
     setSaveState('クリップを複製しました');
-  }, [project, rendering, selectedClipId]);
+  }, [executeEditorCommand, project, rendering, selectedClipId]);
 
   const groupSelection = useCallback(() => {
     if (selectedClipIds.length < 2 || rendering) return;
-    updateProject((p) => groupSelectedClips(p, selectedClipIds), { label: 'クリップをグループ化' });
+    executeEditorCommand(groupClipsCommand(selectedClipIds));
     setSaveState('選択クリップをグループ化しました');
-  }, [rendering, selectedClipIds, updateProject]);
+  }, [executeEditorCommand, rendering, selectedClipIds]);
 
   const ungroupSelection = useCallback(() => {
     if (selectedClipIds.length === 0 || rendering) return;
-    updateProject((p) => ungroupSelectedClips(p, selectedClipIds), { label: 'グループを解除' });
+    executeEditorCommand(ungroupClipsCommand(selectedClipIds));
     setSaveState('グループを解除しました');
-  }, [rendering, selectedClipIds, updateProject]);
+  }, [executeEditorCommand, rendering, selectedClipIds]);
 
   const nudgeSelected = useCallback((frames: number) => {
     if (selectedClipIds.length === 0 || rendering) return;
     const ids = [...selectedClipIds];
-    updateProject(
-      (p) => ids.length > 1 ? nudgeSelectedClips(p, ids, frames) : nudgeClip(p, ids[0], frames),
-      {
-        label: ids.length > 1 ? '選択クリップをフレーム移動' : 'クリップをフレーム移動',
-        key: ids.length > 1 ? `multi:nudge:${ids.join(',')}` : `clip:${ids[0]}:nudge`,
-      },
-    );
-  }, [rendering, selectedClipIds, updateProject]);
+    executeEditorCommand(ids.length === 1
+      ? nudgeClipCommand(ids[0], frames)
+      : nudgeClipsCommand(ids, frames));
+  }, [executeEditorCommand, rendering, selectedClipIds]);
+
+  const toggleNormalPlayback = useCallback(() => {
+    if (playingRef.current) {
+      setPlaying(false);
+      return;
+    }
+    setShuttleRate(1);
+    setPlaying(true);
+  }, []);
+
+  const shuttle = useCallback((direction: -1 | 1) => {
+    setShuttleRate((current) => nextShuttleRate(playingRef.current ? current : 0, direction));
+    setPlaying(true);
+  }, []);
+
+  const stopTransport = useCallback(() => {
+    setPlaying(false);
+  }, []);
+
+  const stepPlayhead = useCallback((frames: number) => {
+    setPlaying(false);
+    setTime((current) => stepTransportFrames(current, frames, project.fps, project.duration));
+  }, [project.duration, project.fps]);
+
+  const jumpToEditPoint = useCallback((direction: -1 | 1) => {
+    setPlaying(false);
+    setTime((current) => adjacentEditPoint(project, current, direction));
+  }, [project]);
+
+  const markInPoint = useCallback(() => {
+    setPlaying(false);
+    updateProject((p) => {
+      const point = quantizeTransportTime(timeRef.current, p.fps, p.duration);
+      return {
+        ...p,
+        inPoint: point,
+        outPoint: p.outPoint != null && p.outPoint < point ? undefined : p.outPoint,
+      };
+    }, { label: 'In点を設定' });
+  }, [updateProject]);
+
+  const markOutPoint = useCallback(() => {
+    setPlaying(false);
+    updateProject((p) => {
+      const point = quantizeTransportTime(timeRef.current, p.fps, p.duration);
+      return {
+        ...p,
+        inPoint: p.inPoint != null && p.inPoint > point ? undefined : p.inPoint,
+        outPoint: point,
+      };
+    }, { label: 'Out点を設定' });
+  }, [updateProject]);
+
+  const clearInOut = useCallback(() => {
+    updateProject((p) => ({ ...p, inPoint: undefined, outPoint: undefined }), { label: 'In/Outを消去' });
+  }, [updateProject]);
+
+  const addTimelineMarker = useCallback(() => {
+    updateProject((p) => {
+      const markerTime = quantizeTransportTime(timeRef.current, p.fps, p.duration);
+      const existingIndex = (p.markers ?? []).findIndex((marker) => Math.abs(marker.time - markerTime) < 0.5 / Math.max(1, p.fps));
+      if (existingIndex >= 0) {
+        return {
+          ...p,
+          markers: (p.markers ?? []).map((marker, index) => index === existingIndex
+            ? { ...marker, time: markerTime }
+            : marker),
+        };
+      }
+      return {
+        ...p,
+        markers: [
+          ...(p.markers ?? []),
+          { id: uid('marker'), time: markerTime, name: 'マーカー', color: '#ffc86b' },
+        ],
+      };
+    }, { label: 'マーカーを追加' });
+  }, [updateProject]);
+
+  const toggleTimelineSnapping = useCallback(() => {
+    setSnappingEnabled((value) => !value);
+  }, []);
+
+  const zoomTimeline = useCallback((delta: number) => {
+    setZoom((current) => Math.max(20, Math.min(120, current + delta)));
+  }, []);
 
   const updateShortcutOverrides = useCallback((next: ShortcutOverrides) => {
     setShortcutOverrides(next);
@@ -821,6 +976,76 @@ export default function App() {
         redo();
         return;
       }
+      if (shortcutMatches(e, 'shuttle-reverse', shortcutOverrides)) {
+        e.preventDefault();
+        shuttle(-1);
+        return;
+      }
+      if (shortcutMatches(e, 'shuttle-stop', shortcutOverrides)) {
+        e.preventDefault();
+        stopTransport();
+        return;
+      }
+      if (shortcutMatches(e, 'shuttle-forward', shortcutOverrides)) {
+        e.preventDefault();
+        shuttle(1);
+        return;
+      }
+      if (shortcutMatches(e, 'step-back', shortcutOverrides)) {
+        e.preventDefault();
+        stepPlayhead(-1);
+        return;
+      }
+      if (shortcutMatches(e, 'step-forward', shortcutOverrides)) {
+        e.preventDefault();
+        stepPlayhead(1);
+        return;
+      }
+      if (shortcutMatches(e, 'previous-edit', shortcutOverrides)) {
+        e.preventDefault();
+        jumpToEditPoint(-1);
+        return;
+      }
+      if (shortcutMatches(e, 'next-edit', shortcutOverrides)) {
+        e.preventDefault();
+        jumpToEditPoint(1);
+        return;
+      }
+      if (shortcutMatches(e, 'mark-in', shortcutOverrides)) {
+        e.preventDefault();
+        markInPoint();
+        return;
+      }
+      if (shortcutMatches(e, 'mark-out', shortcutOverrides)) {
+        e.preventDefault();
+        markOutPoint();
+        return;
+      }
+      if (shortcutMatches(e, 'clear-in-out', shortcutOverrides)) {
+        e.preventDefault();
+        clearInOut();
+        return;
+      }
+      if (shortcutMatches(e, 'add-marker', shortcutOverrides)) {
+        e.preventDefault();
+        addTimelineMarker();
+        return;
+      }
+      if (shortcutMatches(e, 'toggle-snapping', shortcutOverrides)) {
+        e.preventDefault();
+        toggleTimelineSnapping();
+        return;
+      }
+      if (shortcutMatches(e, 'zoom-in', shortcutOverrides)) {
+        e.preventDefault();
+        zoomTimeline(10);
+        return;
+      }
+      if (shortcutMatches(e, 'zoom-out', shortcutOverrides)) {
+        e.preventDefault();
+        zoomTimeline(-10);
+        return;
+      }
       if (shortcutMatches(e, 'split', shortcutOverrides)) {
         e.preventDefault();
         splitSelectedClip();
@@ -863,7 +1088,7 @@ export default function App() {
       }
       if (shortcutMatches(e, 'play-pause', shortcutOverrides)) {
         e.preventDefault();
-        setPlaying((value) => !value);
+        toggleNormalPlayback();
         return;
       }
       if (selectedClipId && shortcutMatches(e, 'ripple-delete', shortcutOverrides)) {
@@ -878,14 +1103,18 @@ export default function App() {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, searchOpen, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, groupSelection, ungroupSelection, nudgeSelected, undo, redo, shortcutOverrides]);
+  }, [project.tracks, selectedClipIds.length, clearClipSelection, showRecovery, rendering, searchOpen, selectedClipId, removeSelectedClip, rippleDeleteSelectedClip, splitSelectedClip, duplicateSelectedClip, copySelectedClip, pasteCopiedClip, groupSelection, ungroupSelection, nudgeSelected, undo, redo, shortcutOverrides, shuttle, stopTransport, stepPlayhead, jumpToEditPoint, markInPoint, markOutPoint, clearInOut, addTimelineMarker, toggleTimelineSnapping, zoomTimeline, toggleNormalPlayback]);
 
   const manualSave = async () => {
+    const generation = saveGeneration.current;
     try {
       await saveProject(project);
+      if (saveGeneration.current !== generation) return;
+      projectDirty.current = false;
+      markEditorSessionClean();
       setSaveState('保存済み');
     } catch {
-      setSaveState('保存エラー');
+      if (saveGeneration.current === generation) setSaveState('保存エラー');
     }
   };
 
@@ -1055,6 +1284,7 @@ export default function App() {
         aria-busy={rendering}
         style={{ gridTemplateColumns: `${mediaWidth}px 6px minmax(0,1fr) 6px ${inspectorWidth}px` }}
       >
+        <Suspense fallback={<aside className="panel mediaPanel" aria-busy="true" />}>
         <MediaLibrary
           assets={project.assets}
           assetBins={project.assetBins ?? []}
@@ -1084,6 +1314,7 @@ export default function App() {
           onCreateSubtitle={createSubtitle}
           onCreateGenerator={createGenerator}
         />
+        </Suspense>
         <div
           className="panelResizeHandle vertical"
           role="separator"
@@ -1096,6 +1327,7 @@ export default function App() {
             project={project}
             time={time}
             playing={playing}
+            transportRate={shuttleRate}
             selectedClipId={selectedClipId}
             onSelectClip={(clipId) => {
               setPlaying(false);
@@ -1103,10 +1335,15 @@ export default function App() {
             }}
             onClearSelection={clearClipSelection}
             onTransformClip={updateClipTransform}
-            onTogglePlay={() => setPlaying((v) => !v)}
-            onTime={(v) => setTime(Math.max(0, Math.min(project.duration, v)))}
+            onTogglePlay={toggleNormalPlayback}
+            onTime={(v) => {
+              setPlaying(false);
+              setTime(Math.max(0, Math.min(project.duration, v)));
+            }}
           />
-          <ZundamonPanel assets={project.assets} busy={zBusy} onGenerate={generateZundamon} />
+          <Suspense fallback={null}>
+            <ZundamonPanel assets={project.assets} busy={zBusy} onGenerate={generateZundamon} />
+          </Suspense>
           <EngineStatus capabilities={capabilities} storageText={storageText} />
         </div>
         <div
@@ -1116,6 +1353,7 @@ export default function App() {
           title="インスペクターの幅を変更"
           onPointerDown={(event) => startPointerResize(event.clientX, inspectorWidth, setInspectorWidth, -1, 250, 540, 'x')}
         />
+        <Suspense fallback={<aside className="panel inspectorPanel" aria-busy="true" />}>
         <Inspector
           project={project}
           selectedClip={selectedClip}
@@ -1136,6 +1374,7 @@ export default function App() {
           shortcutOverrides={shortcutOverrides}
           onShortcutOverrides={updateShortcutOverrides}
         />
+        </Suspense>
       </main>
 
       <div
@@ -1153,15 +1392,12 @@ export default function App() {
         selectedClipId={selectedClipId}
         selectedClipIds={selectedClipIds}
         snappingEnabled={snappingEnabled}
-        onToggleSnapping={() => setSnappingEnabled((value) => !value)}
+        onToggleSnapping={toggleTimelineSnapping}
         onZoom={setZoom}
         onTime={(v) => { setPlaying(false); setTime(v); }}
         onSelect={selectClip}
         onClearSelection={clearClipSelection}
-        onMoveSelectedByDelta={(delta) => updateProject(
-          (p) => moveSelectedClipsByDelta(p, selectedClipIds, delta),
-          { label: '選択クリップ移動', key: `multi:move:${selectedClipIds.join(',')}` },
-        )}
+        onMoveSelectedByDelta={(delta) => executeEditorCommand(moveClipsCommand(selectedClipIds, delta))}
         onSplitSelected={splitSelectedClip}
         onDeleteSelected={removeSelectedClip}
         onDuplicateSelected={duplicateSelectedClip}
@@ -1172,39 +1408,58 @@ export default function App() {
         onUngroupSelected={ungroupSelection}
         canGroup={selectedClipIds.length >= 2}
         canUngroup={selectedHasGroup(project, selectedClipIds)}
-        onMoveClip={(id, start) => updateProject(
-          (p) => moveClip(p, id, start, time, snapThreshold),
-          { label: 'クリップ移動', key: `clip:${id}:move` },
+        onMoveClip={(id, start) => executeEditorCommand(moveClipCommand(id, start, time, snapThreshold))}
+        onMoveClipToTrack={(id, trackId, start) => executeEditorCommand(
+          moveClipToTrackCommand(id, trackId, start, time, snapThreshold),
         )}
-        onMoveClipToTrack={(id, trackId, start) => updateProject(
-          (p) => moveClipToTrack(p, id, trackId, start, time, snapThreshold),
-          { label: 'クリップを別トラックへ移動', key: `clip:${id}:move-track` },
+        onSlideClip={(id, start) => executeEditorCommand(slideEditCommand(id, start))}
+        onTrimClipLeft={(id, start) => executeEditorCommand(trimLeftCommand(id, start, time, snapThreshold))}
+        onTrimClip={(id, duration) => {
+          const location = findClip(project, id);
+          if (!location) return;
+          executeEditorCommand(trimRightCommand(id, location.clip.start + duration, time, snapThreshold));
+        }}
+        onRippleTrimClip={(id, edge, boundary) => executeEditorCommand(
+          rippleTrimCommand(id, edge, boundary, time, snapThreshold, 'sync-lock'),
         )}
-        onSlideClip={(id, start) => updateProject(
-          (p) => slideEditClip(p, id, start),
-          { label: 'スライド編集', key: `clip:${id}:slide` },
-        )}
-        onTrimClipLeft={(id, start) => updateProject(
-          (p) => trimClipLeft(p, id, start, time, snapThreshold),
-          { label: '左トリム', key: `clip:${id}:trim-left` },
-        )}
-        onTrimClip={(id, duration) => updateProject((p) => {
-          const location = findClip(p, id);
-          if (!location) return p;
-          return trimClipRight(p, id, location.clip.start + duration, time, snapThreshold);
-        }, { label: '右トリム', key: `clip:${id}:trim-right` })}
-        onRippleTrimClip={(id, edge, boundary) => updateProject(
-          (p) => rippleTrimClip(p, id, edge, boundary, time, snapThreshold),
-          { label: 'リップルトリム', key: `clip:${id}:ripple-trim:${edge}` },
-        )}
-        onRollEditClip={(id, edge, boundary) => updateProject(
-          (p) => rollEditBoundary(p, id, edge, boundary),
-          { label: 'ロール編集', key: `clip:${id}:roll:${edge}` },
-        )}
+        onRollEditClip={(id, edge, boundary) => executeEditorCommand(rollEditCommand(id, edge, boundary))}
         onToggleMuteTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, muted: !t.muted } : t) }), { label: 'トラックミュート' })}
         onToggleSoloTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, solo: !t.solo } : t) }), { label: 'トラックSolo' })}
         onToggleVisibleTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, visible: t.visible === false } : t) }), { label: 'トラック表示' })}
-        onToggleLockTrack={(id) => updateProject((p) => ({ ...p, tracks: p.tracks.map((t) => t.id === id ? { ...t, locked: !t.locked } : t) }), { label: 'トラックロック' })}
+        onToggleTargetTrack={(id, sameKind) => updateProject((p) => {
+          const source = p.tracks.find((track) => track.id === id);
+          if (!source || source.locked) return p;
+          const targeted = !source.targeted;
+          return {
+            ...p,
+            tracks: p.tracks.map((track) => (
+              track.id === id || (sameKind && track.kind === source.kind && !track.locked)
+                ? { ...track, targeted }
+                : track
+            )),
+          };
+        }, { label: sameKind ? '同種トラックのターゲット切替' : 'トラックターゲット切替' })}
+        onToggleSyncLockTrack={(id, sameKind) => updateProject((p) => {
+          const source = p.tracks.find((track) => track.id === id);
+          if (!source) return p;
+          const syncLock = source.syncLock === false;
+          return {
+            ...p,
+            tracks: p.tracks.map((track) => (
+              track.id === id || (sameKind && track.kind === source.kind)
+                ? { ...track, syncLock }
+                : track
+            )),
+          };
+        }, { label: sameKind ? '同種トラックの同期ロック切替' : '同期ロック切替' })}
+        onToggleLockTrack={(id) => updateProject((p) => ({
+          ...p,
+          tracks: p.tracks.map((track) => {
+            if (track.id !== id) return track;
+            const locked = !track.locked;
+            return { ...track, locked, targeted: locked ? false : track.targeted };
+          }),
+        }), { label: 'トラックロック' })}
       />
       </div>
     </div>

@@ -15,7 +15,8 @@ const baseProject = (): Project => ({
   name: 'Project',
   width: 1920,
   height: 1080,
-  fps: 60,
+  fps: 30000 / 1001,
+  timecodeMode: 'drop-frame',
   background: '#112233',
   duration: 10,
   createdAt: '',
@@ -33,10 +34,19 @@ describe('project settings templates', () => {
       name: 'YouTube 1080p',
       width: 1920,
       height: 1080,
-      fps: 60,
+      fps: 30000 / 1001,
+      timecodeMode: 'drop-frame',
       background: '#112233',
       exportSettings: { container: 'mp4', outputHeight: 1080, quality: 'high', includeAudio: true },
     });
+  });
+
+  it('keeps exact fractional rates and timecode mode when applying templates', () => {
+    const template = createProjectSettingsTemplate('NTSC', baseProject());
+    const patch = projectSettingsPatch(template);
+    expect(template.fps).toBe(30000 / 1001);
+    expect(template.timecodeMode).toBe('drop-frame');
+    expect(patch).toMatchObject({ fps: 30000 / 1001, timecodeMode: 'drop-frame' });
   });
 
   it('returns a patch that cannot replace assets or tracks', () => {
@@ -55,7 +65,8 @@ describe('project settings templates', () => {
       name: ' Test ',
       width: 999999,
       height: -1,
-      fps: 999,
+      fps: 24,
+      timecodeMode: 'drop-frame',
       background: 'invalid',
       exportSettings: { container: 'avi', outputHeight: 99999, quality: 'ultra', includeAudio: false },
     }]));
@@ -63,7 +74,8 @@ describe('project settings templates', () => {
       name: 'Test',
       width: 16384,
       height: 16,
-      fps: 240,
+      fps: 24,
+      timecodeMode: 'non-drop-frame',
       background: '#000000',
       exportSettings: { outputHeight: 4320, includeAudio: false },
     });

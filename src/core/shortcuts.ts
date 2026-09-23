@@ -12,6 +12,20 @@ export type ShortcutAction =
   | 'nudge-left'
   | 'nudge-right'
   | 'play-pause'
+  | 'shuttle-reverse'
+  | 'shuttle-stop'
+  | 'shuttle-forward'
+  | 'step-back'
+  | 'step-forward'
+  | 'previous-edit'
+  | 'next-edit'
+  | 'mark-in'
+  | 'mark-out'
+  | 'clear-in-out'
+  | 'add-marker'
+  | 'toggle-snapping'
+  | 'zoom-in'
+  | 'zoom-out'
   | 'ripple-delete'
   | 'delete';
 
@@ -27,6 +41,20 @@ export type ShortcutOverrides = Partial<Record<ShortcutAction, string>>;
 export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
   { action: 'search', label: 'プロジェクト全体検索', category: 'general', defaultBinding: 'Mod+Shift+F' },
   { action: 'play-pause', label: '再生 / 一時停止', category: 'general', defaultBinding: 'Space' },
+  { action: 'shuttle-reverse', label: '逆方向シャトル', category: 'general', defaultBinding: 'J' },
+  { action: 'shuttle-stop', label: 'シャトル停止', category: 'general', defaultBinding: 'K' },
+  { action: 'shuttle-forward', label: '順方向シャトル', category: 'general', defaultBinding: 'L' },
+  { action: 'step-back', label: '1フレーム戻る', category: 'general', defaultBinding: 'ArrowLeft' },
+  { action: 'step-forward', label: '1フレーム進む', category: 'general', defaultBinding: 'ArrowRight' },
+  { action: 'previous-edit', label: '前の編集点へ', category: 'general', defaultBinding: 'ArrowUp' },
+  { action: 'next-edit', label: '次の編集点へ', category: 'general', defaultBinding: 'ArrowDown' },
+  { action: 'mark-in', label: 'In点を設定', category: 'edit', defaultBinding: 'I' },
+  { action: 'mark-out', label: 'Out点を設定', category: 'edit', defaultBinding: 'O' },
+  { action: 'clear-in-out', label: 'In/Outを消去', category: 'edit', defaultBinding: 'Alt+X' },
+  { action: 'add-marker', label: 'マーカーを追加', category: 'edit', defaultBinding: 'M' },
+  { action: 'toggle-snapping', label: 'スナップ切替', category: 'edit', defaultBinding: 'S' },
+  { action: 'zoom-in', label: 'タイムラインを拡大', category: 'general', defaultBinding: '=' },
+  { action: 'zoom-out', label: 'タイムラインを縮小', category: 'general', defaultBinding: '-' },
   { action: 'undo', label: '元に戻す', category: 'edit', defaultBinding: 'Mod+Z' },
   { action: 'redo', label: 'やり直す', category: 'edit', defaultBinding: 'Mod+Shift+Z' },
   { action: 'split', label: '再生ヘッドで分割', category: 'edit', defaultBinding: 'Mod+K' },

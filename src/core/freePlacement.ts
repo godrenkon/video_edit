@@ -49,6 +49,8 @@ export function placeClipOnAvailableTrack(
     kind,
     muted: false,
     locked: false,
+    syncLock: true,
+    targeted: false,
     visible: true,
     clips: [clip],
   };

@@ -13,6 +13,7 @@ export function createProject(): Project {
     width: 1920,
     height: 1080,
     fps: 30,
+    timecodeMode: 'non-drop-frame',
     background: '#000000',
     duration: 30,
     createdAt: now,
@@ -20,10 +21,10 @@ export function createProject(): Project {
     assets: [],
     markers: [],
     tracks: [
-      { id: uid('track'), name: 'オーバーレイ', kind: 'overlay', muted: false, locked: false, visible: true, clips: [] },
-      { id: uid('track'), name: '字幕', kind: 'subtitle', muted: false, locked: false, visible: true, clips: [] },
-      { id: uid('track'), name: 'ビデオ 1', kind: 'video', muted: false, locked: false, visible: true, clips: [] },
-      { id: uid('track'), name: 'オーディオ 1', kind: 'audio', muted: false, locked: false, visible: true, clips: [] },
+      { id: uid('track'), name: 'オーバーレイ', kind: 'overlay', muted: false, locked: false, syncLock: true, targeted: true, visible: true, clips: [] },
+      { id: uid('track'), name: '字幕', kind: 'subtitle', muted: false, locked: false, syncLock: true, targeted: true, visible: true, clips: [] },
+      { id: uid('track'), name: 'ビデオ 1', kind: 'video', muted: false, locked: false, syncLock: true, targeted: true, visible: true, clips: [] },
+      { id: uid('track'), name: 'オーディオ 1', kind: 'audio', muted: false, locked: false, syncLock: true, targeted: true, visible: true, clips: [] },
     ],
   };
 }

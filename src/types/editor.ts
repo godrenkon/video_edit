@@ -21,6 +21,7 @@ export interface ClipTransition {
   kind: TransitionKind;
   duration: number;
 }
+export type ProjectTimecodeMode = 'drop-frame' | 'non-drop-frame';
 export type ProjectExportContainer = 'auto' | 'mp4' | 'webm';
 export type ProjectExportQuality = 'compact' | 'balanced' | 'high';
 
@@ -228,6 +229,8 @@ export interface Track {
   kind: TrackKind;
   muted: boolean;
   locked: boolean;
+  syncLock?: boolean;
+  targeted?: boolean;
   solo?: boolean;
   visible?: boolean;
   gain?: number;
@@ -243,6 +246,7 @@ export interface Project {
   width: number;
   height: number;
   fps: number;
+  timecodeMode?: ProjectTimecodeMode;
   background: string;
   duration: number;
   createdAt: string;

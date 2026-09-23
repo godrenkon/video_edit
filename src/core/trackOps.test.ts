@@ -34,7 +34,7 @@ describe('track operations', () => {
     const next = addTrack(input, 'video');
     expect(next.tracks.map((item) => item.kind)).toEqual(['overlay', 'video', 'video', 'audio']);
     expect(next.tracks[2].name).toBe('ビデオ 2');
-    expect(next.tracks[2]).toMatchObject({ gain: 1, pan: 0, clips: [] });
+    expect(next.tracks[2]).toMatchObject({ gain: 1, pan: 0, syncLock: true, targeted: false, clips: [] });
   });
 
   it('renames and reorders tracks without mutating the source project', () => {

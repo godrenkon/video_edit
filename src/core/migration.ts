@@ -1,5 +1,7 @@
 import type { AssetBin, AudioBusId, AudioBusSettings, AudioDuckingSettings, Clip, ClipTransition, Project, ProjectExportSettings, Track } from '../types/editor';
 import { sanitizeTranscriptDocument } from './transcript';
+import { canonicalProjectFrameRate } from './timebase';
+import { normalizeProjectTimecodeMode } from './timecode';
 
 const CURRENT_PROJECT_VERSION = 2 as const;
 
@@ -16,13 +18,16 @@ export function migrateProject(input: unknown): Project {
   const assetBins = migrateAssetBins(input.assetBins);
   const validAssetBinIds = new Set(assetBins.map((bin) => bin.id));
 
+  const fps = canonicalProjectFrameRate(finiteNumber(input.fps, 30, 1, 240));
+
   const project: Project = {
     version: CURRENT_PROJECT_VERSION,
     id: stringValue(input.id, 'project_unknown'),
     name: stringValue(input.name, '無題のプロジェクト'),
     width: finiteNumber(input.width, 1920, 1),
     height: finiteNumber(input.height, 1080, 1),
-    fps: finiteNumber(input.fps, 30, 1, 240),
+    fps,
+    timecodeMode: normalizeProjectTimecodeMode(input.timecodeMode, fps),
     background: stringValue(input.background, '#000000'),
     duration: finiteNumber(input.duration, 30, 0.1),
     createdAt: stringValue(input.createdAt, new Date().toISOString()),
@@ -102,6 +107,8 @@ function migrateTrack(track: Record<string, unknown>, index: number): Track {
     kind,
     muted: Boolean(track.muted),
     locked: Boolean(track.locked),
+    syncLock: track.syncLock === undefined ? true : Boolean(track.syncLock),
+    targeted: Boolean(track.targeted),
     solo: Boolean(track.solo),
     visible: track.visible === undefined ? true : Boolean(track.visible),
     gain: finiteNumber(track.gain, 1, 0, 4),

@@ -16,6 +16,13 @@ describe('preview clock', () => {
     expect(previewFrameTime(9.5, 5, 60, 10)).toBe(10);
   });
 
+  it('does not round NTSC-style fractional sequence rates', () => {
+    const rate = 30000 / 1001;
+    const frame100 = 100 / rate;
+    expect(quantizePreviewTime(frame100, rate)).toBeCloseTo(frame100, 12);
+    expect(previewFrameTime(0, frame100 + 1e-8, rate, 60)).toBeCloseTo(frame100, 12);
+  });
+
   it('uses tighter sync tolerance at higher frame rates with a safe lower bound', () => {
     expect(previewSyncTolerance(24)).toBeCloseTo(0.0625);
     expect(previewSyncTolerance(60)).toBe(0.025);
