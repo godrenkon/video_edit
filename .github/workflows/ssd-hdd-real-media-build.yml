@@ -1,11 +1,20 @@
 name: Build Real-Media SSD HDD Explainer
 
 on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-media-build.yml"
   workflow_dispatch:
 
 permissions:
   actions: read
   contents: read
+
+concurrency:
+  group: ssd-hdd-real-media-full-build
+  cancel-in-progress: true
 
 jobs:
   render:
@@ -21,13 +30,29 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install pillow janome
 
-      - name: Download licensed real-media asset pack
+      - name: Download known-good real assets
         uses: actions/download-artifact@v4
         with:
           name: ssd-hdd-real-assets
           path: real_assets
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 35807470144
+
+      - name: Download supplemental real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets-extra
+          path: real_assets_extra
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35807748858
+
+      - name: Merge supplemental real assets
+        run: |
+          cp -a real_assets_extra/. real_assets/
+          if [ -f real_assets/ATTRIBUTION_EXTRA.md ]; then
+            printf "\n\n" >> real_assets/ATTRIBUTION.md
+            cat real_assets/ATTRIBUTION_EXTRA.md >> real_assets/ATTRIBUTION.md
+          fi
 
       - name: Download corrected Zundamon narration
         uses: actions/download-artifact@v4
@@ -43,10 +68,17 @@ jobs:
           find real_assets -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
           echo "=== Voice ==="
           find voice -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+
           test -f real_assets/hdd_working_video.webm
           test -f real_assets/hdd_open_photo.jpg
+          test -f real_assets/hdd_head_macro.jpg
           test -f real_assets/sata_ssd.jpg
           test -f real_assets/nvme_m2.jpg
+          test -f real_assets/ssd_controller.jpg
+          test -f real_assets/ssd_nand.jpg
+          test -f real_assets/motherboard.jpg
+          test -f real_assets/nas.jpg
+          test -f real_assets/server_rack.jpg
           test -f real_assets/zundamon_official.webp
           test -f real_assets/bgm_pamgaea.mp3
           test -f voice/SSD_HDD_NARRATION_ZUNDAMON_48k.wav
@@ -60,16 +92,25 @@ jobs:
       - name: Inspect final output
         run: |
           ffprobe -v error             -show_entries stream=codec_name,width,height,r_frame_rate,sample_rate,channels,duration             -show_entries format=duration,size,bit_rate             -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
+
           python3 - <<'PY'
           import csv
           from pathlib import Path
           p=Path("real_video_output/storyboard.tsv")
           rows=list(csv.DictReader(p.open(encoding="utf-8"),delimiter="\t"))
           holds=[float(r["duration"]) for r in rows]
+          assets=[r["asset"] for r in rows]
           print("visual_events",len(rows))
+          print("unique_assets",len(set(assets)))
           print("max_visual_hold",max(holds) if holds else None)
           print("holds_over_4s",sum(x>4.05 for x in holds))
+          print("adjacent_repeat",sum(assets[i]==assets[i-1] for i in range(1,len(assets))))
+          assert rows
+          assert max(holds)<=4.05
+          assert not any(assets[i]==assets[i-1] for i in range(1,len(assets)))
+          assert len(set(assets))>=10
           PY
+
           ls -lah real_video_output
 
       - name: Create compact QA package
@@ -78,13 +119,17 @@ jobs:
           cp real_video_output/storyboard.tsv qa/
           cp real_video_output/subtitles_green.ass qa/
           cp real_video_output/ATTRIBUTION.md qa/ || true
-          ffprobe -v error -show_streams -show_format -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > qa/ffprobe.json
+          ffprobe -v error -show_streams -show_format -of json             real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > qa/ffprobe.json
+
           for T in 15 60 120 180 240 360 480 600 720 840 960 1080 1170; do
-            ffmpeg -y -loglevel error -ss "$T" -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -frames:v 1 "qa/frames/frame_${T}.jpg"
+            ffmpeg -y -loglevel error -ss "$T"               -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4               -frames:v 1 "qa/frames/frame_${T}.jpg"
           done
-          ffmpeg -y -loglevel error -ss 120 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k qa/sample_hdd.mp4
-          ffmpeg -y -loglevel error -ss 360 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k qa/sample_compare.mp4
-          ffmpeg -y -loglevel error -ss 720 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k qa/sample_life.mp4
+
+          ffmpeg -y -loglevel error -ss 120             -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15             -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast             -c:a aac -b:a 160k qa/sample_hdd.mp4
+
+          ffmpeg -y -loglevel error -ss 360             -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15             -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast             -c:a aac -b:a 160k qa/sample_compare.mp4
+
+          ffmpeg -y -loglevel error -ss 720             -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15             -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast             -c:a aac -b:a 160k qa/sample_life.mp4
 
       - uses: actions/upload-artifact@v4
         with:
@@ -92,6 +137,8 @@ jobs:
           path: |
             real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
             real_video_output/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_CLEAN.mp4
+            real_video_output/bgm_stem.wav
             real_video_output/subtitles_green.ass
             real_video_output/storyboard.tsv
             real_video_output/ATTRIBUTION.md
