@@ -748,15 +748,20 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
 
             i+=1
 
-    # Merge exact adjacent duplicates from the same narration source only when
-    # the resulting hold remains within the hard maximum.
+    # Merge exact adjacent duplicates whenever the combined hold stays within
+    # the hard maximum. This is deliberately allowed across narration sentence
+    # boundaries: visually it is one continuous shot, not two repeated cuts.
     repaired=[]
     for e in events:
         if (
             repaired and
             repaired[-1]["asset"]==e["asset"] and
-            repaired[-1].get("source_idx")==e.get("source_idx") and
-            e["en"]-repaired[-1]["st"] <= max_dur
+            e["en"]-repaired[-1]["st"] <= max_dur and
+            semantic_asset_ok(
+                e["row"]["text"],
+                repaired[-1]["asset"],
+                e["row"].get("source_text") or e["row"]["text"]
+            )
         ):
             repaired[-1]["en"]=e["en"]
         else:
