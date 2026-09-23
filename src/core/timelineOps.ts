@@ -115,11 +115,12 @@ export function rippleDeleteClip(project: Project, clipId: string, scope: Ripple
   return {
     ...project,
     tracks: project.tracks.map((track, index) => {
-      const shouldRipple = scope === 'all'
-        ? !track.locked
-        : scope === 'sync-lock'
-          ? !track.locked && track.syncLock !== false
-          : index === location.trackIndex;
+      const shouldRipple = index === location.trackIndex
+        || (scope === 'all'
+          ? !track.locked
+          : scope === 'sync-lock'
+            ? !track.locked && track.syncLock !== false
+            : false);
       if (!shouldRipple) return track;
 
       const clips = track.clips
