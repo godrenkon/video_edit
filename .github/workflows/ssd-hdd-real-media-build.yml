@@ -1,12 +1,6 @@
 name: Build Real-Media SSD HDD Explainer
 
 on:
-  push:
-    branches:
-      - video-build/ssd-hdd-explainer
-    paths:
-      - ".github/workflows/ssd-hdd-real-media-build.yml"
-      - "tools/ssd_hdd_video/render_real_media.py"
   workflow_dispatch:
 
 permissions:
@@ -33,7 +27,7 @@ jobs:
           name: ssd-hdd-real-assets
           path: real_assets
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 35667260880
+          run-id: 35807470144
 
       - name: Download corrected Zundamon narration
         uses: actions/download-artifact@v4
