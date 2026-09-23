@@ -1,0 +1,38 @@
+name: Fetch Supplemental SSD HDD Assets
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-assets-extra.yml"
+      - "tools/ssd_hdd_video/fetch_real_assets_extra.py"
+      - "tools/ssd_hdd_video/real_assets.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-extra:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependency
+        run: python3 -m pip install requests
+      - name: Fetch supplemental real assets
+        run: python3 tools/ssd_hdd_video/fetch_real_assets_extra.py
+      - name: Inspect supplemental pack
+        if: always()
+        run: |
+          find real_assets_extra -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          echo ---
+          cat real_assets_extra/fetch_report.tsv || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ssd-hdd-real-assets-extra
+          path: real_assets_extra
+          compression-level: 0
+          retention-days: 7
