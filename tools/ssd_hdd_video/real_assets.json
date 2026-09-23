@@ -322,6 +322,15 @@
       "license": "CC BY-SA 4.0",
       "credit": "Ablomme1",
       "use": "fully disassembled HDD components"
+    },
+    {
+      "id": "external_hdd_laptop",
+      "kind": "image",
+      "source": "https://commons.wikimedia.org/wiki/File:WD_Blue_Hard_Disk_Drive_connected_to_Laptop_via_USB-C.jpg",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/WD_Blue_Hard_Disk_Drive_connected_to_Laptop_via_USB-C.jpg?width=1600",
+      "license": "CC BY 4.0",
+      "credit": "Augkun-ane",
+      "use": "real external HDD connected to a laptop by USB-C"
     }
   ]
 }
