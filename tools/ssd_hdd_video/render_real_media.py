@@ -296,7 +296,7 @@ def strong_media_for(text):
         return HDD_GENERAL
 
     specific=[]
-    if any(k in text for k in ["プラッタ","ヘッド","5400RPM","7200RPM","RPM","CMR","SMR","モーター","回転機構","回転音","カリカリ"]):
+    if any(k in text for k in ["プラッタ","ヘッド","5400RPM","7200RPM","RPM","CMR","SMR","モーター","回転機構","回転音","カリカリ","回転する","円盤","読み取り部分","読み取り","機械部品","そうした部品"]):
         specific.append(HDD_INTERNAL)
     if any(k in text for k in ["NAND","TLC","QLC","コントローラー","TBW","フラッシュメモリ"]):
         specific.append(SSD_INTERNAL)
@@ -378,48 +378,102 @@ def pool_for(section,text):
         return ["ram_ddr4","motherboard","m2_installed","ssd_install","sata_ssd","hdd_side","external_ssd","external_hdds"]
     return ["external_ssd","sata_ssd","nvme_m2","hdd_open_photo","hdd_side","m2_installed","sata_vs_nvme","external_hdds","motherboard"]
 
-def contextual_pool(section, phrase_text, source_text=None):
-    """Choose media from the actual narration meaning, not just chapter rotation.
+def detect_subject(text):
+    has_hdd="HDD" in text
+    has_ssd="SSD" in text
+    if has_hdd and has_ssd:
+        return "BOTH"
+    if has_hdd:
+        return "HDD"
+    if has_ssd:
+        return "SSD"
+    return None
 
-    Short subtitle phrases often omit the subject introduced a moment earlier.
-    Section context therefore acts as a semantic lock for HDD/SSD chapters,
-    while explicit technical terms (NAS, SATA, M.2, NAND...) override it.
+def initial_subject_hint(section, source_text):
+    explicit=detect_subject(source_text)
+    if explicit in ("HDD","SSD"):
+        return explicit
+    # Pure HDD/SSD mechanism chapters keep their subject even when a sentence
+    # omits the acronym ("円盤", "読み取り部分", "この仕組み" etc.).
+    if "HDDとは" in section:
+        return "HDD"
+    if "SSDとは" in section:
+        return "SSD"
+    return None
+
+def contextual_pool(section, phrase_text, source_text=None, subject_hint=None):
+    """Choose real media from the current phrase and carried sentence subject.
+
+    Priority:
+      1) device explicitly named in THIS subtitle phrase,
+      2) technical concept explicitly named in THIS phrase,
+      3) carried HDD/SSD subject from earlier in the same sentence,
+      4) chapter/use-case context.
+
+    This prevents a later "SSD..." clause from pulling an earlier
+    "HDDでも..." clause toward SSD imagery.
     """
-    full=(source_text or phrase_text)
-    combined=(full+" "+phrase_text).strip()
+    phrase=(phrase_text or "").strip()
+    full=(source_text or phrase).strip()
+    combined=(full+" "+phrase).strip()
 
-    # Strong explicit topics first.
-    if "NAS" in combined:
+    phrase_subject=detect_subject(phrase)
+    effective=phrase_subject or subject_hint
+
+    hdd_mech=["プラッタ","ヘッド","5400RPM","7200RPM","RPM","CMR","SMR","モーター","回転機構","回転音","カリカリ","回転する","円盤","読み取り部分","読み取り","機械部品","そうした部品"]
+    ssd_mech=["NAND","TLC","QLC","コントローラー","TBW","フラッシュメモリ"]
+
+    # A phrase that explicitly names one side wins over words that only appear
+    # elsewhere in the source sentence.
+    if effective=="HDD":
+        if "NAS" in phrase:
+            return NAS_MEDIA
+        if "外付け" in phrase:
+            return ["external_hdds","external_hdd_laptop","hdd_side","nas_drive_bay"]
+        if any(k in phrase for k in hdd_mech) or "HDDとは" in section:
+            return HDD_INTERNAL
+        return HDD_GENERAL
+
+    if effective=="SSD":
+        if "外付け" in phrase:
+            return ["external_ssd","sata_ssd","nvme_m2","m2_installed"]
+        if any(k in phrase for k in ["M.2","NVMe","PCIe"]):
+            return M2_MEDIA
+        if "SATA" in phrase:
+            if any(k in phrase for k in ["端子","コネクタ","ケーブル","接続端子","電源ケーブル","データケーブル"]):
+                return SATA_CONNECTOR_MEDIA
+            return SATA_DRIVE_MEDIA
+        if any(k in phrase for k in ssd_mech):
+            return SSD_INTERNAL
+        return SSD_GENERAL
+
+    if effective=="BOTH":
+        # Explicit comparison: real photos from both sides; render_event may
+        # additionally switch to the dedicated split-screen composition.
+        return _unique(HDD_GENERAL+SSD_GENERAL)
+
+    # No carried subject: respect concepts explicitly spoken in THIS phrase.
+    if "NAS" in phrase:
         return NAS_MEDIA
-    if "SATA" in combined:
-        if any(k in combined for k in ["端子","コネクタ","ケーブル","接続端子","電源ケーブル","データケーブル"]):
+    if "SATA" in phrase:
+        if any(k in phrase for k in ["端子","コネクタ","ケーブル","接続端子","電源ケーブル","データケーブル"]):
             return SATA_CONNECTOR_MEDIA
         return SATA_DRIVE_MEDIA
-    if any(k in combined for k in ["M.2","NVMe","PCIe"]):
+    if any(k in phrase for k in ["M.2","NVMe","PCIe"]):
         return M2_MEDIA
-    if any(k in combined for k in ["NAND","TLC","QLC","コントローラー","TBW","フラッシュメモリ"]):
-        return SSD_INTERNAL
-    if any(k in combined for k in ["プラッタ","ヘッド","RPM","CMR","SMR","モーター","回転機構","回転音","カリカリ"]):
+    if any(k in phrase for k in hdd_mech):
         return HDD_INTERNAL
+    if any(k in phrase for k in ssd_mech):
+        return SSD_INTERNAL
 
-    # Section locks: generic words such as "file" or "data" must not jump
-    # from an HDD explanation to an unrelated SSD photo (or vice versa).
-    if "HDDとは" in section and "SSD" not in combined:
-        return HDD_GENERAL
-    if "SSDとは" in section and "HDD" not in combined:
-        return SSD_GENERAL
+    # Section locks for mechanism chapters.
+    if "HDDとは" in section:
+        return HDD_INTERNAL
+    if "SSDとは" in section:
+        return SSD_INTERNAL
 
-    # Exact single-device narration.
-    if "外付けSSD" in combined:
-        return ["external_ssd","sata_ssd","nvme_m2","m2_installed"]
-    if "外付けHDD" in combined:
-        return ["external_hdds","external_hdd_laptop","hdd_side","nas_drive_bay"]
-    if "HDD" in combined and "SSD" not in combined:
-        return HDD_GENERAL
-    if "SSD" in combined and "HDD" not in combined:
-        return SSD_GENERAL
-
-    # Contextual use cases.
+    # Contextual use cases. Use phrase first; source sentence only supplies
+    # broader context when the phrase itself has no explicit device.
     if "ブラウザ" in combined:
         return BROWSER_MEDIA
     if any(k in combined for k in ["ロード","起動時間","立ち上げ","起動する","起動が"]):
@@ -439,21 +493,32 @@ def contextual_pool(section, phrase_text, source_text=None):
     if any(k in combined for k in ["容量あたり","大容量","価格","1TB","2TB","4TB","8TB","16TB"]):
         return ["hdd_side","external_hdds","nas","nas_drive_bay","sata_ssd","nvme_m2"]
     if any(k in combined for k in ["ストレージ","保存","データ","写真","動画","ファイル"]):
-        # In mixed/general chapters a true storage montage is appropriate.
         return STORAGE_MEDIA
 
-    # Lifespan/failure narration should not use the HDD motion clip's
-    # embedded title/credit section.
     if "寿命" in section and any(k in combined for k in [
-        "機械部品","長く使えば","故障する可能性","故障要因","書き込み寿命"
+        "故障要因","書き込み寿命"
     ]):
         return ["hdd_open_photo","hdd_head_macro","hdd_side","ssd_nand","ssd_controller"]
 
-    return pool_for(section,phrase_text)
+    return pool_for(section,phrase)
 
-def semantic_asset_ok(text, asset_id, source_text=None, section=None):
+def semantic_asset_ok(text, asset_id, source_text=None, section=None, subject_hint=None):
+    if subject_hint is None:
+        explicit=detect_subject(text)
+        if explicit:
+            subject_hint=explicit
+        elif source_text:
+            src=detect_subject(source_text)
+            if src in ("HDD","SSD"):
+                subject_hint=src
+        if subject_hint is None and section:
+            if "HDDとは" in section:
+                subject_hint="HDD"
+            elif "SSDとは" in section:
+                subject_hint="SSD"
+
     if section:
-        allowed=[x for x in contextual_pool(section,text,source_text) if optional_asset(x)]
+        allowed=[x for x in contextual_pool(section,text,source_text,subject_hint) if optional_asset(x)]
         if allowed:
             return asset_id in set(allowed)
     strong=strong_media_for(text)
@@ -734,6 +799,7 @@ for row in rows:
         # semantically accurate (e.g. price -> capacity media, backup -> NAS/external drives).
         gap_row=dict(row)
         gap_row["text"]=row["section"].split("　",1)[-1]
+        gap_row["subject_hint"]=""
         pool=[x for x in pool_for(row["section"],gap_row["text"]) if optional_asset(x)]
         if not pool:
             pool=[x for x in pool_for(row["section"],row["text"]) if optional_asset(x)]
@@ -750,13 +816,19 @@ for row in rows:
         last_asset=a
 
     used_in_sentence=set()
+    subject_hint=initial_subject_hint(row["section"],row["text"])
     for seg_i,seg in enumerate(timed_phrases(row)):
+        explicit_subject=detect_subject(seg["text"])
+        if explicit_subject:
+            subject_hint=explicit_subject
+
         phrase_row=dict(row)
         phrase_row["source_text"]=row["text"]
+        phrase_row["subject_hint"]=subject_hint or ""
         phrase_row["text"]=seg["text"]
         segdur=seg["en"]-seg["st"]
         slots=max(1,math.ceil(segdur/3.35))
-        pool=[x for x in contextual_pool(row["section"],seg["text"],row["text"]) if optional_asset(x)]
+        pool=[x for x in contextual_pool(row["section"],seg["text"],row["text"],subject_hint) if optional_asset(x)]
         if not pool:
             pool=[x for x in STORAGE_MEDIA if optional_asset(x)]
         if not pool:
@@ -810,7 +882,7 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
                     combined <= max_dur and
                     semantic_asset_ok(
                         e["row"]["text"], p["asset"],
-                        e["row"].get("source_text"), e["row"].get("section")
+                        e["row"].get("source_text"), e["row"].get("section"), e["row"].get("subject_hint")
                     )
                 ):
                     p["en"]=e["en"]
@@ -849,7 +921,8 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
             semantic_asset_ok(
                 e["row"]["text"],
                 repaired[-1]["asset"],
-                e["row"].get("source_text") or e["row"]["text"]
+                e["row"].get("source_text") or e["row"]["text"],
+                e["row"].get("section"), e["row"].get("subject_hint")
             )
         ):
             repaired[-1]["en"]=e["en"]
@@ -878,7 +951,7 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
             # producing an artificial cut to the same picture.
             if (
                 e["en"]-prev["st"] <= max_dur and
-                semantic_asset_ok(e["row"]["text"],prev["asset"],source_text,e["row"].get("section"))
+                semantic_asset_ok(e["row"]["text"],prev["asset"],source_text,e["row"].get("section"),e["row"].get("subject_hint"))
             ):
                 prev["en"]=e["en"]
                 del repaired[i]
@@ -886,7 +959,7 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
                 continue
 
             pools=[
-                contextual_pool(e["row"]["section"],e["row"]["text"],source_text),
+                contextual_pool(e["row"]["section"],e["row"]["text"],source_text,e["row"].get("subject_hint")),
                 strong_media_for(source_text),
                 pool_for(e["row"]["section"],source_text),
                 PC_MEDIA,
@@ -904,14 +977,14 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
                 if x != prev["asset"]
                 and x != next_asset
                 and x not in recent
-                and semantic_asset_ok(e["row"]["text"],x,source_text,e["row"].get("section"))
+                and semantic_asset_ok(e["row"]["text"],x,source_text,e["row"].get("section"),e["row"].get("subject_hint"))
             ]
             if not candidates:
                 candidates=[
                     x for x in pool
                     if x != prev["asset"]
                     and x != next_asset
-                    and semantic_asset_ok(e["row"]["text"],x,source_text)
+                    and semantic_asset_ok(e["row"]["text"],x,source_text,e["row"].get("section"),e["row"].get("subject_hint"))
                 ]
             if not candidates:
                 candidates=[
@@ -929,7 +1002,7 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
             # Last semantic-safe option: change the previous shot instead.
             prev_pool=_unique([
                 x for group in [
-                    contextual_pool(prev["row"]["section"],prev["row"]["text"],prev_source),
+                    contextual_pool(prev["row"]["section"],prev["row"]["text"],prev_source,prev["row"].get("subject_hint")),
                     strong_media_for(prev_source),
                     pool_for(prev["row"]["section"],prev_source),
                     PC_MEDIA,
@@ -942,7 +1015,7 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
                 x for x in prev_pool
                 if x != e["asset"]
                 and x != before_asset
-                and semantic_asset_ok(prev["row"]["text"],x,prev_source,prev["row"].get("section"))
+                and semantic_asset_ok(prev["row"]["text"],x,prev_source,prev["row"].get("section"),prev["row"].get("subject_hint"))
             ]
             if prev_candidates:
                 prev["asset"]=prev_candidates[(prev.get("source_idx",0)+i+_pass)%len(prev_candidates)]
@@ -991,7 +1064,7 @@ semantic_bad=[
     (e["n"],e["asset"],e["row"]["text"])
     for e in events
     if e["row"].get("section")!="次回"
-    and not semantic_asset_ok(e["row"]["text"],e["asset"],e["row"].get("source_text"),e["row"].get("section"))
+    and not semantic_asset_ok(e["row"]["text"],e["asset"],e["row"].get("source_text"),e["row"].get("section"),e["row"].get("subject_hint"))
 ]
 if semantic_bad:
     raise RuntimeError("semantic media mismatch: "+repr(semantic_bad[:20]))
@@ -1016,9 +1089,12 @@ if adjacent_repeat:
     raise RuntimeError("adjacent repeated real-media asset: "+repr([(events[i-1]["n"],events[i]["n"],events[i]["asset"],events[i-1]["row"]["text"],events[i]["row"]["text"]) for i in range(1,len(events)) if events[i-1]["asset"]==events[i]["asset"]][:10]))
 
 with (OUT/"storyboard.tsv").open("w",encoding="utf-8") as f:
-    f.write("n\tstart\tend\tduration\tasset\tsection\ttext\n")
+    f.write("n\tstart\tend\tduration\tasset\tsection\ttext\tsource_text\tsubject_hint\n")
     for e in events:
-        f.write(f"{e['n']}\t{e['st']:.3f}\t{e['en']:.3f}\t{e['en']-e['st']:.3f}\t{e['asset']}\t{e['row']['section']}\t{e['row']['text']}\n")
+        source=(e["row"].get("source_text") or e["row"]["text"]).replace("\t"," ").replace("\n"," ")
+        text_clean=e["row"]["text"].replace("\t"," ").replace("\n"," ")
+        subject=e["row"].get("subject_hint","")
+        f.write(f"{e['n']}\t{e['st']:.3f}\t{e['en']:.3f}\t{e['en']-e['st']:.3f}\t{e['asset']}\t{e['row']['section']}\t{text_clean}\t{source}\t{subject}\n")
 
 clips=[]
 for e in events:
