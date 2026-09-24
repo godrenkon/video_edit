@@ -273,8 +273,10 @@ def _unique(xs):
 HDD_INTERNAL=["hdd_working_video","hdd_open_photo","hdd_head_macro","laptop_hdd_open","hdd_side","hdd_ssd_disassembled","external_hdd_laptop"]
 SSD_INTERNAL=["ssd_nand","ssd_controller","sata_ssd","crucial_ssd","nvme_m2","laptop_nvme","m2_installed"]
 M2_MEDIA=["nvme_m2","m2_installed","laptop_nvme","pc_m2_hdd_inside","sata_vs_nvme","ssd_install"]
-SATA_MEDIA=["sata_ssd","crucial_ssd","sata_connector","sata_data_power","sata_vs_nvme"]
-NAS_MEDIA=["nas","nas_drive_bay","server_rack","external_hdds","external_ssd","external_hdd_laptop"]
+SATA_DRIVE_MEDIA=["sata_ssd","crucial_ssd","sata_vs_nvme"]
+SATA_CONNECTOR_MEDIA=["sata_connector","sata_data_power","sata_ssd","crucial_ssd"]
+SATA_MEDIA=_unique(SATA_DRIVE_MEDIA+SATA_CONNECTOR_MEDIA)
+NAS_MEDIA=["nas","nas_drive_bay","server_rack","external_hdds","hdd_side"]
 EXTERNAL_MEDIA=["external_ssd","external_hdds","external_hdd_laptop","sata_ssd","hdd_side"]
 RAM_MEDIA=["ram_ddr4","pc_m2_hdd_inside","motherboard","m2_installed"]
 PC_MEDIA=["pc_m2_hdd_inside","motherboard","m2_installed","ssd_install","laptop_nvme","nvme_m2","sata_ssd","crucial_ssd"]
@@ -301,7 +303,12 @@ def strong_media_for(text):
     if any(k in text for k in ["M.2","NVMe","PCIe"]):
         specific.append(M2_MEDIA)
     if "SATA" in text:
-        specific.append(SATA_MEDIA)
+        if any(k in text for k in ["端子","コネクタ","ケーブル","接続端子","電源ケーブル","データケーブル"]):
+            specific.append(SATA_CONNECTOR_MEDIA)
+        elif any(k in text for k in ["速度","毎秒","MB","GB/s","読み書き","転送"]):
+            specific.append(SATA_DRIVE_MEDIA)
+        else:
+            specific.append(SATA_DRIVE_MEDIA)
     if specific:
         return _unique([x for g in specific for x in g])
 
@@ -338,8 +345,6 @@ def strong_media_for(text):
         return ["hdd_working_video","hdd_open_photo","hdd_head_macro","sata_ssd","nvme_m2"]
     if any(k in text for k in ["容量あたり","大容量","価格","1TB","2TB","4TB","8TB","16TB"]):
         return ["hdd_side","external_hdds","nas","sata_ssd","external_ssd","nvme_m2"]
-    if any(k in text for k in ["ストレージ","保存","データ","写真","動画","ファイル"]):
-        return STORAGE_MEDIA
     return []
 
 def pool_for(section,text):
@@ -374,29 +379,83 @@ def pool_for(section,text):
     return ["external_ssd","sata_ssd","nvme_m2","hdd_open_photo","hdd_side","m2_installed","sata_vs_nvme","external_hdds","motherboard"]
 
 def contextual_pool(section, phrase_text, source_text=None):
-    # Keep the technical subject of the whole sentence even after it is split
-    # into shorter subtitle/visual phrases.
+    """Choose media from the actual narration meaning, not just chapter rotation.
+
+    Short subtitle phrases often omit the subject introduced a moment earlier.
+    Section context therefore acts as a semantic lock for HDD/SSD chapters,
+    while explicit technical terms (NAS, SATA, M.2, NAND...) override it.
+    """
     full=(source_text or phrase_text)
+    combined=(full+" "+phrase_text).strip()
 
-    # The HDD motion video contains an embedded credit card in part of the clip.
-    # It is valuable in the mechanism chapter, but distracting in the
-    # lifespan/failure chapter. Use clear stills/macros there instead.
-    if "寿命" in section and any(k in full for k in [
-        "モーター","ヘッド","回転機構","機械部品","長く使えば",
-        "故障する可能性","故障要因","書き込み寿命"
+    # Strong explicit topics first.
+    if "NAS" in combined:
+        return NAS_MEDIA
+    if "SATA" in combined:
+        if any(k in combined for k in ["端子","コネクタ","ケーブル","接続端子","電源ケーブル","データケーブル"]):
+            return SATA_CONNECTOR_MEDIA
+        return SATA_DRIVE_MEDIA
+    if any(k in combined for k in ["M.2","NVMe","PCIe"]):
+        return M2_MEDIA
+    if any(k in combined for k in ["NAND","TLC","QLC","コントローラー","TBW","フラッシュメモリ"]):
+        return SSD_INTERNAL
+    if any(k in combined for k in ["プラッタ","ヘッド","RPM","CMR","SMR","モーター","回転機構","回転音","カリカリ"]):
+        return HDD_INTERNAL
+
+    # Section locks: generic words such as "file" or "data" must not jump
+    # from an HDD explanation to an unrelated SSD photo (or vice versa).
+    if "HDDとは" in section and "SSD" not in combined:
+        return HDD_GENERAL
+    if "SSDとは" in section and "HDD" not in combined:
+        return SSD_GENERAL
+
+    # Exact single-device narration.
+    if "外付けSSD" in combined:
+        return ["external_ssd","sata_ssd","nvme_m2","m2_installed"]
+    if "外付けHDD" in combined:
+        return ["external_hdds","external_hdd_laptop","hdd_side","nas_drive_bay"]
+    if "HDD" in combined and "SSD" not in combined:
+        return HDD_GENERAL
+    if "SSD" in combined and "HDD" not in combined:
+        return SSD_GENERAL
+
+    # Contextual use cases.
+    if "ブラウザ" in combined:
+        return BROWSER_MEDIA
+    if any(k in combined for k in ["ロード","起動時間","立ち上げ","起動する","起動が"]):
+        return LOAD_MEDIA
+    if any(k in combined for k in ["Windows","アプリ","ゲーム"]):
+        return APP_MEDIA
+    if "RAM" in combined or "メモリ" in combined:
+        return RAM_MEDIA
+    if any(k in combined for k in ["バックアップ","3-2-1","別の場所","クラウド"]):
+        return ["nas","nas_drive_bay","external_hdds","external_hdd_laptop","server_rack"]
+    if any(k in combined for k in ["ノートパソコン","小型PC","薄いノート"]):
+        return ["m2_installed","laptop_nvme","nvme_m2","ssd_install","pc_m2_hdd_inside"]
+    if any(k in combined for k in ["USB","外付け"]):
+        return EXTERNAL_MEDIA
+    if any(k in combined for k in ["動作音","振動","衝撃"]):
+        return ["hdd_working_video","hdd_open_photo","hdd_head_macro","sata_ssd","nvme_m2"]
+    if any(k in combined for k in ["容量あたり","大容量","価格","1TB","2TB","4TB","8TB","16TB"]):
+        return ["hdd_side","external_hdds","nas","nas_drive_bay","sata_ssd","nvme_m2"]
+    if any(k in combined for k in ["ストレージ","保存","データ","写真","動画","ファイル"]):
+        # In mixed/general chapters a true storage montage is appropriate.
+        return STORAGE_MEDIA
+
+    # Lifespan/failure narration should not use the HDD motion clip's
+    # embedded title/credit section.
+    if "寿命" in section and any(k in combined for k in [
+        "機械部品","長く使えば","故障する可能性","故障要因","書き込み寿命"
     ]):
-        return ["hdd_open_photo","hdd_head_macro","hdd_side"]
+        return ["hdd_open_photo","hdd_head_macro","hdd_side","ssd_nand","ssd_controller"]
 
-    strong=strong_media_for(phrase_text)
-    if strong:
-        return strong
-    if source_text and source_text != phrase_text:
-        strong=strong_media_for(source_text)
-        if strong:
-            return strong
     return pool_for(section,phrase_text)
 
-def semantic_asset_ok(text, asset_id, source_text=None):
+def semantic_asset_ok(text, asset_id, source_text=None, section=None):
+    if section:
+        allowed=[x for x in contextual_pool(section,text,source_text) if optional_asset(x)]
+        if allowed:
+            return asset_id in set(allowed)
     strong=strong_media_for(text)
     if not strong and source_text and source_text != text:
         strong=strong_media_for(source_text)
@@ -454,6 +513,12 @@ def create_overlay(row,slot,path):
         d.rounded_rectangle((70,180,620,355),radius=25,fill=(5,10,18,195))
         d.text((100,225),"SSD内部",font=fb,fill=(100,210,255,255))
         d.text((100,290),"NAND  +  Controller",font=fs,fill=(255,255,255,255))
+    elif "SATA SSD" in t and any(k in t for k in ["毎秒","MB","速度"]):
+        d.rounded_rectangle((70,175,650,370),radius=25,fill=(5,10,18,200))
+        d.text((100,220),"SATA SSD",font=fb,fill=(100,210,255,255))
+        d.rounded_rectangle((100,285,565,325),radius=18,fill=(255,255,255,26))
+        d.rounded_rectangle((100,285,470,325),radius=18,fill=(141,255,113,220))
+        d.text((100,348),"約500MB/s台が目安",font=fs,fill=(255,255,255,255))
     elif "M.2" in t or "NVMe" in t:
         d.rounded_rectangle((70,180,600,345),radius=25,fill=(5,10,18,195))
         d.text((100,230),"M.2 ≠ NVMe",font=fb,fill=(141,255,113,255))
@@ -745,7 +810,7 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
                     combined <= max_dur and
                     semantic_asset_ok(
                         e["row"]["text"], p["asset"],
-                        e["row"].get("source_text")
+                        e["row"].get("source_text"), e["row"].get("section")
                     )
                 ):
                     p["en"]=e["en"]
@@ -762,7 +827,7 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
                     combined <= max_dur and
                     semantic_asset_ok(
                         e["row"]["text"], q["asset"],
-                        e["row"].get("source_text")
+                        e["row"].get("source_text"), e["row"].get("section")
                     )
                 ):
                     q["st"]=e["st"]
@@ -813,7 +878,7 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
             # producing an artificial cut to the same picture.
             if (
                 e["en"]-prev["st"] <= max_dur and
-                semantic_asset_ok(e["row"]["text"],prev["asset"],source_text)
+                semantic_asset_ok(e["row"]["text"],prev["asset"],source_text,e["row"].get("section"))
             ):
                 prev["en"]=e["en"]
                 del repaired[i]
@@ -839,7 +904,7 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
                 if x != prev["asset"]
                 and x != next_asset
                 and x not in recent
-                and semantic_asset_ok(e["row"]["text"],x,source_text)
+                and semantic_asset_ok(e["row"]["text"],x,source_text,e["row"].get("section"))
             ]
             if not candidates:
                 candidates=[
@@ -877,7 +942,7 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
                 x for x in prev_pool
                 if x != e["asset"]
                 and x != before_asset
-                and semantic_asset_ok(prev["row"]["text"],x,prev_source)
+                and semantic_asset_ok(prev["row"]["text"],x,prev_source,prev["row"].get("section"))
             ]
             if prev_candidates:
                 prev["asset"]=prev_candidates[(prev.get("source_idx",0)+i+_pass)%len(prev_candidates)]
@@ -925,7 +990,7 @@ if blink_fast:
 semantic_bad=[
     (e["n"],e["asset"],e["row"]["text"])
     for e in events
-    if not semantic_asset_ok(e["row"]["text"],e["asset"],e["row"].get("source_text"))
+    if not semantic_asset_ok(e["row"]["text"],e["asset"],e["row"].get("source_text"),e["row"].get("section"))
 ]
 if semantic_bad:
     raise RuntimeError("semantic media mismatch: "+repr(semantic_bad[:20]))
