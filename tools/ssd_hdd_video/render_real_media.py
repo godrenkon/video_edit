@@ -791,7 +791,7 @@ zundamon=prepare_zundamon(asset("zundamon_official"))
 ass=OUT/"subtitles_green.ass"
 make_ass(rows,ass)
 
-events=[]; n=0; last_asset=None; cur=0.0
+events=[]; n=0; last_asset=None; recent_assets=[]; cur=0.0
 for row in rows:
     if row["st"]>cur+0.02:
         # Chapter-gap visuals must match the chapter title itself, not the first
@@ -807,11 +807,14 @@ for row in rows:
             pool=[x for x in STORAGE_MEDIA if optional_asset(x)]
         if not pool:
             raise RuntimeError("no real-media assets available for chapter gap")
-        a=next((x for x in pool if x!=last_asset),pool[0])
+        a=next((x for x in pool if x!=last_asset and x not in recent_assets[-3:]),None)
+        if a is None:
+            a=next((x for x in pool if x!=last_asset),pool[0])
         events.append({
             "n":n,"st":cur,"en":row["st"],"asset":a,
             "slot":0,"row":gap_row,"source_idx":row["idx"]
         })
+        recent_assets.append(a)
         n+=1
         last_asset=a
 
@@ -838,7 +841,9 @@ for row in rows:
             st=seg["st"]+segdur*s/slots
             en=seg["st"]+segdur*(s+1)/slots
 
-            choices=[x for x in pool if x!=last_asset and x not in used_in_sentence]
+            choices=[x for x in pool if x!=last_asset and x not in used_in_sentence and x not in recent_assets[-3:]]
+            if not choices:
+                choices=[x for x in pool if x!=last_asset and x not in recent_assets[-2:]]
             if not choices:
                 choices=[x for x in pool if x!=last_asset]
             if not choices:
@@ -850,6 +855,7 @@ for row in rows:
                 "slot":s,"row":phrase_row,"source_idx":row["idx"]
             })
             used_in_sentence.add(a)
+            recent_assets.append(a)
             n+=1
             last_asset=a
     cur=row["en"]
@@ -1087,6 +1093,14 @@ adjacent_repeat=[
 ]
 if adjacent_repeat:
     raise RuntimeError("adjacent repeated real-media asset: "+repr([(events[i-1]["n"],events[i]["n"],events[i]["asset"],events[i-1]["row"]["text"],events[i]["row"]["text"]) for i in range(1,len(events)) if events[i-1]["asset"]==events[i]["asset"]][:10]))
+
+near_repeat=[
+    (events[i]["n"],events[i]["asset"])
+    for i in range(len(events))
+    if events[i]["asset"] in {x["asset"] for x in events[max(0,i-2):i]}
+]
+if near_repeat:
+    raise RuntimeError("real-media asset reused within two previous cuts: "+repr(near_repeat[:20]))
 
 with (OUT/"storyboard.tsv").open("w",encoding="utf-8") as f:
     f.write("n\tstart\tend\tduration\tasset\tsection\ttext\tsource_text\tsubject_hint\n")
