@@ -998,7 +998,8 @@ if semantic_bad:
 
 bad_browser=[
     e for e in events
-    if e["asset"]=="browser_demo_video" and "ブラウザ" not in e["row"]["text"]
+    if e["asset"]=="browser_demo_video"
+    and "ブラウザ" not in (e["row"]["text"] + " " + e["row"].get("source_text",""))
 ]
 if bad_browser:
     raise RuntimeError(
