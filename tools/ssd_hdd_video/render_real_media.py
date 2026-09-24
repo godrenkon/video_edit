@@ -792,7 +792,12 @@ ass=OUT/"subtitles_green.ass"
 make_ass(rows,ass)
 
 events=[]; n=0; last_asset=None; recent_assets=[]; cur=0.0
+running_subject_hint=None
+last_subject_section=None
 for row in rows:
+    if row["section"] != last_subject_section:
+        running_subject_hint=None
+        last_subject_section=row["section"]
     if row["st"]>cur+0.02:
         # Chapter-gap visuals must match the chapter title itself, not the first
         # narration sentence after the gap. This keeps chapter transitions
@@ -819,11 +824,25 @@ for row in rows:
         last_asset=a
 
     used_in_sentence=set()
-    subject_hint=initial_subject_hint(row["section"],row["text"])
+    sentence_hint=initial_subject_hint(row["section"],row["text"])
+    if sentence_hint in ("HDD","SSD"):
+        running_subject_hint=sentence_hint
+        subject_hint=sentence_hint
+    elif sentence_hint=="BOTH":
+        # A sentence can mention both sides later while its opening clause still
+        # refers to the previous sentence's subject. Keep the carried subject
+        # until a subtitle phrase explicitly switches it.
+        subject_hint=running_subject_hint
+    else:
+        subject_hint=running_subject_hint
+
     for seg_i,seg in enumerate(timed_phrases(row)):
         explicit_subject=detect_subject(seg["text"])
-        if explicit_subject:
+        if explicit_subject in ("HDD","SSD"):
             subject_hint=explicit_subject
+            running_subject_hint=explicit_subject
+        elif explicit_subject=="BOTH":
+            subject_hint="BOTH"
 
         phrase_row=dict(row)
         phrase_row["source_text"]=row["text"]
