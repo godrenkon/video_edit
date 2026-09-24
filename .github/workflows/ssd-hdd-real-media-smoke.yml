@@ -108,6 +108,40 @@ jobs:
               assert len(set(assets))>=2, (name,set(assets))
               assert "zundamon_official" not in set(assets), name
               assert not any(assets[i]==assets[i-1] for i in range(1,len(assets))), name
+              assert not any(
+                  assets[i] in assets[max(0,i-2):i]
+                  for i in range(len(assets))
+              ), (name,"near-repeat",assets)
+
+              hdd_ok={
+                  "hdd_working_video","hdd_open_photo","hdd_head_macro","laptop_hdd_open",
+                  "hdd_side","external_hdds","external_hdd_laptop","nas","nas_drive_bay",
+                  "server_rack","hdd_ssd_disassembled"
+              }
+              ssd_ok={
+                  "sata_ssd","crucial_ssd","nvme_m2","laptop_nvme","m2_installed",
+                  "external_ssd","ssd_controller","ssd_nand","ssd_install",
+                  "hdd_ssd_disassembled","sata_vs_nvme","sata_connector","sata_data_power"
+              }
+              hdd_internal={
+                  "hdd_working_video","hdd_open_photo","hdd_head_macro","laptop_hdd_open",
+                  "hdd_side","hdd_ssd_disassembled","external_hdd_laptop"
+              }
+
+              for r in rows:
+                  hint=r.get("subject_hint","")
+                  a=r["asset"]
+                  txt=r["text"]
+                  if hint=="HDD":
+                      assert a in hdd_ok, (name,"HDD subject mismatch",a,txt,r.get("source_text",""))
+                  elif hint=="SSD":
+                      assert a in ssd_ok, (name,"SSD subject mismatch",a,txt,r.get("source_text",""))
+
+                  if any(k in txt for k in [
+                      "プラッタ","ヘッド","回転する","円盤","読み取り部分","読み取り",
+                      "モーター","回転機構","機械部品","そうした部品"
+                  ]):
+                      assert a in hdd_internal, (name,"HDD mechanism mismatch",a,txt)
 
               ass=(d/"subtitles_green.ass").read_text(encoding="utf-8-sig").splitlines()
               cues=[]
