@@ -70,7 +70,7 @@ jobs:
           rm -rf smoke_qa
           mkdir -p smoke_qa
 
-          for SPEC in "opening:0" "types:645" "lifespan:885"; do
+          for SPEC in "opening:0" "hdd:220" "speed:585" "types:645" "nas:705" "lifespan:885"; do
             NAME="${SPEC%%:*}"
             START="${SPEC##*:}"
             rm -rf real_video_output /tmp/ssd_hdd_real_render
@@ -93,7 +93,7 @@ jobs:
           python3 - <<'PY'
           import csv, json, pathlib, re, subprocess
           root=pathlib.Path("smoke_qa")
-          expected={"opening","types","lifespan"}
+          expected={"opening","hdd","speed","types","nas","lifespan"}
           actual={p.name for p in root.iterdir() if p.is_dir()}
           assert expected == actual, (expected,actual)
 
@@ -120,6 +120,28 @@ jobs:
               assert cues, name
               assert not [x for x in cues if x.startswith(("、","。","，",",","：",":","；",";","！","？","!","?"))], name
               assert max(map(len,cues))<=33, (name,max(map(len,cues)))
+
+
+              if name=="hdd":
+                  ssd_only={"external_ssd","sata_ssd","crucial_ssd","nvme_m2","m2_installed","ssd_controller","ssd_nand"}
+                  bad=[r for r in rows if r["asset"] in ssd_only and "SSD" not in r["text"]]
+                  assert not bad, bad[:5]
+
+              if name=="speed":
+                  bad=[
+                    r for r in rows
+                    if "SATA SSD" in r["text"] and any(k in r["text"] for k in ["毎秒","MB","速度"])
+                    and r["asset"] in {"sata_connector","sata_data_power"}
+                  ]
+                  assert not bad, bad[:5]
+
+              if name=="nas":
+                  bad=[
+                    r for r in rows
+                    if "NAS" in r["text"]
+                    and r["asset"] in {"external_ssd","sata_ssd","crucial_ssd","nvme_m2","m2_installed"}
+                  ]
+                  assert not bad, bad[:5]
 
               if name=="types":
                   bad=[
