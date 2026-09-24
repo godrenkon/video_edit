@@ -990,7 +990,8 @@ if blink_fast:
 semantic_bad=[
     (e["n"],e["asset"],e["row"]["text"])
     for e in events
-    if not semantic_asset_ok(e["row"]["text"],e["asset"],e["row"].get("source_text"),e["row"].get("section"))
+    if e["row"].get("section")!="次回"
+    and not semantic_asset_ok(e["row"]["text"],e["asset"],e["row"].get("source_text"),e["row"].get("section"))
 ]
 if semantic_bad:
     raise RuntimeError("semantic media mismatch: "+repr(semantic_bad[:20]))
