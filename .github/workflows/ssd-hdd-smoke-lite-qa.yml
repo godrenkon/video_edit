@@ -1,0 +1,93 @@
+name: Extract Lightweight Real-Media QA
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-smoke-lite-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download latest successful smoke artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-media-smoke
+          path: smoke
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36016569272
+
+      - name: Install ffmpeg and pillow
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python3 -m pip install pillow
+
+      - name: Extract lightweight visual QA
+        run: |
+          mkdir -p lite/frames
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          from PIL import Image, ImageOps, ImageDraw
+
+          root=Path("smoke")
+          out=Path("lite/frames")
+          out.mkdir(parents=True,exist_ok=True)
+
+          sections=["opening","hdd","speed","types","nas","lifespan"]
+          extracted=[]
+          for section in sections:
+              sample=root/section/"sample.mp4"
+              if not sample.exists():
+                  continue
+              for sec in (3,10,20):
+                  p=out/f"{section}_{sec:02d}.jpg"
+                  subprocess.run([
+                      "ffmpeg","-y","-loglevel","error",
+                      "-ss",str(sec),"-i",str(sample),
+                      "-frames:v","1","-vf","scale=640:-2",
+                      "-q:v","3",str(p)
+                  ],check=True)
+                  extracted.append(p)
+
+          thumbs=[]
+          for p in extracted:
+              im=Image.open(p).convert("RGB")
+              im=ImageOps.fit(im,(640,360),method=Image.Resampling.LANCZOS)
+              canvas=Image.new("RGB",(660,400),(20,20,20))
+              canvas.paste(im,(10,10))
+              d=ImageDraw.Draw(canvas)
+              d.text((12,375),p.stem,fill="white")
+              thumbs.append(canvas)
+
+          cols=3
+          rows=(len(thumbs)+cols-1)//cols
+          sheet=Image.new("RGB",(cols*660,rows*400),(35,35,35))
+          for i,im in enumerate(thumbs):
+              sheet.paste(im,((i%cols)*660,(i//cols)*400))
+          sheet.save("lite/contact_sheet.jpg",quality=90)
+
+          # Copy storyboards for semantic checks.
+          for section in sections:
+              src=root/section/"storyboard.tsv"
+              if src.exists():
+                  Path(f"lite/{section}_storyboard.tsv").write_bytes(src.read_bytes())
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-smoke-lite-qa
+          path: lite
+          compression-level: 0
+          retention-days: 7
