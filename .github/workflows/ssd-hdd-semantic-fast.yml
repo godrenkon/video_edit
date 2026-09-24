@@ -1,0 +1,162 @@
+name: Fast Semantic QA SSD HDD
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-semantic-fast.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  semantic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download verified real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets
+          path: real_assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35807470144
+
+      - name: Download supplemental real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets-extra
+          path: real_assets_extra
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35807748858
+
+      - name: Merge assets
+        run: |
+          cp -a real_assets_extra/. real_assets/
+          if [ -f real_assets/ATTRIBUTION_EXTRA.md ]; then
+            cat real_assets/ATTRIBUTION_EXTRA.md >> real_assets/ATTRIBUTION.md
+          fi
+
+      - name: Download corrected narration
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-zundamon-narration
+          path: voice
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35667383665
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow janome
+
+      - name: Render only previously-broken semantic windows
+        run: |
+          set -euxo pipefail
+          mkdir -p semantic_qa
+
+          render_one () {
+            NAME="$1"
+            START="$2"
+            SECONDS="$3"
+            rm -rf real_video_output /tmp/ssd_hdd_real_render
+            mkdir -p real_video_output /tmp/ssd_hdd_real_render
+            SSD_HDD_SMOKE_START="$START" SSD_HDD_SMOKE_SECONDS="$SECONDS" \
+              python3 tools/ssd_hdd_video/render_real_media.py
+            mkdir -p "semantic_qa/$NAME"
+            cp real_video_output/storyboard.tsv "semantic_qa/$NAME/"
+            cp real_video_output/subtitles_green.ass "semantic_qa/$NAME/"
+            ffmpeg -y -loglevel error -ss 3 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -frames:v 1 "semantic_qa/$NAME/frame_03.jpg"
+            ffmpeg -y -loglevel error -ss 8 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -frames:v 1 "semantic_qa/$NAME/frame_08.jpg"
+            if [ "$SECONDS" -ge 16 ]; then
+              ffmpeg -y -loglevel error -ss 14 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -frames:v 1 "semantic_qa/$NAME/frame_14.jpg"
+            fi
+          }
+
+          render_one hdd 220 12
+          render_one speed 585 12
+          render_one lifespan 885 20
+
+      - name: Enforce phrase-subject media alignment
+        run: |
+          python3 - <<'PY'
+          import csv
+          from pathlib import Path
+
+          root=Path("semantic_qa")
+          hdd_assets={
+            "hdd_working_video","hdd_open_photo","hdd_head_macro","laptop_hdd_open",
+            "hdd_side","external_hdds","external_hdd_laptop","nas","nas_drive_bay",
+            "server_rack","hdd_ssd_disassembled"
+          }
+          ssd_assets={
+            "sata_ssd","crucial_ssd","nvme_m2","laptop_nvme","m2_installed",
+            "external_ssd","ssd_controller","ssd_nand","ssd_install",
+            "hdd_ssd_disassembled","sata_vs_nvme","sata_connector","sata_data_power"
+          }
+          hdd_internal={
+            "hdd_working_video","hdd_open_photo","hdd_head_macro","laptop_hdd_open",
+            "hdd_side","hdd_ssd_disassembled","external_hdd_laptop"
+          }
+
+          all_rows=[]
+          for name in ("hdd","speed","lifespan"):
+            rows=list(csv.DictReader((root/name/"storyboard.tsv").open(encoding="utf-8"),delimiter="\t"))
+            assert rows, name
+            all_rows.extend((name,r) for r in rows)
+
+            assets=[r["asset"] for r in rows]
+            durations=[float(r["duration"]) for r in rows]
+            assert max(durations)<=4.05, (name,max(durations))
+            assert not any(assets[i]==assets[i-1] for i in range(1,len(assets))), (name,"adjacent",assets)
+            assert not any(assets[i] in assets[max(0,i-2):i] for i in range(len(assets))), (name,"near-repeat",assets)
+
+            for r in rows:
+              hint=r.get("subject_hint","")
+              a=r["asset"]
+              txt=r["text"]
+              src=r.get("source_text","")
+              if hint=="HDD":
+                assert a in hdd_assets, (name,"HDD subject mismatch",a,txt,src)
+              elif hint=="SSD":
+                assert a in ssd_assets, (name,"SSD subject mismatch",a,txt,src)
+
+              if any(k in txt for k in [
+                "プラッタ","ヘッド","回転する","円盤","読み取り部分","読み取り",
+                "モーター","回転機構","機械部品","そうした部品"
+              ]):
+                assert a in hdd_internal, (name,"HDD mechanism mismatch",a,txt,src)
+
+          # Exact regressions from the previously-bad smoke build.
+          checks=[
+            ("hdd","回転する円盤と読み取り部分を","HDD"),
+            ("speed","読み続ける場合にはHDDでも","HDD"),
+            ("speed","比較的効率よく処理できるので","HDD"),
+            ("lifespan","一方HDDには同じNANDの","HDD"),
+            ("lifespan","書き込み寿命はないけど","HDD"),
+            ("lifespan","モーターやヘッド、回転機構など","HDD"),
+            ("lifespan","の機械部品を持っているのだ","HDD"),
+            ("lifespan","故障する可能性もあるので","HDD"),
+          ]
+          for section,needle,want in checks:
+            hits=[r for name,r in all_rows if name==section and needle in r["text"]]
+            assert hits, ("missing regression phrase",section,needle)
+            assert all(r.get("subject_hint","")==want for r in hits), (needle,hits)
+            assert all(r["asset"] in hdd_assets for r in hits), (needle,hits)
+
+          print("FAST_SEMANTIC_QA_OK",len(all_rows))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-semantic-fast-qa
+          path: semantic_qa
+          compression-level: 0
+          retention-days: 7
