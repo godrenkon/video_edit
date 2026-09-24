@@ -1036,6 +1036,73 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
     return repaired
 
 
+def repair_near_repeats(events, distance=2):
+    """Repair A-B-A style reuse without weakening semantic media QA."""
+    events=[dict(e) for e in events]
+    for _pass in range(12):
+        changed=False
+        for i,e in enumerate(events):
+            recent={
+                events[j]["asset"]
+                for j in range(max(0,i-distance),i)
+            }
+            if e["asset"] not in recent:
+                continue
+
+            row=e["row"]
+            phrase=row["text"]
+            source=row.get("source_text") or phrase
+            section=row.get("section","")
+            hint=row.get("subject_hint")
+
+            groups=[
+                contextual_pool(section,phrase,source,hint),
+                strong_media_for(phrase),
+                strong_media_for(source),
+                pool_for(section,phrase),
+                pool_for(section,source),
+            ]
+            pool=_unique([
+                x for group in groups for x in group
+                if optional_asset(x)
+            ])
+
+            future={
+                events[j]["asset"]
+                for j in range(i+1,min(len(events),i+3))
+            }
+            blocked=recent|future
+
+            candidates=[
+                x for x in pool
+                if x not in blocked
+                and semantic_asset_ok(phrase,x,source,section,hint)
+            ]
+            if not candidates:
+                candidates=[
+                    x for x in pool
+                    if x not in recent
+                    and semantic_asset_ok(phrase,x,source,section,hint)
+                ]
+
+            if candidates:
+                local=[
+                    events[j]["asset"]
+                    for j in range(max(0,i-5),min(len(events),i+6))
+                    if j != i
+                ]
+                candidates.sort(key=lambda x:(local.count(x),pool.index(x)))
+                e["asset"]=candidates[0]
+                changed=True
+
+        if not changed:
+            break
+
+    for n,e in enumerate(events):
+        e["n"]=n
+    return events
+
+
 # final 8 sec: actual hardware montage in 2-second cuts, then next-video title.
 ending_row={"section":"次回","text":"次回 SSDとHDDの歴史","idx":9999}
 for a in [x for x in ["hdd_open_photo","ssd_controller","nvme_m2","sata_ssd"] if optional_asset(x)]:
@@ -1050,6 +1117,7 @@ if cur<total:
 
 # Remove blink-fast visual changes while preserving semantic alignment.
 events=coalesce_short_events(events,min_dur=0.95,max_dur=4.05)
+events=repair_near_repeats(events,distance=2)
 
 # QA guard: no visual event longer than 4.05 s except if total ending cannot be split.
 too_long=[e for e in events if e["en"]-e["st"]>4.05]
