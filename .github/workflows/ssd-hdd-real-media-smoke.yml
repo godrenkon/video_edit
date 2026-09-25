@@ -148,7 +148,7 @@ jobs:
                   if not line.startswith("Dialogue:"):
                       continue
                   txt=line.split(",,",1)[-1]
-                  txt=re.sub(r"{[^}]+}","",txt).replace("\N"," ").strip()
+                  txt=re.sub(r"{[^}]+}","",txt).replace("\\N"," ").strip()
                   cues.append(txt)
               assert cues, name
               assert not [x for x in cues if x.startswith(("、","。","，",",","：",":","；",";","！","？","!","?"))], name
