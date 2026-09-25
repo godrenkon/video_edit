@@ -503,6 +503,12 @@ def contextual_pool(section, phrase_text, source_text=None, subject_hint=None):
     return pool_for(section,phrase)
 
 def semantic_asset_ok(text, asset_id, source_text=None, section=None, subject_hint=None):
+    combined = (text or "") + " " + (source_text or "")
+    # RAM is a correct real-media visual only when the narration is explicitly
+    # comparing/explaining RAM in the storage-basics chapter.
+    if asset_id == "ram_ddr4" and "RAM" in combined:
+        return True
+
     if subject_hint is None:
         explicit=detect_subject(text)
         if explicit:
