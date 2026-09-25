@@ -272,7 +272,7 @@ def _unique(xs):
 
 HDD_INTERNAL=["hdd_working_video","hdd_open_photo","hdd_head_macro","laptop_hdd_open","hdd_side","hdd_ssd_disassembled","external_hdd_laptop"]
 SSD_INTERNAL=["ssd_nand","ssd_controller","sata_ssd","crucial_ssd","nvme_m2","laptop_nvme","m2_installed"]
-M2_MEDIA=["nvme_m2","m2_installed","laptop_nvme","pc_m2_hdd_inside","sata_vs_nvme","ssd_install"]
+M2_MEDIA=["nvme_m2","m2_installed","laptop_nvme","sata_vs_nvme","ssd_install"]
 SATA_DRIVE_MEDIA=["sata_ssd","crucial_ssd","sata_vs_nvme"]
 SATA_CONNECTOR_MEDIA=["sata_connector","sata_data_power","sata_ssd","crucial_ssd"]
 SATA_MEDIA=_unique(SATA_DRIVE_MEDIA+SATA_CONNECTOR_MEDIA)
@@ -284,7 +284,7 @@ STORAGE_MEDIA=["hdd_ssd_disassembled","pc_m2_hdd_inside","external_ssd","externa
 APP_MEDIA=["pc_m2_hdd_inside","m2_installed","laptop_nvme","nvme_m2","sata_ssd","crucial_ssd","motherboard","ssd_install","hdd_side"]
 LOAD_MEDIA=["pc_m2_hdd_inside","m2_installed","laptop_nvme","nvme_m2","sata_ssd","crucial_ssd","hdd_working_video","motherboard"]
 BROWSER_MEDIA=["browser_demo_video","pc_m2_hdd_inside","m2_installed","laptop_nvme","nvme_m2","sata_ssd"]
-SPEED_MEDIA=["m2_installed","laptop_nvme","nvme_m2","sata_ssd","crucial_ssd","hdd_working_video","sata_vs_nvme","pc_m2_hdd_inside"]
+SPEED_MEDIA=["m2_installed","laptop_nvme","nvme_m2","sata_ssd","crucial_ssd","hdd_working_video","sata_vs_nvme"]
 HDD_GENERAL=["hdd_working_video","hdd_open_photo","hdd_head_macro","laptop_hdd_open","hdd_side","external_hdds","external_hdd_laptop","nas","nas_drive_bay","hdd_ssd_disassembled"]
 SSD_GENERAL=["sata_ssd","crucial_ssd","nvme_m2","laptop_nvme","m2_installed","external_ssd","ssd_controller","ssd_nand","ssd_install","hdd_ssd_disassembled"]
 
