@@ -812,8 +812,14 @@ for row in rows:
         gap_row["text"]=row["section"].split("　",1)[-1]
         gap_row["subject_hint"]=""
         pool=[x for x in pool_for(row["section"],gap_row["text"]) if optional_asset(x)]
+        # Chapter-gap/title visuals must remain generic. Specialized RAM media is
+        # reserved for narration that explicitly explains RAM, not a chapter title.
+        if "RAM" not in gap_row["text"]:
+            pool=[x for x in pool if x!="ram_ddr4"]
         if not pool:
             pool=[x for x in pool_for(row["section"],row["text"]) if optional_asset(x)]
+            if "RAM" not in gap_row["text"]:
+                pool=[x for x in pool if x!="ram_ddr4"]
         if not pool:
             pool=[x for x in STORAGE_MEDIA if optional_asset(x)]
         if not pool:
