@@ -1,5 +1,5 @@
 name: Build Real-Media SSD HDD Explainer
-# rebuild-revision: 2026-09-25-real-media-final-refresh
+# rebuild-revision: 2026-09-25-real-media-after-ram-semantic-fix
 
 on:
   push:
