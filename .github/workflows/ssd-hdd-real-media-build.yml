@@ -1,5 +1,5 @@
 name: Build Real-Media SSD HDD Explainer
-# rebuild-revision: 2026-09-24-browser-source-context-fix
+# rebuild-revision: 2026-09-25-real-media-final-refresh
 
 on:
   push:
