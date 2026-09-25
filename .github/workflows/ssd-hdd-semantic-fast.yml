@@ -13,6 +13,10 @@ permissions:
   actions: read
   contents: read
 
+concurrency:
+  group: ssd-hdd-semantic-fast
+  cancel-in-progress: true
+
 jobs:
   semantic:
     runs-on: ubuntu-24.04
@@ -53,10 +57,22 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-noto-cjk
-          python3 -m pip install --upgrade pip
-          python3 -m pip install pillow janome
+          set -euxo pipefail
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y ffmpeg
+          fi
+          if [ ! -f /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y fonts-noto-cjk
+          fi
+          python3 - <<'PY' || python3 -m pip install --disable-pip-version-check pillow janome
+          import PIL
+          import janome
+          print("python render deps already available")
+          PY
+          ffmpeg -version | head -n 1
+          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc
 
       - name: Render only previously-broken semantic windows
         run: |
