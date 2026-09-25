@@ -1055,6 +1055,108 @@ def coalesce_short_events(events, min_dur=0.95, max_dur=4.05):
     return repaired
 
 
+def rebalance_global_usage(events, distance=3, passes=8):
+    """Reduce whole-video overuse of a few assets without weakening semantic QA.
+
+    The existing selector avoids immediate repeats. This pass also looks at total
+    usage counts across the full timeline, then replaces heavily reused shots
+    with less-used but still semantically valid real-media candidates.
+    """
+    events=[dict(e) for e in events]
+    if not events:
+        return events
+
+    def counts_now():
+        counts={}
+        for e in events:
+            counts[e["asset"]]=counts.get(e["asset"],0)+1
+        return counts
+
+    counts=counts_now()
+    distinct=max(1,len(counts))
+    # Allow some specialization, but not enough for one generic photo to dominate.
+    target=max(10, math.ceil(len(events)/distinct*1.55))
+
+    for _pass in range(passes):
+        changed=False
+        # Process the most overused assets first.
+        over=sorted(
+            [a for a,n in counts.items() if n>target],
+            key=lambda a:(-counts[a],a)
+        )
+        if not over:
+            break
+
+        for over_asset in over:
+            # Spread replacements through the timeline instead of changing one block.
+            indices=[i for i,e in enumerate(events) if e["asset"]==over_asset]
+            for pos,i in enumerate(indices):
+                if counts.get(over_asset,0)<=target:
+                    break
+                # Keep some occurrences to preserve subject-specific coverage.
+                if pos % 2 == 0:
+                    continue
+
+                e=events[i]
+                row=e["row"]
+                phrase=row["text"]
+                source=row.get("source_text") or phrase
+                section=row.get("section","")
+                hint=row.get("subject_hint")
+
+                groups=[
+                    contextual_pool(section,phrase,source,hint),
+                    strong_media_for(phrase),
+                    strong_media_for(source),
+                    pool_for(section,phrase),
+                    pool_for(section,source),
+                    PC_MEDIA,
+                    STORAGE_MEDIA,
+                ]
+                pool=_unique([
+                    x for group in groups for x in group
+                    if optional_asset(x)
+                ])
+
+                neighbor_assets={
+                    events[j]["asset"]
+                    for j in range(max(0,i-distance),min(len(events),i+distance+1))
+                    if j!=i
+                }
+                candidates=[
+                    x for x in pool
+                    if x!=over_asset
+                    and x not in neighbor_assets
+                    and semantic_asset_ok(phrase,x,source,section,hint)
+                ]
+                if not candidates:
+                    candidates=[
+                        x for x in pool
+                        if x!=over_asset
+                        and semantic_asset_ok(phrase,x,source,section,hint)
+                    ]
+                if not candidates:
+                    continue
+
+                # Prefer globally underused assets, then preserve pool priority.
+                candidates.sort(key=lambda x:(counts.get(x,0), pool.index(x)))
+                new_asset=candidates[0]
+                if counts.get(new_asset,0) >= counts.get(over_asset,0)-2:
+                    continue
+
+                e["asset"]=new_asset
+                counts[over_asset]-=1
+                counts[new_asset]=counts.get(new_asset,0)+1
+                changed=True
+
+        if not changed:
+            break
+
+    for n,e in enumerate(events):
+        e["n"]=n
+    return events
+
+
 def repair_near_repeats(events, distance=2):
     """Repair A-B-A style reuse without weakening semantic media QA."""
     events=[dict(e) for e in events]
@@ -1137,6 +1239,8 @@ if cur<total:
 # Remove blink-fast visual changes while preserving semantic alignment.
 events=coalesce_short_events(events,min_dur=0.95,max_dur=4.05)
 events=repair_near_repeats(events,distance=2)
+events=rebalance_global_usage(events,distance=3,passes=10)
+events=repair_near_repeats(events,distance=2)
 
 # QA guard: no visual event longer than 4.05 s except if total ending cannot be split.
 too_long=[e for e in events if e["en"]-e["st"]>4.05]
@@ -1188,6 +1292,22 @@ near_repeat=[
 ]
 if near_repeat:
     raise RuntimeError("real-media asset reused within two previous cuts: "+repr(near_repeat[:20]))
+
+usage_counts={}
+for e in events:
+    usage_counts[e["asset"]]=usage_counts.get(e["asset"],0)+1
+
+with (OUT/"asset_usage.tsv").open("w",encoding="utf-8") as f:
+    f.write("asset\tcount\tshare\n")
+    for a,n in sorted(usage_counts.items(), key=lambda kv:(-kv[1],kv[0])):
+        f.write(f"{a}\t{n}\t{n/len(events):.6f}\n")
+
+# No single generic source should dominate the explainer.
+if usage_counts and max(usage_counts.values()) > max(42, math.ceil(len(events)*0.085)):
+    raise RuntimeError(
+        "real-media asset overused after rebalance: "+
+        repr(sorted(usage_counts.items(), key=lambda kv:-kv[1])[:8])
+    )
 
 with (OUT/"storyboard.tsv").open("w",encoding="utf-8") as f:
     f.write("n\tstart\tend\tduration\tasset\tsection\ttext\tsource_text\tsubject_hint\n")
