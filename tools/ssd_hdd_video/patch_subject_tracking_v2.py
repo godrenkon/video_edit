@@ -5,35 +5,34 @@ p=Path("tools/ssd_hdd_video/render_real_media.py")
 s=p.read_text(encoding="utf-8")
 
 # Keep chapter-title/gap visuals on the same semantic selector used by narration.
-# Smoke workflows used to patch this separately, which meant Full build could
-# silently fall back to a different media decision path.
 old_gap='pool=[x for x in pool_for(row["section"],gap_row["text"]) if optional_asset(x)]'
 new_gap='pool=[x for x in contextual_pool(row["section"],gap_row["text"],gap_row["text"],None) if optional_asset(x)]'
 if old_gap in s:
     s=s.replace(old_gap,new_gap,1)
+
+# Summary phrases such as 「使い分け」 describe the SSD/HDD combination rather
+# than only the device named in the immediately preceding clause. Force those
+# phrases onto neutral real-media that shows the storage context/comparison.
+pool_marker='''    combined=(full+" "+phrase).strip()\n\n    phrase_subject=detect_subject(phrase)\n'''
+pool_repl='''    combined=(full+" "+phrase).strip()\n\n    # A trailing summary clause like 「置くという使い分けもできる」 refers to\n    # the SSD/HDD assignment as a whole. Do not inherit only the preceding HDD\n    # or SSD subject; show both-device / PC-context real media instead.\n    if "使い分け" in phrase and "SSD" in full and "HDD" in full:\n        return [\n            "hdd_ssd_disassembled",\n            "pc_m2_hdd_inside",\n            "sata_vs_nvme",\n            "motherboard",\n        ]\n\n    phrase_subject=detect_subject(phrase)\n'''
+if pool_marker not in s:
+    raise SystemExit("contextual_pool insertion marker not found")
+s=s.replace(pool_marker,pool_repl,1)
 
 marker='def initial_subject_hint(section, source_text):\n'
 if marker not in s:
     raise SystemExit("initial_subject_hint marker not found")
 
 helper=r'''def detect_subject_switch(phrase, current_hint=None):
-    """Track the grammatical subject without letting comparison objects steal it.
-
-    Examples:
-      SSDは... / SSDでは... / SSDへ... => SSD
-      HDDは... / HDDでも... / HDDへ... => HDD
-      HDDと同じように... / HDDとの差... => keep current subject
-      SSDとHDDを比べる... => BOTH
-
-    The function intentionally tracks only the storage-device subject. Terms
-    such as NVMe, M.2, NAND, SATA and RAM describe the current device/concept;
-    they must never be mistaken for a device-subject switch by themselves.
-    """
+    """Track the grammatical subject without letting comparison objects steal it."""
     t=(phrase or "").strip()
     if not t:
         return current_hint
 
-    # Phrases that mention the other device only as a comparison/reference.
+    # A summary of SSD/HDD role assignment returns to a both-sides context.
+    if "使い分け" in t:
+        return "BOTH"
+
     comparison_objects=(
         "HDDと同じように", "SSDと同じように",
         "HDDのように", "SSDのように", "HDDのような", "SSDのような",
@@ -45,8 +44,6 @@ helper=r'''def detect_subject_switch(phrase, current_hint=None):
     )
     for x in comparison_objects:
         if x in t:
-            # If the same phrase has a clear topic before the comparison object,
-            # that topic still wins (e.g. "SSDでは、HDDとの差が...").
             xp=t.find(x)
             prefix=t[:xp]
             if any(k in prefix for k in ["SSDは","SSDでは","SSDには","SSDが","SSDでも","SSDへ","SSDの方"]):
@@ -58,12 +55,9 @@ helper=r'''def detect_subject_switch(phrase, current_hint=None):
     has_hdd="HDD" in t
     has_ssd="SSD" in t
 
-    # Explicit symmetric comparison.
     if has_hdd and has_ssd and any(k in t for k in ["比べ", "比較", "違い", "どちら", "どっち", "両方", "vs", "VS"]):
         return "BOTH"
 
-    # Strong grammatical topic markers. Choose the one that occurs first,
-    # rather than hard-coding SSD-before-HDD.
     patterns={
         "SSD":[
             "SSDは", "SSDでは", "SSDには", "SSDが", "SSDでも", "SSDへ",
@@ -85,37 +79,28 @@ helper=r'''def detect_subject_switch(phrase, current_hint=None):
     if candidates:
         return min(candidates,key=lambda x:x[0])[1]
 
-    # If only one device is mentioned and it is not merely a comparison object,
-    # the phrase is locally about that device.
     if has_ssd and not has_hdd:
         return "SSD"
     if has_hdd and not has_ssd:
         return "HDD"
-
-    # A phrase beginning directly with one acronym is a local switch.
     if t.startswith("SSD"):
         return "SSD"
     if t.startswith("HDD"):
         return "HDD"
-
     return current_hint
 
 '''
 
 s=s.replace(marker,helper+marker,1)
 
-# Replace sentence-level initial subject inference. Mixed SSD/HDD sentences no
-# longer inherit the previous sentence blindly. Only a clearly early topic
-# marker seeds the sentence; otherwise the sentence starts neutral until a
-# subtitle phrase explicitly names its device.
 old_initial='''def initial_subject_hint(section, source_text):\n    explicit=detect_subject(source_text)\n    if explicit in ("HDD","SSD"):\n        return explicit\n    # Pure HDD/SSD mechanism chapters keep their subject even when a sentence\n    # omits the acronym ("円盤", "読み取り部分", "この仕組み" etc.).\n    if "HDDとは" in section:\n        return "HDD"\n    if "SSDとは" in section:\n        return "SSD"\n    return None\n'''
-new_initial='''def initial_subject_hint(section, source_text):\n    t=(source_text or "").strip()\n    explicit=detect_subject(t)\n    if explicit in ("HDD","SSD"):\n        return explicit\n\n    if explicit=="BOTH":\n        # Symmetric group openings are genuinely about both sides.\n        grouped=("SSDとHDD", "HDDとSSD", "SSDやHDD", "HDDやSSD",\n                 "SSD・HDD", "HDD・SSD", "SSDにもHDDにも", "HDDにもSSDにも")\n        if any(t.startswith(x) for x in grouped):\n            return "BOTH"\n\n        # If the sentence opens with a clear topic marker, seed that subject.\n        # A device first mentioned much later (e.g. Windows...はSSDへ...) does\n        # not control the earlier generic clause.\n        markers={\n            "SSD":["SSDは","SSDでは","SSDには","SSDが","SSDでも","SSDの場合",\n                   "SSDなら","一方SSD","SSDの中","SSDの方","SSDだから"],\n            "HDD":["HDDは","HDDでは","HDDには","HDDが","HDDでも","HDDの場合",\n                   "HDDなら","一方HDD","HDDの中","HDDの方","HDDだから"],\n        }\n        hits=[]\n        for subject,needles in markers.items():\n            for x in needles:\n                pos=t.find(x)\n                if pos>=0:\n                    hits.append((pos,subject))\n        if hits:\n            pos,subject=min(hits,key=lambda x:x[0])\n            if pos<=14:\n                return subject\n\n        # Direct early mention also seeds the sentence when it is not a grouped\n        # SSD/HDD construction.\n        first=[]\n        for subject in ("SSD","HDD"):\n            pos=t.find(subject)\n            if pos>=0:\n                first.append((pos,subject))\n        if first:\n            pos,subject=min(first,key=lambda x:x[0])\n            if pos<=8:\n                return subject\n\n        return None\n\n    # Pure mechanism chapters keep their subject even when a sentence omits\n    # the acronym ("円盤", "読み取り部分", "この仕組み" etc.).\n    if "HDDとは" in section:\n        return "HDD"\n    if "SSDとは" in section:\n        return "SSD"\n    return None\n'''
+new_initial='''def initial_subject_hint(section, source_text):\n    t=(source_text or "").strip()\n    explicit=detect_subject(t)\n    if explicit in ("HDD","SSD"):\n        return explicit\n\n    if explicit=="BOTH":\n        grouped=("SSDとHDD", "HDDとSSD", "SSDやHDD", "HDDやSSD",\n                 "SSD・HDD", "HDD・SSD", "SSDにもHDDにも", "HDDにもSSDにも")\n        if any(t.startswith(x) for x in grouped):\n            return "BOTH"\n\n        markers={\n            "SSD":["SSDは","SSDでは","SSDには","SSDが","SSDでも","SSDの場合",\n                   "SSDなら","一方SSD","SSDの中","SSDの方","SSDだから"],\n            "HDD":["HDDは","HDDでは","HDDには","HDDが","HDDでも","HDDの場合",\n                   "HDDなら","一方HDD","HDDの中","HDDの方","HDDだから"],\n        }\n        hits=[]\n        for subject,needles in markers.items():\n            for x in needles:\n                pos=t.find(x)\n                if pos>=0:\n                    hits.append((pos,subject))\n        if hits:\n            pos,subject=min(hits,key=lambda x:x[0])\n            if pos<=14:\n                return subject\n\n        first=[]\n        for subject in ("SSD","HDD"):\n            pos=t.find(subject)\n            if pos>=0:\n                first.append((pos,subject))\n        if first:\n            pos,subject=min(first,key=lambda x:x[0])\n            if pos<=8:\n                return subject\n        return None\n\n    if "HDDとは" in section:\n        return "HDD"\n    if "SSDとは" in section:\n        return "SSD"\n    return None\n'''
 if old_initial not in s:
     raise SystemExit("initial_subject_hint block not found")
 s=s.replace(old_initial,new_initial,1)
 
 old_sentence='''    sentence_hint=initial_subject_hint(row["section"],row["text"])\n    if sentence_hint in ("HDD","SSD"):\n        running_subject_hint=sentence_hint\n        subject_hint=sentence_hint\n    elif sentence_hint=="BOTH":\n        # A sentence can mention both sides later while its opening clause still\n        # refers to the previous sentence's subject. Keep the carried subject\n        # until a subtitle phrase explicitly switches it.\n        subject_hint=running_subject_hint\n    else:\n        subject_hint=running_subject_hint\n'''
-new_sentence='''    sentence_hint=initial_subject_hint(row["section"],row["text"])\n    sentence_devices=detect_subject(row["text"])\n    if sentence_hint in ("HDD","SSD"):\n        running_subject_hint=sentence_hint\n        subject_hint=sentence_hint\n    elif sentence_hint=="BOTH":\n        subject_hint="BOTH"\n    elif sentence_devices=="BOTH":\n        # Mixed sentence with no clear early grammatical topic: start neutral\n        # instead of leaking the previous sentence's subject into its first clause.\n        subject_hint=None\n    else:\n        subject_hint=running_subject_hint\n'''
+new_sentence='''    sentence_hint=initial_subject_hint(row["section"],row["text"])\n    sentence_devices=detect_subject(row["text"])\n    if sentence_hint in ("HDD","SSD"):\n        running_subject_hint=sentence_hint\n        subject_hint=sentence_hint\n    elif sentence_hint=="BOTH":\n        subject_hint="BOTH"\n    elif sentence_devices=="BOTH":\n        subject_hint=None\n    else:\n        subject_hint=running_subject_hint\n'''
 if old_sentence not in s:
     raise SystemExit("sentence subject initialization block not found")
 s=s.replace(old_sentence,new_sentence,1)
@@ -127,4 +112,4 @@ if old not in s:
 s=s.replace(old,new,1)
 
 p.write_text(s,encoding="utf-8")
-print("subject tracking v3 patched")
+print("subject tracking v3.1 patched")
