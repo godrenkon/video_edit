@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/ssd-hdd-semantic-fast.yml"
       - "tools/ssd_hdd_video/patch_subject_tracking_v2.py"
+      - "tools/ssd_hdd_video/patch_phrase_boundaries_v5.py"
       - "tools/ssd_hdd_video/patch_visual_semantics_v4.py"
       - "tools/ssd_hdd_video/patch_storyboard_only.py"
   workflow_dispatch:
@@ -67,6 +68,7 @@ jobs:
       - name: Apply semantic patches and storyboard-only mode
         run: |
           python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
+          python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
           python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
           python3 tools/ssd_hdd_video/patch_storyboard_only.py
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
@@ -134,6 +136,11 @@ jobs:
               assert len(counts) >= 5, (sec,'too few unique assets',counts)
               top,n=counts.most_common(1)[0]
               assert n/len(rs) <= 0.32, (sec,'asset overused',top,n/len(rs))
+
+          mixed=[r for r in rows if 'Windowsやアプリ' in r.get('source_text','')]
+          assert mixed, 'final mixed SSD/HDD sentence missing'
+          assert any(r['text'].strip() in ('SSDへ置いて、','SSDへ置いて') for r in mixed), mixed
+          assert not any('SSDへ置いて、写真' in r['text'] for r in mixed), mixed
 
           print('FAST_SEMANTIC_QA_OK',len(rows),'events',len({r['asset'] for r in rows}),'unique assets')
           print('max_hold',max(float(r['duration']) for r in rows))
