@@ -35,9 +35,6 @@ helper=r'''def detect_subject_switch(phrase, current_hint=None):
         "HDDより", "SSDより",
     )
     if any(x in t for x in comparison_objects):
-        # A phrase can still start with a true subject before later containing
-        # a comparison object, so only early-return when the comparison mention
-        # is the first device reference.
         positions=[(t.find("SSD"),"SSD"),(t.find("HDD"),"HDD")]
         positions=[x for x in positions if x[0] >= 0]
         if positions:
@@ -79,12 +76,9 @@ if old not in s:
     raise SystemExit("event subject-tracking block not found")
 s=s.replace(old,new,1)
 
-# Add a QA guard for the exact regression that motivated this patch.
-qa_marker='''events=coalesce_short_events(events)\n'''
-qa='''events=coalesce_short_events(events)\n\n# Subject/media QA: in SSD's definition sentence, a later phrase like\n# "HDDと同じように..." must not make the remainder switch to HDD imagery.\nfor e in events:\n    txt=e["row"].get("text","")\n    src=e["row"].get("source_text","")\n    if "SSDは" in src and "HDDと同じように" in src and "保存するためのストレージ" in txt:\n        if e["asset"] not in set(SSD_GENERAL):\n            raise RuntimeError(f"subject-carry regression: {e['asset']} for {txt}")\n'''
-if qa_marker not in s:
-    raise SystemExit("coalesce marker not found")
-s=s.replace(qa_marker,qa,1)
+# The smoke/full workflows perform the semantic QA directly against storyboard.tsv.
+# Keep this patch limited to subject-tracking behavior so it does not depend on
+# the exact location/name of the renderer's coalescing step.
 
 p.write_text(s,encoding="utf-8")
 print("subject tracking v2 patched")
