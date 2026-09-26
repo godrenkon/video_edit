@@ -1,5 +1,5 @@
 name: Build Real-Media SSD HDD Explainer
-# rebuild-revision: 2026-09-26-real-media-after-nvme-semantic-fix
+# rebuild-revision: 2026-09-26-chapter-gap-semantic-media-fix
 
 on:
   push:
@@ -97,6 +97,21 @@ jobs:
           test -f voice/SSD_HDD_NARRATION_ZUNDAMON_48k.wav
           test -f voice/narration_timestamps.tsv
 
+      - name: Patch chapter-title media selection
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("tools/ssd_hdd_video/render_real_media.py")
+          s=p.read_text(encoding="utf-8")
+          old='pool=[x for x in pool_for(row["section"],gap_row["text"]) if optional_asset(x)]'
+          new='pool=[x for x in contextual_pool(row["section"],gap_row["text"],gap_row["text"],None) if optional_asset(x)]'
+          if old not in s:
+              raise SystemExit("chapter-gap selection target not found")
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding="utf-8")
+          print("chapter-gap semantic media selection patched")
+          PY
+
       - name: Render real-media explainer
         run: |
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
@@ -104,7 +119,10 @@ jobs:
 
       - name: Inspect final output
         run: |
-          ffprobe -v error             -show_entries stream=codec_name,width,height,r_frame_rate,sample_rate,channels,duration             -show_entries format=duration,size,bit_rate             -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
+          ffprobe -v error \
+            -show_entries stream=codec_name,width,height,r_frame_rate,sample_rate,channels,duration \
+            -show_entries format=duration,size,bit_rate \
+            -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
 
           python3 - <<'PY'
           import csv
@@ -132,17 +150,29 @@ jobs:
           cp real_video_output/storyboard.tsv qa/
           cp real_video_output/subtitles_green.ass qa/
           cp real_video_output/ATTRIBUTION.md qa/ || true
-          ffprobe -v error -show_streams -show_format -of json             real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > qa/ffprobe.json
+          ffprobe -v error -show_streams -show_format -of json \
+            real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > qa/ffprobe.json
 
           for T in 15 60 120 180 240 360 480 600 720 840 960 1080 1170; do
-            ffmpeg -y -loglevel error -ss "$T"               -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4               -frames:v 1 "qa/frames/frame_${T}.jpg"
+            ffmpeg -y -loglevel error -ss "$T" \
+              -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 \
+              -frames:v 1 "qa/frames/frame_${T}.jpg"
           done
 
-          ffmpeg -y -loglevel error -ss 120             -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15             -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast             -c:a aac -b:a 160k qa/sample_hdd.mp4
+          ffmpeg -y -loglevel error -ss 120 \
+            -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15 \
+            -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast \
+            -c:a aac -b:a 160k qa/sample_hdd.mp4
 
-          ffmpeg -y -loglevel error -ss 360             -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15             -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast             -c:a aac -b:a 160k qa/sample_compare.mp4
+          ffmpeg -y -loglevel error -ss 360 \
+            -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15 \
+            -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast \
+            -c:a aac -b:a 160k qa/sample_compare.mp4
 
-          ffmpeg -y -loglevel error -ss 720             -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15             -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast             -c:a aac -b:a 160k qa/sample_life.mp4
+          ffmpeg -y -loglevel error -ss 720 \
+            -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15 \
+            -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast \
+            -c:a aac -b:a 160k qa/sample_life.mp4
 
       - uses: actions/upload-artifact@v4
         with:
