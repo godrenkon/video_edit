@@ -10,11 +10,14 @@ new_gap='pool=[x for x in contextual_pool(row["section"],gap_row["text"],gap_row
 if old_gap in s:
     s=s.replace(old_gap,new_gap,1)
 
-# Summary phrases such as 「使い分け」 describe the SSD/HDD combination rather
-# than only the device named in the immediately preceding clause. Force those
-# phrases onto neutral real-media that shows the storage context/comparison.
+# Phrase-local semantic intent must beat a subject carried from the previous
+# subtitle phrase. This is especially important in a mixed sentence such as
+# "...SSDへ置いて、写真や完成した動画、バックアップなど大量に保存して...HDDへ...".
+# Without these overrides, the middle backup/archive clause can incorrectly
+# inherit SSD and show NVMe media even though the spoken concept is archival
+# storage / backup.
 pool_marker='''    combined=(full+" "+phrase).strip()\n\n    phrase_subject=detect_subject(phrase)\n'''
-pool_repl='''    combined=(full+" "+phrase).strip()\n\n    # A trailing summary clause like 「置くという使い分けもできる」 refers to\n    # the SSD/HDD assignment as a whole. Do not inherit only the preceding HDD\n    # or SSD subject; show both-device / PC-context real media instead.\n    if "使い分け" in phrase and "SSD" in full and "HDD" in full:\n        return [\n            "hdd_ssd_disassembled",\n            "pc_m2_hdd_inside",\n            "sata_vs_nvme",\n            "motherboard",\n        ]\n\n    phrase_subject=detect_subject(phrase)\n'''
+pool_repl='''    combined=(full+" "+phrase).strip()\n\n    # Backup/archive concepts are visually stronger than a carried SSD/HDD\n    # grammatical subject. Prefer NAS/external-drive/server real media.\n    if any(k in phrase for k in ["バックアップ", "別の場所", "クラウド", "3-2-1"]):\n        return [\n            "nas", "nas_drive_bay", "external_hdds",\n            "external_hdd_laptop", "external_ssd", "server_rack",\n        ]\n\n    # Large-capacity/archive wording should show capacity-oriented media even\n    # when the previous clause happened to mention SSD.\n    if any(k in phrase for k in ["大量に保存", "大容量", "保存しておきたい", "保管", "アーカイブ"]):\n        return [\n            "external_hdds", "nas", "nas_drive_bay", "hdd_side",\n            "external_ssd", "server_rack",\n        ]\n\n    # Boundary clauses that enumerate photos / completed videos in a sentence\n    # which later assigns HDD should stay neutral rather than falsely implying\n    # that only the previously named SSD is being discussed.\n    if any(k in phrase for k in ["写真", "完成した動画", "完成済み", "撮影素材"]):\n        if "SSD" in full and "HDD" in full:\n            return [\n                "hdd_ssd_disassembled", "external_hdds", "external_ssd",\n                "nas", "pc_m2_hdd_inside", "sata_vs_nvme",\n            ]\n\n    # A trailing summary clause like 「置くという使い分けもできる」 refers to\n    # the SSD/HDD assignment as a whole. Do not inherit only the preceding HDD\n    # or SSD subject; show both-device / PC-context real media instead.\n    if "使い分け" in phrase and "SSD" in full and "HDD" in full:\n        return [\n            "hdd_ssd_disassembled",\n            "pc_m2_hdd_inside",\n            "sata_vs_nvme",\n            "motherboard",\n        ]\n\n    phrase_subject=detect_subject(phrase)\n'''
 if pool_marker not in s:
     raise SystemExit("contextual_pool insertion marker not found")
 s=s.replace(pool_marker,pool_repl,1)
@@ -112,4 +115,4 @@ if old not in s:
 s=s.replace(old,new,1)
 
 p.write_text(s,encoding="utf-8")
-print("subject tracking v3.1 patched")
+print("subject tracking v3.2 patched")
