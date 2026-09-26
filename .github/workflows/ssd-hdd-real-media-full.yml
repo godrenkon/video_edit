@@ -46,7 +46,6 @@ jobs:
             cat real_assets/ATTRIBUTION_EXTRA.md >> real_assets/ATTRIBUTION.md
           fi
 
-
       - name: Download corrected Zundamon narration
         uses: actions/download-artifact@v4
         with:
@@ -62,9 +61,13 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install pillow janome
 
+      - name: Apply verified V3 semantic subject tracking
+        run: |
+          python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
+          python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
+
       - name: Render full real-media explainer
         run: |
-          python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
           python3 tools/ssd_hdd_video/render_real_media.py
 
       - name: Hard QA
@@ -139,7 +142,6 @@ jobs:
                   s=raw.strip()
                   if not s.startswith("- **"):
                       continue
-                  # Markdown bold only removed; source URLs/licence/author remain intact.
                   lines.append(s.replace("**",""))
           lines += [
             "",
