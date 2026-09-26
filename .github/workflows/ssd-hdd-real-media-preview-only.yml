@@ -1,0 +1,71 @@
+name: Extract SSD HDD Real-Media Preview
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-media-preview-only.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download completed real-media artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-media-final
+          path: source
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36238584593
+
+      - name: Install ffmpeg if needed
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y ffmpeg
+          fi
+
+      - name: Extract preview and all-video QA frames
+        run: |
+          mkdir -p preview/frames
+          cp source/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4 preview/
+          cp source/storyboard.tsv preview/
+          cp source/ATTRIBUTION.md preview/ || true
+          cp source/subtitles_green.ass preview/
+          ffprobe -v error -show_streams -show_format -of json \
+            source/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4 > preview/ffprobe_preview.json
+
+          DURATION=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 source/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4)
+          python3 - <<'PY' > /tmp/times.txt
+          import json, subprocess
+          p='source/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4'
+          d=float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','default=nw=1:nk=1',p],text=True).strip())
+          t=0
+          while t < d:
+              print(t)
+              t += 30
+          PY
+          while read -r T; do
+            ffmpeg -y -loglevel error -ss "$T" -i source/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4 -frames:v 1 "preview/frames/frame_${T}.jpg"
+          done < /tmp/times.txt
+
+          ffmpeg -y -loglevel error -i source/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4 \
+            -vf scale=854:480 -c:v libx264 -preset veryfast -crf 27 \
+            -c:a aac -b:a 128k preview/SSD_HDD_REAL_MEDIA_PROXY_480p.mp4
+          ls -lah preview preview/frames
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-preview-only
+          path: preview
+          compression-level: 0
+          retention-days: 7
