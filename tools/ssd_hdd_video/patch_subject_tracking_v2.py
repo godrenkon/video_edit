@@ -4,6 +4,14 @@ from pathlib import Path
 p=Path("tools/ssd_hdd_video/render_real_media.py")
 s=p.read_text(encoding="utf-8")
 
+# Keep chapter-title/gap visuals on the same semantic selector used by narration.
+# Smoke workflows used to patch this separately, which meant Full build could
+# silently fall back to a different media decision path.
+old_gap='pool=[x for x in pool_for(row["section"],gap_row["text"]) if optional_asset(x)]'
+new_gap='pool=[x for x in contextual_pool(row["section"],gap_row["text"],gap_row["text"],None) if optional_asset(x)]'
+if old_gap in s:
+    s=s.replace(old_gap,new_gap,1)
+
 marker='def initial_subject_hint(section, source_text):\n'
 if marker not in s:
     raise SystemExit("initial_subject_hint marker not found")
@@ -16,6 +24,10 @@ helper=r'''def detect_subject_switch(phrase, current_hint=None):
       HDDは... / HDDでも... / HDDへ... => HDD
       HDDと同じように... / HDDとの差... => keep current subject
       SSDとHDDを比べる... => BOTH
+
+    The function intentionally tracks only the storage-device subject. Terms
+    such as NVMe, M.2, NAND, SATA and RAM describe the current device/concept;
+    they must never be mistaken for a device-subject switch by themselves.
     """
     t=(phrase or "").strip()
     if not t:
@@ -47,7 +59,7 @@ helper=r'''def detect_subject_switch(phrase, current_hint=None):
     has_ssd="SSD" in t
 
     # Explicit symmetric comparison.
-    if has_hdd and has_ssd and any(k in t for k in ["比べ", "比較", "違い", "どちら", "どっち", "vs", "VS"]):
+    if has_hdd and has_ssd and any(k in t for k in ["比べ", "比較", "違い", "どちら", "どっち", "両方", "vs", "VS"]):
         return "BOTH"
 
     # Strong grammatical topic markers. Choose the one that occurs first,
@@ -56,12 +68,12 @@ helper=r'''def detect_subject_switch(phrase, current_hint=None):
         "SSD":[
             "SSDは", "SSDでは", "SSDには", "SSDが", "SSDでも", "SSDへ",
             "SSDの場合", "SSDなら", "一方SSD", "対してSSD", "それに対してSSD",
-            "SSD側", "SSDの中", "SSDの方",
+            "SSD側", "SSDの中", "SSDの方", "SSDだから", "SSDならば",
         ],
         "HDD":[
             "HDDは", "HDDでは", "HDDには", "HDDが", "HDDでも", "HDDへ",
             "HDDの場合", "HDDなら", "一方HDD", "対してHDD", "それに対してHDD",
-            "HDD側", "HDDの中", "HDDの方",
+            "HDD側", "HDDの中", "HDDの方", "HDDだから", "HDDならば",
         ],
     }
     candidates=[]
@@ -97,7 +109,7 @@ s=s.replace(marker,helper+marker,1)
 # marker seeds the sentence; otherwise the sentence starts neutral until a
 # subtitle phrase explicitly names its device.
 old_initial='''def initial_subject_hint(section, source_text):\n    explicit=detect_subject(source_text)\n    if explicit in ("HDD","SSD"):\n        return explicit\n    # Pure HDD/SSD mechanism chapters keep their subject even when a sentence\n    # omits the acronym ("円盤", "読み取り部分", "この仕組み" etc.).\n    if "HDDとは" in section:\n        return "HDD"\n    if "SSDとは" in section:\n        return "SSD"\n    return None\n'''
-new_initial='''def initial_subject_hint(section, source_text):\n    t=(source_text or "").strip()\n    explicit=detect_subject(t)\n    if explicit in ("HDD","SSD"):\n        return explicit\n\n    if explicit=="BOTH":\n        # Symmetric group openings are genuinely about both sides.\n        grouped=("SSDとHDD", "HDDとSSD", "SSDやHDD", "HDDやSSD",\n                 "SSD・HDD", "HDD・SSD", "SSDにもHDDにも", "HDDにもSSDにも")\n        if any(t.startswith(x) for x in grouped):\n            return "BOTH"\n\n        # If the sentence opens with a clear topic marker, seed that subject.\n        # A device first mentioned much later (e.g. Windows...はSSDへ...) does\n        # not control the earlier generic clause.\n        markers={\n            "SSD":["SSDは","SSDでは","SSDには","SSDが","SSDでも","SSDの場合",\n                   "SSDなら","一方SSD","SSDの中","SSDの方"],\n            "HDD":["HDDは","HDDでは","HDDには","HDDが","HDDでも","HDDの場合",\n                   "HDDなら","一方HDD","HDDの中","HDDの方"],\n        }\n        hits=[]\n        for subject,needles in markers.items():\n            for x in needles:\n                pos=t.find(x)\n                if pos>=0:\n                    hits.append((pos,subject))\n        if hits:\n            pos,subject=min(hits,key=lambda x:x[0])\n            if pos<=14:\n                return subject\n\n        # Direct early mention also seeds the sentence when it is not a grouped\n        # SSD/HDD construction.\n        first=[]\n        for subject in ("SSD","HDD"):\n            pos=t.find(subject)\n            if pos>=0:\n                first.append((pos,subject))\n        if first:\n            pos,subject=min(first,key=lambda x:x[0])\n            if pos<=8:\n                return subject\n\n        return None\n\n    # Pure mechanism chapters keep their subject even when a sentence omits\n    # the acronym ("円盤", "読み取り部分", "この仕組み" etc.).\n    if "HDDとは" in section:\n        return "HDD"\n    if "SSDとは" in section:\n        return "SSD"\n    return None\n'''
+new_initial='''def initial_subject_hint(section, source_text):\n    t=(source_text or "").strip()\n    explicit=detect_subject(t)\n    if explicit in ("HDD","SSD"):\n        return explicit\n\n    if explicit=="BOTH":\n        # Symmetric group openings are genuinely about both sides.\n        grouped=("SSDとHDD", "HDDとSSD", "SSDやHDD", "HDDやSSD",\n                 "SSD・HDD", "HDD・SSD", "SSDにもHDDにも", "HDDにもSSDにも")\n        if any(t.startswith(x) for x in grouped):\n            return "BOTH"\n\n        # If the sentence opens with a clear topic marker, seed that subject.\n        # A device first mentioned much later (e.g. Windows...はSSDへ...) does\n        # not control the earlier generic clause.\n        markers={\n            "SSD":["SSDは","SSDでは","SSDには","SSDが","SSDでも","SSDの場合",\n                   "SSDなら","一方SSD","SSDの中","SSDの方","SSDだから"],\n            "HDD":["HDDは","HDDでは","HDDには","HDDが","HDDでも","HDDの場合",\n                   "HDDなら","一方HDD","HDDの中","HDDの方","HDDだから"],\n        }\n        hits=[]\n        for subject,needles in markers.items():\n            for x in needles:\n                pos=t.find(x)\n                if pos>=0:\n                    hits.append((pos,subject))\n        if hits:\n            pos,subject=min(hits,key=lambda x:x[0])\n            if pos<=14:\n                return subject\n\n        # Direct early mention also seeds the sentence when it is not a grouped\n        # SSD/HDD construction.\n        first=[]\n        for subject in ("SSD","HDD"):\n            pos=t.find(subject)\n            if pos>=0:\n                first.append((pos,subject))\n        if first:\n            pos,subject=min(first,key=lambda x:x[0])\n            if pos<=8:\n                return subject\n\n        return None\n\n    # Pure mechanism chapters keep their subject even when a sentence omits\n    # the acronym ("円盤", "読み取り部分", "この仕組み" etc.).\n    if "HDDとは" in section:\n        return "HDD"\n    if "SSDとは" in section:\n        return "SSD"\n    return None\n'''
 if old_initial not in s:
     raise SystemExit("initial_subject_hint block not found")
 s=s.replace(old_initial,new_initial,1)
