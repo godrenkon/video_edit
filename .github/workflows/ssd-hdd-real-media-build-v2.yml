@@ -1,0 +1,204 @@
+name: Build Real-Media SSD HDD Explainer V2
+# revision: 2026-09-27-subject-tracking-v2
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-media-build-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ssd-hdd-real-media-full-build-v2
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install render dependencies
+        run: |
+          set -euxo pipefail
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y ffmpeg
+          fi
+          if [ ! -f /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y fonts-noto-cjk
+          fi
+          python3 - <<'PY' || python3 -m pip install --disable-pip-version-check pillow janome
+          import PIL, janome
+          PY
+
+      - name: Download known-good real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets
+          path: real_assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35807470144
+
+      - name: Download supplemental real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets-extra
+          path: real_assets_extra
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35807748858
+
+      - name: Merge supplemental real assets
+        run: |
+          cp -a real_assets_extra/. real_assets/
+          if [ -f real_assets/ATTRIBUTION_EXTRA.md ]; then
+            printf "\n\n" >> real_assets/ATTRIBUTION.md
+            cat real_assets/ATTRIBUTION_EXTRA.md >> real_assets/ATTRIBUTION.md
+          fi
+
+      - name: Download corrected Zundamon narration
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-zundamon-narration
+          path: voice
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35667383665
+
+      - name: Verify source bundle
+        run: |
+          test -f real_assets/hdd_working_video.webm
+          test -f real_assets/hdd_open_photo.jpg
+          test -f real_assets/hdd_head_macro.jpg
+          test -f real_assets/sata_ssd.jpg
+          test -f real_assets/nvme_m2.jpg
+          test -f real_assets/ssd_controller.jpg
+          test -f real_assets/ssd_nand.jpg
+          test -f real_assets/motherboard.jpg
+          test -f real_assets/nas.jpg
+          test -f real_assets/server_rack.jpg
+          test -f real_assets/zundamon_official.webp
+          test -f real_assets/bgm_pamgaea.mp3
+          test -f voice/SSD_HDD_NARRATION_ZUNDAMON_48k.wav
+          test -f voice/narration_timestamps.tsv
+
+      - name: Patch chapter-title media selection
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("tools/ssd_hdd_video/render_real_media.py")
+          s=p.read_text(encoding="utf-8")
+          old='pool=[x for x in pool_for(row["section"],gap_row["text"]) if optional_asset(x)]'
+          new='pool=[x for x in contextual_pool(row["section"],gap_row["text"],gap_row["text"],None) if optional_asset(x)]'
+          if old not in s:
+              raise SystemExit("chapter-gap selection target not found")
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding="utf-8")
+          PY
+
+      - name: Apply grammatical subject tracking V2
+        run: |
+          python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
+          python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
+
+      - name: Render real-media explainer V2
+        run: |
+          python3 tools/ssd_hdd_video/render_real_media.py
+
+      - name: Inspect and enforce final semantic QA
+        run: |
+          ffprobe -v error \
+            -show_entries stream=codec_name,width,height,r_frame_rate,sample_rate,channels,duration \
+            -show_entries format=duration,size,bit_rate \
+            -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
+
+          python3 - <<'PY'
+          import csv
+          from pathlib import Path
+          rows=list(csv.DictReader(Path('real_video_output/storyboard.tsv').open(encoding='utf-8'),delimiter='\t'))
+          assert rows
+          holds=[float(r['duration']) for r in rows]
+          assets=[r['asset'] for r in rows]
+          hdd_assets={
+              'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open',
+              'hdd_side','external_hdds','external_hdd_laptop','nas','nas_drive_bay','server_rack'
+          }
+          bad_subject=[]
+          for r in rows:
+              txt=r['text']
+              section=r['section']
+              if 'SSDとは' in section and '保存するためのストレージ' in txt and r['asset'] in hdd_assets:
+                  bad_subject.append((r['start'],r['asset'],txt))
+          print('visual_events',len(rows))
+          print('unique_assets',len(set(assets)))
+          print('max_visual_hold',max(holds))
+          print('holds_over_4s',sum(x>4.05 for x in holds))
+          print('adjacent_repeat',sum(assets[i]==assets[i-1] for i in range(1,len(assets))))
+          print('ssd_subject_regressions',bad_subject)
+          assert max(holds)<=4.05
+          assert not any(assets[i]==assets[i-1] for i in range(1,len(assets)))
+          assert len(set(assets))>=10
+          assert not bad_subject
+          PY
+
+      - name: Create compact QA package
+        run: |
+          mkdir -p qa/frames
+          cp real_video_output/storyboard.tsv qa/
+          cp real_video_output/subtitles_green.ass qa/
+          cp real_video_output/ATTRIBUTION.md qa/ || true
+          ffprobe -v error -show_streams -show_format -of json \
+            real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > qa/ffprobe.json
+
+          for T in 15 60 120 180 240 300 330 360 420 480 600 720 840 960 1080 1170; do
+            ffmpeg -y -loglevel error -ss "$T" \
+              -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 \
+              -frames:v 1 "qa/frames/frame_${T}.jpg"
+          done
+
+          ffmpeg -y -loglevel error -ss 286 \
+            -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 105 \
+            -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast \
+            -c:a aac -b:a 160k qa/sample_ssd_chapter.mp4
+
+          ffmpeg -y -loglevel error -ss 120 \
+            -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15 \
+            -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast \
+            -c:a aac -b:a 160k qa/sample_hdd.mp4
+
+          ffmpeg -y -loglevel error -ss 360 \
+            -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15 \
+            -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast \
+            -c:a aac -b:a 160k qa/sample_compare.mp4
+
+          ffmpeg -y -loglevel error -ss 720 \
+            -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 15 \
+            -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast \
+            -c:a aac -b:a 160k qa/sample_life.mp4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-final-v2
+          path: |
+            real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_CLEAN.mp4
+            real_video_output/bgm_stem.wav
+            real_video_output/subtitles_green.ass
+            real_video_output/storyboard.tsv
+            real_video_output/ATTRIBUTION.md
+          compression-level: 0
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-qa-v2
+          path: qa
+          compression-level: 0
+          retention-days: 7
