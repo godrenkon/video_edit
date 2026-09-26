@@ -61,9 +61,10 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install pillow janome
 
-      - name: Apply verified V3 semantic subject tracking
+      - name: Apply verified V4 semantic tracking
         run: |
           python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
+          python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
 
       - name: Render full real-media explainer
@@ -75,6 +76,8 @@ jobs:
           ffprobe -v error -show_streams -show_format -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > real_video_output/ffprobe.json
           python3 - <<'PY'
           import csv, json, re
+          from collections import Counter, defaultdict
+
           rows=list(csv.DictReader(open("real_video_output/storyboard.tsv",encoding="utf-8"),delimiter="\t"))
           assert rows, "empty storyboard"
           durations=[float(r["duration"]) for r in rows]
@@ -83,11 +86,8 @@ jobs:
           assert "zundamon_official" not in assets, "Zundamon used as background media"
           assert len(assets) >= 14, len(assets)
           assert len(rows) >= 250, len(rows)
+          assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows))), "adjacent repeated real-media asset"
 
-          # Per-chapter media diversity QA: do not let the video fall back into
-          # long stretches of the same few assets even when every individual
-          # shot is short.
-          from collections import Counter, defaultdict
           by_section=defaultdict(list)
           for r in rows:
               by_section[r["section"]].append(r)
@@ -100,6 +100,39 @@ jobs:
               top_share = top_count / len(rs)
               assert top_share <= 0.30, (section, "asset overused", top_asset, top_share)
 
+          # Phrase-level semantics. Reject technically-related but visually misleading B-roll.
+          hdd_only={
+              'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open',
+              'hdd_side','external_hdds','external_hdd_laptop','nas','nas_drive_bay','server_rack'
+          }
+          ssd_only={
+              'sata_ssd','crucial_ssd','nvme_m2','laptop_nvme','m2_installed',
+              'ssd_controller','ssd_nand','ssd_install'
+          }
+          backup_bad={
+              'sata_ssd','crucial_ssd','nvme_m2','laptop_nvme','m2_installed',
+              'ssd_controller','ssd_nand','ssd_install'
+          }
+          neutral={
+              'hdd_ssd_disassembled','sata_vs_nvme','pc_m2_hdd_inside','motherboard',
+              'sata_ssd','hdd_side'
+          }
+          semantic_errors=[]
+          for r in rows:
+              txt=r['text']
+              full=r.get('source_text','')
+              a=r['asset']
+              if ('バックアップ' in txt or '大量に保存' in txt) and a in backup_bad:
+                  semantic_errors.append(('backup/archive',r))
+              if ('全部SSD' in txt or ('することもできるし' in txt and r.get('subject_hint')=='SSD')) and a in hdd_only:
+                  semantic_errors.append(('all-SSD',r))
+              if ('HDDを' in txt or ('多く使う構成' in txt and r.get('subject_hint')=='HDD')) and a in ssd_only:
+                  semantic_errors.append(('HDD-heavy',r))
+              if any(k in txt for k in ['名前だけで判断','それぞれの特徴','特徴を理解','自分の用途','用途に合った','選ぶこと']):
+                  if 'SSDだから良い' in full and a not in neutral:
+                      semantic_errors.append(('neutral conclusion',r))
+          assert not semantic_errors, semantic_errors[:20]
+
           probe=json.load(open("real_video_output/ffprobe.json"))
           fmt=probe["format"]
           assert float(fmt["duration"]) > 1100, fmt["duration"]
@@ -109,6 +142,7 @@ jobs:
           assert video["r_frame_rate"]=="60/1"
           assert audio["sample_rate"]=="48000"
           assert audio["channels"]==2, audio.get("channels")
+
           ass=open("real_video_output/subtitles_green.ass",encoding="utf-8-sig").read().splitlines()
           cues=[]
           for line in ass:
@@ -120,6 +154,7 @@ jobs:
           bad=[x for x in cues if x.startswith(("、","。","，",",","：",":","；",";","！","？","!","?"))]
           assert not bad, "leading punctuation in subtitle: "+repr(bad[:10])
           assert max(map(len,cues)) <= 33, max(map(len,cues))
+
           import os
           assert os.path.getsize("real_video_output/sfx_stem.wav") > 1000, "sfx_stem.wav"
           print("events",len(rows),"unique_assets",len(assets),"max_hold",max(durations),"duration",fmt["duration"],"subtitle_cues",len(cues),"subtitle_max",max(map(len,cues)))
