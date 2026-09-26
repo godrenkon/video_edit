@@ -1,0 +1,116 @@
+name: Smoke Test SSD HDD Subject Tracking V2
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-media-subject-v2-smoke.yml"
+      - "tools/ssd_hdd_video/patch_subject_tracking_v2.py"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install render dependencies
+        run: |
+          set -euxo pipefail
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y ffmpeg
+          fi
+          if [ ! -f /usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y fonts-noto-cjk
+          fi
+          python3 - <<'PY' || python3 -m pip install --disable-pip-version-check pillow janome
+          import PIL, janome
+          PY
+
+      - name: Download real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets
+          path: real_assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35807470144
+
+      - name: Download supplemental assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets-extra
+          path: real_assets_extra
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35807748858
+
+      - name: Merge supplemental assets
+        run: |
+          cp -a real_assets_extra/. real_assets/
+          if [ -f real_assets/ATTRIBUTION_EXTRA.md ]; then
+            printf "\n\n" >> real_assets/ATTRIBUTION.md
+            cat real_assets/ATTRIBUTION_EXTRA.md >> real_assets/ATTRIBUTION.md
+          fi
+
+      - name: Download corrected narration
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-zundamon-narration
+          path: voice
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35667383665
+
+      - name: Apply subject tracking V2 patch
+        run: |
+          python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
+          python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
+
+      - name: Render SSD chapter smoke sample
+        env:
+          SSD_HDD_SMOKE_START: "286"
+          SSD_HDD_SMOKE_SECONDS: "105"
+        run: |
+          python3 tools/ssd_hdd_video/render_real_media.py
+
+      - name: Verify subject/media semantics
+        run: |
+          python3 - <<'PY'
+          import csv
+          rows=list(csv.DictReader(open('real_video_output/storyboard.tsv',encoding='utf-8'),delimiter='\t'))
+          hdd_assets={'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open','hdd_side','external_hdds','external_hdd_laptop','nas','nas_drive_bay','server_rack'}
+          bad=[]
+          for r in rows:
+              txt=r['text']
+              if '保存するためのストレージ' in txt and r['asset'] in hdd_assets:
+                  bad.append((r['start'],r['asset'],txt))
+          print('events',len(rows))
+          print('bad_subject_carry',bad)
+          assert not bad
+          assert max(float(r['duration']) for r in rows) <= 4.05
+          assets=[r['asset'] for r in rows]
+          assert not any(assets[i]==assets[i-1] for i in range(1,len(assets)))
+          PY
+
+      - name: Extract smoke QA
+        run: |
+          mkdir -p smoke/frames
+          cp real_video_output/storyboard.tsv smoke/
+          cp real_video_output/subtitles_green.ass smoke/
+          for T in 2 10 18 26 34 42 50 58 66 74 82 90 100; do
+            ffmpeg -y -loglevel error -ss "$T" -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -frames:v 1 "smoke/frames/frame_${T}.jpg"
+          done
+          ffmpeg -y -loglevel error -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k smoke/ssd_chapter_subject_v2.mp4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-subject-v2-smoke
+          path: smoke
+          compression-level: 0
+          retention-days: 7
