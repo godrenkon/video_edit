@@ -1,4 +1,4 @@
-name: Smoke Test SSD HDD Mixed-Sentence Tracking V3
+name: Smoke Test SSD HDD Mixed-Sentence Tracking V4
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/ssd-hdd-real-media-mixed-v3-smoke.yml"
       - "tools/ssd_hdd_video/patch_subject_tracking_v2.py"
+      - "tools/ssd_hdd_video/patch_visual_semantics_v4.py"
   workflow_dispatch:
 
 permissions:
@@ -67,7 +68,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 35667383665
 
-      - name: Patch chapter-title and subject tracking V3
+      - name: Apply semantic tracking V4
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -80,45 +81,76 @@ jobs:
           p.write_text(s,encoding="utf-8")
           PY
           python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
+          python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
 
-      - name: Render final-chapter mixed-sentence smoke
+      - name: Render final-chapter semantic smoke
         env:
           SSD_HDD_SMOKE_START: "1128"
           SSD_HDD_SMOKE_SECONDS: "55"
         run: |
           python3 tools/ssd_hdd_video/render_real_media.py
 
-      - name: Verify mixed-sentence semantic tracking
+      - name: Verify phrase-level real-media semantics
         run: |
           python3 - <<'PY'
           import csv
           rows=list(csv.DictReader(open('real_video_output/storyboard.tsv',encoding='utf-8'),delimiter='\t'))
-          hdd_only={'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open','hdd_side','external_hdds','external_hdd_laptop','nas','nas_drive_bay','server_rack'}
-          ssd_only={'sata_ssd','crucial_ssd','nvme_m2','laptop_nvme','m2_installed','external_ssd','ssd_controller','ssd_nand','ssd_install'}
+          assert rows
+
+          hdd_only={
+              'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open',
+              'hdd_side','external_hdds','external_hdd_laptop','nas','nas_drive_bay','server_rack'
+          }
+          ssd_only={
+              'sata_ssd','crucial_ssd','nvme_m2','laptop_nvme','m2_installed',
+              'ssd_controller','ssd_nand','ssd_install'
+          }
+          backup_bad={
+              'sata_ssd','crucial_ssd','nvme_m2','laptop_nvme','m2_installed',
+              'ssd_controller','ssd_nand','ssd_install'
+          }
+          neutral={
+              'hdd_ssd_disassembled','sata_vs_nvme','pc_m2_hdd_inside','motherboard',
+              'sata_ssd','hdd_side'
+          }
 
           target=[r for r in rows if 'Windowsやアプリ' in r.get('source_text','')]
           print('windows_sentence_rows:')
           for r in target: print(r)
           assert target, 'target Windows/SSD/HDD sentence not found'
 
-          # Generic opening clauses must not inherit the previous HDD subject.
           for r in target:
               txt=r['text']
-              if 'SSD' not in txt and 'HDD' not in txt:
-                  assert r['asset'] not in hdd_only, ('generic opening inherited HDD',r)
+              if 'バックアップ' in txt or '大量に保存' in txt:
+                  assert r['asset'] not in backup_bad, ('backup/archive clause used active SSD media',r)
               if 'SSD' in txt and 'HDD' not in txt:
                   assert r['asset'] not in hdd_only, ('SSD clause used HDD-only asset',r)
               if 'HDD' in txt and 'SSD' not in txt:
                   assert r['asset'] not in ssd_only, ('HDD clause used SSD-only asset',r)
 
-          # Final principle sentence should switch locally rather than carry HDD to the end.
+          role=[r for r in rows if '必要な容量が少なく予算に' in r.get('source_text','')]
+          print('role_assignment_rows:')
+          for r in role: print(r)
+          assert role
+          for r in role:
+              txt=r['text']
+              if '全部SSD' in txt or ('することもできるし' in txt and r.get('subject_hint')=='SSD'):
+                  assert r['asset'] not in hdd_only, ('all-SSD clause used HDD-only asset',r)
+              if 'HDDを' in txt or ('多く使う構成' in txt and r.get('subject_hint')=='HDD'):
+                  assert r['asset'] not in ssd_only, ('HDD-heavy clause used SSD-only asset',r)
+
           principle=[r for r in rows if 'SSDだから良い' in r.get('source_text','')]
           print('principle_rows:')
           for r in principle: print(r)
           assert principle
+          for r in principle:
+              if any(k in r['text'] for k in ['名前だけで判断','それぞれの特徴','特徴を理解','自分の用途','用途に合った','選ぶこと']):
+                  assert r['asset'] in neutral, ('final neutral-principle clause used one-sided media',r)
+
           assert max(float(r['duration']) for r in rows) <= 4.05
           assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows)))
+          print('semantic_v4_ok',len(rows))
           PY
 
       - name: Extract QA
@@ -129,11 +161,11 @@ jobs:
           for T in 2 8 14 20 26 32 38 44 50; do
             ffmpeg -y -loglevel error -ss "$T" -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -frames:v 1 "smoke/frames/frame_${T}.jpg"
           done
-          ffmpeg -y -loglevel error -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k smoke/final_chapter_v3.mp4
+          ffmpeg -y -loglevel error -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -vf scale=1280:720 -c:v libx264 -crf 22 -preset veryfast -c:a aac -b:a 160k smoke/final_chapter_v4.mp4
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ssd-hdd-mixed-v3-smoke
+          name: ssd-hdd-mixed-v4-smoke
           path: smoke
           compression-level: 0
           retention-days: 7
