@@ -14,7 +14,8 @@ s=s.replace(old,new,1)
 p.write_text(s,encoding="utf-8")
 print("phrase boundaries v5 patched")
 
-# V6 is deliberately chained from V5 so every full-render workflow that already
-# applies the verified V5 semantic patch also receives the final near-repeat
-# invariant before ffmpeg rendering begins.
+# V6 inserts the deterministic near-repeat machinery. V7 then inserts the
+# explanatory semantic-specificity pass immediately before the V6 finalizer,
+# so runtime order is: semantic specificity -> no-near-repeat invariant.
 runpy.run_path("tools/ssd_hdd_video/patch_near_repeat_v6.py", run_name="__main__")
+runpy.run_path("tools/ssd_hdd_video/patch_semantic_specificity_v7.py", run_name="__main__")
