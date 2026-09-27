@@ -1,4 +1,6 @@
 Full real-media production render
-revision: V6 deterministic near-repeat repair + V5 semantic phrase-boundary patch + latest subject tracking/visual semantics
-workflow_commit: 22556a9166c6229647eae492e1571202b5c5bfd3
-timestamp: 2026-09-27T16:25+09:00
+revision: V8 canonical semantic locks + V7 specificity + V6 deterministic near-repeat repair + V5 phrase boundaries + latest subject tracking/visual semantics
+fast_semantic_qa_run: 36308599006
+fast_semantic_qa_result: PASS (531 events, strict semantics)
+workflow_commit: 68cb3830f374923aa7ff685a6f25e886ea485dec
+timestamp: 2026-09-27T18:15+09:00
