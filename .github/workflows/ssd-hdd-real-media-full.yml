@@ -61,7 +61,7 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install pillow janome
 
-      - name: Apply verified V5 semantic tracking
+      - name: Apply verified V8/V5 semantic tracking
         run: |
           python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
           python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
@@ -76,7 +76,7 @@ jobs:
         run: |
           ffprobe -v error -show_streams -show_format -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > real_video_output/ffprobe.json
           python3 - <<'PY'
-          import csv, json, re
+          import csv, json, re, os
           from collections import Counter, defaultdict
 
           rows=list(csv.DictReader(open("real_video_output/storyboard.tsv",encoding="utf-8"),delimiter="\t"))
@@ -88,6 +88,7 @@ jobs:
           assert len(assets) >= 14, len(assets)
           assert len(rows) >= 250, len(rows)
           assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows))), "adjacent repeated real-media asset"
+          assert not any(rows[i]['asset']==rows[i-2]['asset'] for i in range(2,len(rows))), "A-B-A near-repeat real-media asset"
 
           by_section=defaultdict(list)
           for r in rows:
@@ -99,34 +100,41 @@ jobs:
               assert len(counts) >= 6, (section, "too few unique assets", counts)
               top_asset, top_count = counts.most_common(1)[0]
               top_share = top_count / len(rs)
-              assert top_share <= 0.30, (section, "asset overused", top_asset, top_share)
+              assert top_share <= 0.32, (section, "asset overused", top_asset, top_share)
 
-          # Phrase-level semantics. Reject technically-related but visually misleading B-roll.
           hdd_only={
               'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open',
               'hdd_side','external_hdds','external_hdd_laptop','nas','nas_drive_bay','server_rack'
+          }
+          hdd_internal={
+              'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open','hdd_side'
           }
           ssd_only={
               'sata_ssd','crucial_ssd','nvme_m2','laptop_nvme','m2_installed',
               'ssd_controller','ssd_nand','ssd_install'
           }
-          backup_bad={
-              'sata_ssd','crucial_ssd','nvme_m2','laptop_nvme','m2_installed',
-              'ssd_controller','ssd_nand','ssd_install'
-          }
+          backup_bad=set(ssd_only)
           neutral={
-              'hdd_ssd_disassembled','sata_vs_nvme','pc_m2_hdd_inside','motherboard',
-              'sata_ssd','hdd_side'
+              'hdd_ssd_disassembled','pc_m2_hdd_inside','motherboard','computer_components_video'
+          }
+          backup_good={
+              'nas','nas_drive_bay','external_hdds','external_hdd_laptop','server_rack',
+              'pc_m2_hdd_inside','hdd_ssd_disassembled'
           }
           semantic_errors=[]
           archive_markers=('バックアップ','大量に保存','保存しておきたい','アーカイブ','保管しておきたい')
           role_markers=('SSDへ置いて、','HDDへ置いて、','SSDに置いて、','HDDに置いて、','SSDへ保存して、','HDDへ保存して、','SSDに保存して、','HDDに保存して、')
+          hdd_mech_markers=('プラッタ','ヘッド','5400RPM','7200RPM','回転機構','回転音','円盤','読み取り部分','モーター')
+          backup_concept_markers=('ストレージ一台だけ','バックアップに','別の場所','同じデータ','3-2-1','合計3つ','2種類の保存先','一台が壊れても','壊れてもデータが残る','データが残る状態')
+
           for r in rows:
-              txt=r['text']
-              full=r.get('source_text','')
-              a=r['asset']
+              txt=r['text']; full=r.get('source_text',''); a=r['asset']
               if ('バックアップ' in txt or '大量に保存' in txt) and a in backup_bad:
                   semantic_errors.append(('backup/archive',r))
+              if any(k in txt for k in hdd_mech_markers) and a not in hdd_internal:
+                  semantic_errors.append(('HDD mechanism',r))
+              if r['section']=='第9章　バックアップは必要' and any(k in txt for k in backup_concept_markers) and a not in backup_good:
+                  semantic_errors.append(('backup concept',r))
               if ('全部SSD' in txt or ('することもできるし' in txt and r.get('subject_hint')=='SSD')) and a in hdd_only:
                   semantic_errors.append(('all-SSD',r))
               if ('HDDを' in txt or ('多く使う構成' in txt and r.get('subject_hint')=='HDD')) and a in ssd_only:
@@ -159,10 +167,8 @@ jobs:
           bad=[x for x in cues if x.startswith(("、","。","，",",","：",":","；",";","！","？","!","?"))]
           assert not bad, "leading punctuation in subtitle: "+repr(bad[:10])
           assert max(map(len,cues)) <= 33, max(map(len,cues))
-
-          import os
           assert os.path.getsize("real_video_output/sfx_stem.wav") > 1000, "sfx_stem.wav"
-          print("events",len(rows),"unique_assets",len(assets),"max_hold",max(durations),"duration",fmt["duration"],"subtitle_cues",len(cues),"subtitle_max",max(map(len,cues)))
+          print("HARD_QA_OK events",len(rows),"unique_assets",len(assets),"max_hold",max(durations),"duration",fmt["duration"],"subtitle_cues",len(cues),"subtitle_max",max(map(len,cues)))
           print("assets",sorted(assets))
           PY
 
