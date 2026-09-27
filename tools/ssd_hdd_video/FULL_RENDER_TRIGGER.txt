@@ -1,6 +1,8 @@
 Full real-media production render
 revision: V8 canonical semantic locks + V7 specificity + V6 deterministic near-repeat repair + V5 phrase boundaries + latest subject tracking/visual semantics
 fast_semantic_qa_run: 36308599006
-fast_semantic_qa_result: PASS (531 events, strict semantics)
-workflow_commit: 68cb3830f374923aa7ff685a6f25e886ea485dec
-timestamp: 2026-09-27T18:15+09:00
+fast_semantic_qa_result: PASS (531 events, 25 unique assets, max_hold 3.828s, strict semantics)
+full_workflow_fix: cancel-in-progress=false + patch order matched to passing QA
+workflow_commit: bb2550fd83f961f09bf03171fb73c69a80acd704
+trigger_revision: rerun full real-media master after cancellation and patch-order fixes
+timestamp: 2026-09-27
