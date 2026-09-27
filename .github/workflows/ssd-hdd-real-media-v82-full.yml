@@ -1,0 +1,162 @@
+name: Build Full Real-Media SSD HDD Video V8.2
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - "tools/ssd_hdd_video/V82_FULL_TRIGGER.txt"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ssd-hdd-real-media-v82-full
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download verified real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets
+          path: real_assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35807470144
+
+      - name: Download supplemental real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets-extra
+          path: real_assets_extra
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35807748858
+
+      - name: Merge supplemental real assets
+        run: |
+          cp -a real_assets_extra/. real_assets/
+          if [ -f real_assets/ATTRIBUTION_EXTRA.md ]; then
+            cat real_assets/ATTRIBUTION_EXTRA.md >> real_assets/ATTRIBUTION.md
+          fi
+
+      - name: Download corrected Zundamon narration
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-zundamon-narration
+          path: voice
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 35667383665
+
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow janome
+
+      - name: Apply verified semantic tracking and V8.2 visuals
+        run: |
+          python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
+          python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
+          python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
+          python3 tools/ssd_hdd_video/patch_v82_visuals.py
+          python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
+
+      - name: Render V8.2 full real-media explainer
+        run: |
+          python3 tools/ssd_hdd_video/render_real_media.py
+
+      - name: V8.2 hard QA
+        run: |
+          ffprobe -v error -show_streams -show_format -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > real_video_output/ffprobe.json
+          python3 - <<'PY'
+          import csv, json, os, re
+          from collections import Counter, defaultdict
+          rows=list(csv.DictReader(open('real_video_output/storyboard.tsv',encoding='utf-8'),delimiter='\t'))
+          assert rows, 'empty storyboard'
+          durs=[float(r['duration']) for r in rows]
+          assets={r['asset'] for r in rows}
+          assert max(durs) <= 4.05, max(durs)
+          assert len(rows) >= 250, len(rows)
+          assert len(assets) >= 14, len(assets)
+          assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows))), 'adjacent repeated asset'
+          assert not any(rows[i]['asset']==rows[i-2]['asset'] for i in range(2,len(rows))), 'A-B-A near-repeat asset'
+          pose_count=int(open('real_video_output/zundamon_pose_count.txt').read().strip())
+          assert pose_count >= 2, ('expected multiple official Zundamon poses',pose_count)
+
+          by_section=defaultdict(list)
+          for r in rows: by_section[r['section']].append(r)
+          for section,rs in by_section.items():
+              if section=='次回': continue
+              counts=Counter(r['asset'] for r in rs)
+              assert len(counts) >= 6, (section,'too few unique assets',counts)
+              top_asset,top_count=counts.most_common(1)[0]
+              assert top_count/len(rs) <= 0.32, (section,'asset overused',top_asset,top_count/len(rs))
+
+          probe=json.load(open('real_video_output/ffprobe.json'))
+          fmt=probe['format']
+          video=next(x for x in probe['streams'] if x['codec_type']=='video')
+          audio=next(x for x in probe['streams'] if x['codec_type']=='audio')
+          assert float(fmt['duration']) > 1100, fmt['duration']
+          assert video['width']==1920 and video['height']==1080
+          assert video['r_frame_rate']=='60/1'
+          assert audio['sample_rate']=='48000' and audio['channels']==2
+
+          ass=open('real_video_output/subtitles_green.ass',encoding='utf-8-sig').read().splitlines()
+          cues=[]
+          for line in ass:
+              if not line.startswith('Dialogue:'): continue
+              txt=line.split(',,',1)[-1]
+              txt=re.sub(r'\{[^}]+\}','',txt).replace('\\N',' ').strip()
+              cues.append(txt)
+          assert cues
+          assert max(map(len,cues)) <= 33, max(map(len,cues))
+          assert not [x for x in cues if x.startswith(('、','。','，',',','：',':','；',';','！','？','!','?'))]
+          assert os.path.getsize('real_video_output/sfx_stem.wav') > 1000
+          print('V8.2_HARD_QA_OK','events',len(rows),'assets',len(assets),'poses',pose_count,'max_hold',max(durs),'duration',fmt['duration'])
+          PY
+
+      - name: Build QA samples
+        run: |
+          mkdir -p qa
+          cp real_video_output/storyboard.tsv qa/
+          cp real_video_output/ffprobe.json qa/
+          cp real_video_output/ATTRIBUTION.md qa/
+          cp real_video_output/subtitles_green.ass qa/
+          cp real_video_output/zundamon_pose_count.txt qa/
+          for T in 15 90 180 300 420 540 660 780 900 1020 1140; do cp "real_video_output/frame_${T}.png" qa/; done
+          ffmpeg -y -loglevel error -ss 0 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 35 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/opening_35s.mp4
+          ffmpeg -y -loglevel error -ss 390 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 25 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/speed_25s.mp4
+          ffmpeg -y -loglevel error -ss 620 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 25 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/types_25s.mp4
+          ffmpeg -y -loglevel error -ss 900 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 25 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/backup_25s.mp4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-v82-final
+          path: |
+            real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_CLEAN.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4
+            real_video_output/bgm_stem.wav
+            real_video_output/sfx_stem.wav
+            real_video_output/storyboard.tsv
+            real_video_output/subtitles_green.ass
+            real_video_output/ATTRIBUTION.md
+            real_video_output/ffprobe.json
+            real_video_output/zundamon_pose_count.txt
+          compression-level: 0
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-v82-qa
+          path: qa
+          compression-level: 0
+          retention-days: 7
