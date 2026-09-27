@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import runpy
 
 p=Path("tools/ssd_hdd_video/render_real_media.py")
 s=p.read_text(encoding="utf-8")
@@ -12,3 +13,8 @@ if old not in s:
 s=s.replace(old,new,1)
 p.write_text(s,encoding="utf-8")
 print("phrase boundaries v5 patched")
+
+# V6 is deliberately chained from V5 so every full-render workflow that already
+# applies the verified V5 semantic patch also receives the final near-repeat
+# invariant before ffmpeg rendering begins.
+runpy.run_path("tools/ssd_hdd_video/patch_near_repeat_v6.py", run_name="__main__")
