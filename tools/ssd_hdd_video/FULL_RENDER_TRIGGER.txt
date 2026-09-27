@@ -1,4 +1,4 @@
 Full real-media production render
-revision: V5 semantic phrase-boundary QA passed + latest subject tracking/visual semantics
-commit: current branch HEAD
+revision: V5 semantic phrase-boundary patch enabled in full workflow + latest subject tracking/visual semantics
+workflow_commit: ae7fbef2f8e9c01707b92a480afe282560d7c646
 timestamp: 2026-09-27T15:33+09:00
