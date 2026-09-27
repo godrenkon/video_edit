@@ -64,8 +64,8 @@ jobs:
       - name: Apply verified V8/V5 semantic tracking
         run: |
           python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
-          python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
           python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
+          python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
 
       - name: Render full real-media explainer
