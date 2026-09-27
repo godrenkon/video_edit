@@ -1,4 +1,4 @@
 Full real-media production render
-revision: V3 subject tracking + V2 SSD semantic smoke passed
-commit: 9685f050f1d42a98d9ab87493b0d57e57d7bd908
-timestamp: 2026-09-27T03:48+09:00
+revision: V5 semantic phrase-boundary QA passed + latest subject tracking/visual semantics
+commit: current branch HEAD
+timestamp: 2026-09-27T15:33+09:00
