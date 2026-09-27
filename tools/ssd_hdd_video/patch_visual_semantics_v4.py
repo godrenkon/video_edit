@@ -19,7 +19,9 @@ print("visual semantics v4.1 patched")
 
 # V8 is canonical rather than QA-only: it narrows HDD mechanism imagery to
 # actual platter/head hardware and locks backup explanations to genuine backup
-# media before any carried HDD/SSD grammatical subject can interfere.  Chain it
+# media before any carried HDD/SSD grammatical subject can interfere. Chain it
 # here because both fast semantic QA and the production renderer already invoke
 # this V4 patch, guaranteeing identical semantics in both paths.
+# QA trigger note: V8.1 also diversifies only the non-mechanical HDD overview
+# phrases, while leaving platter/head/rotation narration locked to HDD_INTERNAL.
 runpy.run_path("tools/ssd_hdd_video/patch_canonical_semantics_v8.py", run_name="__main__")
