@@ -9,6 +9,8 @@ on:
       - "tools/ssd_hdd_video/patch_subject_tracking_v2.py"
       - "tools/ssd_hdd_video/patch_phrase_boundaries_v5.py"
       - "tools/ssd_hdd_video/patch_visual_semantics_v4.py"
+      - "tools/ssd_hdd_video/patch_near_repeat_v6.py"
+      - "tools/ssd_hdd_video/patch_semantic_specificity_v7.py"
       - "tools/ssd_hdd_video/patch_storyboard_only.py"
   workflow_dispatch:
 
@@ -101,6 +103,13 @@ jobs:
               'sata_ssd','crucial_ssd','nvme_m2','laptop_nvme','m2_installed',
               'ssd_controller','ssd_nand','ssd_install'
           }
+          hdd_mech={
+              'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open','hdd_side'
+          }
+          backup_media={
+              'nas','nas_drive_bay','external_hdds','external_hdd_laptop','server_rack',
+              'pc_m2_hdd_inside','hdd_ssd_disassembled'
+          }
           strict_neutral={
               'hdd_ssd_disassembled','pc_m2_hdd_inside','motherboard','computer_components_video'
           }
@@ -109,10 +118,16 @@ jobs:
               '名前だけで判断','それぞれの特徴','特徴を理解','自分の用途',
               '用途に合った','選ぶこと','どっちを選ぶ','どちらが完全に上','どちらが上'
           ]
+          mech_keys=['ヘッド','プラッタ','回ってくる','回転して','回転音','カリカリ','モーター','回転機構','機械部品']
+          backup_keys=[
+              'ストレージ一台だけ','SSDかHDDかを','バックアップに','別の場所','同じデータ',
+              '3-2-1','合計3つ','2種類の保存先','一台が壊れても','データが残る状態',
+              '本当に消したくない','重要なのは絶対に壊れない'
+          ]
 
           errors=[]
           for r in rows:
-              txt=r['text']; a=r['asset']
+              txt=r['text']; a=r['asset']; sec=r['section']
               if any(k in txt for k in ['バックアップ','大量に保存','大容量','保管','アーカイブ']):
                   if a in ssd_only:
                       errors.append(('archive/backup used active SSD-only media',r))
@@ -125,6 +140,20 @@ jobs:
               if any(k in txt for k in decision_keys):
                   if a not in strict_neutral:
                       errors.append(('decision/conclusion clause used one-sided media',r))
+
+              if sec in ('第2章　HDDとは？','第4章　SSDとHDDは何が違う？','第8章　寿命と故障はどう違う？'):
+                  if any(k in txt for k in mech_keys) and a not in hdd_mech:
+                      errors.append(('HDD mechanism phrase used non-HDD-mechanism media',r))
+
+              if sec=='第9章　バックアップは必要':
+                  deliberate_single=(
+                      '高性能なSSD一台' in txt or '大容量HDD一台' in txt or
+                      ('しかない動画' in txt and r.get('subject_hint') in ('SSD','HDD'))
+                  )
+                  if not deliberate_single and (any(k in txt for k in backup_keys) or 'バックアップ' in txt):
+                      if a not in backup_media:
+                          errors.append(('backup explanation used weak/non-backup media',r))
+
           assert not errors, errors[:30]
 
           by_section=defaultdict(list)
