@@ -61,10 +61,11 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install pillow janome
 
-      - name: Apply verified V4 semantic tracking
+      - name: Apply verified V5 semantic tracking
         run: |
           python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
           python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
+          python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
 
       - name: Render full real-media explainer
@@ -118,6 +119,8 @@ jobs:
               'sata_ssd','hdd_side'
           }
           semantic_errors=[]
+          archive_markers=('バックアップ','大量に保存','保存しておきたい','アーカイブ','保管しておきたい')
+          role_markers=('SSDへ置いて、','HDDへ置いて、','SSDに置いて、','HDDに置いて、','SSDへ保存して、','HDDへ保存して、','SSDに保存して、','HDDに保存して、')
           for r in rows:
               txt=r['text']
               full=r.get('source_text','')
@@ -131,6 +134,8 @@ jobs:
               if any(k in txt for k in ['名前だけで判断','それぞれの特徴','特徴を理解','自分の用途','用途に合った','選ぶこと']):
                   if 'SSDだから良い' in full and a not in neutral:
                       semantic_errors.append(('neutral conclusion',r))
+              if any(role in txt for role in role_markers) and any(mark in txt for mark in archive_markers):
+                  semantic_errors.append(('V5 mixed role/archive phrase',r))
           assert not semantic_errors, semantic_errors[:20]
 
           probe=json.load(open("real_video_output/ffprobe.json"))
