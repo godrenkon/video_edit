@@ -67,6 +67,7 @@ jobs:
           python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
           python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
           python3 tools/ssd_hdd_video/patch_v82_visuals.py
+          python3 tools/ssd_hdd_video/patch_v82_zundamon_variants.py
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
 
       - name: Render V8.2 full real-media explainer
@@ -88,8 +89,8 @@ jobs:
           assert len(assets) >= 14, len(assets)
           assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows))), 'adjacent repeated asset'
           assert not any(rows[i]['asset']==rows[i-2]['asset'] for i in range(2,len(rows))), 'A-B-A near-repeat asset'
-          pose_count=int(open('real_video_output/zundamon_pose_count.txt').read().strip())
-          assert pose_count >= 2, ('expected multiple official Zundamon poses',pose_count)
+          variant_count=int(open('real_video_output/zundamon_pose_count.txt').read().strip())
+          assert variant_count >= 2, ('expected multiple Zundamon presentation variants',variant_count)
 
           by_section=defaultdict(list)
           for r in rows: by_section[r['section']].append(r)
@@ -120,7 +121,7 @@ jobs:
           assert max(map(len,cues)) <= 33, max(map(len,cues))
           assert not [x for x in cues if x.startswith(('、','。','，',',','：',':','；',';','！','？','!','?'))]
           assert os.path.getsize('real_video_output/sfx_stem.wav') > 1000
-          print('V8.2_HARD_QA_OK','events',len(rows),'assets',len(assets),'poses',pose_count,'max_hold',max(durs),'duration',fmt['duration'])
+          print('V8.2_HARD_QA_OK','events',len(rows),'assets',len(assets),'variants',variant_count,'max_hold',max(durs),'duration',fmt['duration'])
           PY
 
       - name: Build QA samples
