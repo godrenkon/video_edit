@@ -8,6 +8,7 @@ on:
       - ".github/workflows/ssd-hdd-real-media-mixed-v3-smoke.yml"
       - "tools/ssd_hdd_video/patch_subject_tracking_v2.py"
       - "tools/ssd_hdd_video/patch_visual_semantics_v4.py"
+      - "tools/ssd_hdd_video/patch_phrase_boundaries_v5.py"
   workflow_dispatch:
 
 permissions:
@@ -68,7 +69,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: 35667383665
 
-      - name: Apply semantic tracking V4
+      - name: Apply production semantic tracking
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -82,6 +83,7 @@ jobs:
           PY
           python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
           python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
+          python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
 
       - name: Render final-chapter semantic smoke
@@ -150,7 +152,7 @@ jobs:
 
           assert max(float(r['duration']) for r in rows) <= 4.05
           assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows)))
-          print('semantic_v4_ok',len(rows))
+          print('semantic_v5_ok',len(rows))
           PY
 
       - name: Extract QA
