@@ -108,20 +108,15 @@ jobs:
               'sata_ssd','crucial_ssd','nvme_m2','laptop_nvme','m2_installed',
               'ssd_controller','ssd_nand','ssd_install'
           }
-          backup_bad={
-              'sata_ssd','crucial_ssd','nvme_m2','laptop_nvme','m2_installed',
-              'ssd_controller','ssd_nand','ssd_install'
-          }
+          backup_bad=set(ssd_only)
           neutral={
-              'hdd_ssd_disassembled','sata_vs_nvme','pc_m2_hdd_inside','motherboard',
-              'sata_ssd','hdd_side'
+              'hdd_ssd_disassembled','pc_m2_hdd_inside','motherboard','computer_components_video'
           }
 
           target=[r for r in rows if 'Windowsやアプリ' in r.get('source_text','')]
           print('windows_sentence_rows:')
           for r in target: print(r)
           assert target, 'target Windows/SSD/HDD sentence not found'
-
           for r in target:
               txt=r['text']
               if 'バックアップ' in txt or '大量に保存' in txt:
