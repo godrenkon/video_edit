@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import runpy
 
 p=Path("tools/ssd_hdd_video/render_real_media.py")
 s=p.read_text(encoding="utf-8")
@@ -15,3 +16,10 @@ s=s.replace(marker,insert,1)
 
 p.write_text(s,encoding="utf-8")
 print("visual semantics v4.1 patched")
+
+# V8 is canonical rather than QA-only: it narrows HDD mechanism imagery to
+# actual platter/head hardware and locks backup explanations to genuine backup
+# media before any carried HDD/SSD grammatical subject can interfere.  Chain it
+# here because both fast semantic QA and the production renderer already invoke
+# this V4 patch, guaranteeing identical semantics in both paths.
+runpy.run_path("tools/ssd_hdd_video/patch_canonical_semantics_v8.py", run_name="__main__")
