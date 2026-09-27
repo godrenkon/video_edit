@@ -69,7 +69,7 @@ jobs:
       - name: Render targeted smoke windows
         run: |
           mkdir -p v82_smoke
-          for SPEC in "0 35 opening" "390 35 speed" "620 35 types" "900 35 backup"; do
+          for SPEC in "0 35 opening" "390.026 35 speed" "620.117 35 types" "900.008 35 backup"; do
             set -- $SPEC
             START=$1
             LEN=$2
