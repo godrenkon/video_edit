@@ -1,4 +1,4 @@
 Full real-media production render
-revision: V5 semantic phrase-boundary patch enabled in full workflow + latest subject tracking/visual semantics
-workflow_commit: ae7fbef2f8e9c01707b92a480afe282560d7c646
-timestamp: 2026-09-27T15:33+09:00
+revision: V6 deterministic near-repeat repair + V5 semantic phrase-boundary patch + latest subject tracking/visual semantics
+workflow_commit: 22556a9166c6229647eae492e1571202b5c5bfd3
+timestamp: 2026-09-27T16:25+09:00
