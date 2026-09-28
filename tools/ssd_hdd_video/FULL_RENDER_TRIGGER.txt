@@ -1,11 +1,8 @@
 Full real-media production render
-revision: V8.1 HDD overview diversity + V8 canonical semantic locks + V7 specificity + V6 deterministic near-repeat repair + V5 phrase boundaries + latest subject tracking/visual semantics
-fast_semantic_qa_run: 36322144509
-fast_semantic_qa_result: PASS (531 events, 25 unique assets, max_hold 3.828s, strict semantics)
-full_hard_qa_precheck: PASS (semantic errors 0, no adjacent/A-B-A repeats, all chapters >=6 unique assets, top share <=0.32)
-chapter_2_result: 50 events, 7 unique real-media assets, top share 0.24
-full_workflow_fix: cancel-in-progress=false + patch order matched to passing QA
-v8_1_commit: 17c8cc1b479b76779e3cf6a723c284175abacf1b
-qa_trigger_commit: 8543bb4d0dd6033ff2c2ee51a8f6d1727183b68e
-trigger_revision: final V8.1 full real-media master after complete storyboard/Hard-QA precheck
-timestamp: 2026-09-27
+revision: V8.2 real-media master + V8.2 visual overlays + official Zundamon presentation variants + V8 canonical semantic locks + V7 specificity + V6 deterministic near-repeat repair + V5 phrase boundaries + latest subject tracking/visual semantics
+v82_smoke_run: 36348802830
+v82_smoke_result: PASS (opening/speed/types/backup windows, multiple Zundamon presentation variants, no adjacent duplicates, max hold <= 4.05s)
+full_workflow_commit: 32b52cebad3e0f90297204e3f1f6ec6ffd80e236
+full_hard_qa_requirements: >=250 events, >=14 real assets, no adjacent/A-B-A repeats, all chapters >=6 unique assets, top asset share <=0.32, strict semantic mapping, 1080p60, 48kHz stereo, Zundamon variants >=2
+trigger_revision: final V8.2 full real-media master
+timestamp: 2026-09-28
