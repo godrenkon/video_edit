@@ -61,11 +61,13 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install pillow janome
 
-      - name: Apply verified V8/V5 semantic tracking
+      - name: Apply verified V8.2 semantic, visual, and Zundamon patches
         run: |
           python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
           python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
           python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
+          python3 tools/ssd_hdd_video/patch_v82_visuals.py
+          python3 tools/ssd_hdd_video/patch_v82_zundamon_variants.py
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
 
       - name: Render full real-media explainer
@@ -89,6 +91,9 @@ jobs:
           assert len(rows) >= 250, len(rows)
           assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows))), "adjacent repeated real-media asset"
           assert not any(rows[i]['asset']==rows[i-2]['asset'] for i in range(2,len(rows))), "A-B-A near-repeat real-media asset"
+
+          pose_count=int(open("real_video_output/zundamon_pose_count.txt",encoding="utf-8").read().strip())
+          assert pose_count >= 2, ("expected multiple Zundamon presentation variants", pose_count)
 
           by_section=defaultdict(list)
           for r in rows:
@@ -168,7 +173,7 @@ jobs:
           assert not bad, "leading punctuation in subtitle: "+repr(bad[:10])
           assert max(map(len,cues)) <= 33, max(map(len,cues))
           assert os.path.getsize("real_video_output/sfx_stem.wav") > 1000, "sfx_stem.wav"
-          print("HARD_QA_OK events",len(rows),"unique_assets",len(assets),"max_hold",max(durations),"duration",fmt["duration"],"subtitle_cues",len(cues),"subtitle_max",max(map(len,cues)))
+          print("HARD_QA_OK events",len(rows),"unique_assets",len(assets),"max_hold",max(durations),"duration",fmt["duration"],"subtitle_cues",len(cues),"subtitle_max",max(map(len,cues)),"zundamon_variants",pose_count)
           print("assets",sorted(assets))
           PY
 
@@ -205,6 +210,7 @@ jobs:
           cp real_video_output/ffprobe.json qa/
           cp real_video_output/ATTRIBUTION.md qa/
           cp real_video_output/subtitles_green.ass qa/
+          cp real_video_output/zundamon_pose_count.txt qa/
           for T in 15 90 180 300 420 540 660 780 900 1020 1140; do
             cp "real_video_output/frame_${T}.png" qa/
           done
@@ -228,6 +234,7 @@ jobs:
             real_video_output/ATTRIBUTION.md
             real_video_output/YOUTUBE_DESCRIPTION_CREDITS.txt
             real_video_output/ffprobe.json
+            real_video_output/zundamon_pose_count.txt
           compression-level: 0
           retention-days: 7
 
