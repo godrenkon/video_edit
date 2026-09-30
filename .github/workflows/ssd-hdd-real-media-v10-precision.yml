@@ -8,6 +8,8 @@ on:
       - ".github/workflows/ssd-hdd-real-media-v10-precision.yml"
       - "tools/ssd_hdd_video/patch_v9_precision.py"
       - "tools/ssd_hdd_video/patch_near_repeat_v6.py"
+      - "tools/ssd_hdd_video/patch_semantic_specificity_v7.py"
+      - "tools/ssd_hdd_video/patch_canonical_semantics_v8.py"
       - "tools/ssd_hdd_video/build_voice_only.py"
   workflow_dispatch:
 
