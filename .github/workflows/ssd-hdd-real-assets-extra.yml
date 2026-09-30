@@ -36,3 +36,5 @@ jobs:
           path: real_assets_extra
           compression-level: 0
           retention-days: 7
+
+# 2026-09-30 refresh: regenerate fresh supplemental assets for V10.
