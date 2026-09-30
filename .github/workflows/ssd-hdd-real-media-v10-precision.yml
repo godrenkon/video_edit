@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/ssd-hdd-real-media-v10-precision.yml"
       - "tools/ssd_hdd_video/patch_v9_precision.py"
+      - "tools/ssd_hdd_video/patch_near_repeat_v6.py"
       - "tools/ssd_hdd_video/build_voice_only.py"
   workflow_dispatch:
 
@@ -31,7 +32,7 @@ jobs:
           name: ssd-hdd-real-assets
           path: real_assets
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 35807470144
+          run-id: 36679624503
 
       - name: Download supplemental real assets
         uses: actions/download-artifact@v4
@@ -39,7 +40,7 @@ jobs:
           name: ssd-hdd-real-assets-extra
           path: real_assets_extra
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 35807748858
+          run-id: 36679063835
 
       - name: Merge supplemental assets
         run: |
@@ -86,6 +87,7 @@ jobs:
           python3 tools/ssd_hdd_video/patch_v82_visuals.py
           python3 tools/ssd_hdd_video/patch_v82_zundamon_variants.py
           python3 tools/ssd_hdd_video/patch_v9_precision.py
+          python3 tools/ssd_hdd_video/patch_near_repeat_v6.py
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
 
       - name: Smoke test speed and SSD types
