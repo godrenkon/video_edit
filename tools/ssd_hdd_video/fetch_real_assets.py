@@ -24,11 +24,11 @@ def ext_from_ct(ct, default):
 
 def download_url(asset):
     last=None
-    for attempt in range(5):
+    for attempt in range(3):
         try:
             # Wikimedia asks automated clients to pace requests and prefer thumbnails.
-            time.sleep(1.8 if "wikimedia" in asset["download"] else 0.4)
-            r=requests.get(asset["download"],headers={**UA,"Accept":"*/*"},timeout=180,allow_redirects=True)
+            time.sleep(1.2 if "wikimedia" in asset["download"] else 0.25)
+            r=requests.get(asset["download"],headers={**UA,"Accept":"*/*"},timeout=45,allow_redirects=True)
             r.raise_for_status()
             ext=ext_from_ct(r.headers.get("content-type"),Path(asset["download"].split("?")[0]).suffix or ".bin")
             p=OUT/(asset["id"]+ext)
@@ -36,7 +36,7 @@ def download_url(asset):
             return p
         except Exception as e:
             last=e
-            time.sleep(3*(attempt+1))
+            time.sleep(2*(attempt+1))
     raise last
 
 def yt_dlp(asset):
@@ -47,13 +47,13 @@ def yt_dlp(asset):
         "-o",target,
         asset["source"]
     ]
-    subprocess.run(cmd,check=True,timeout=300)
+    subprocess.run(cmd,check=True,timeout=120)
     files=sorted(OUT.glob(asset["id"]+".*"))
     if not files: raise RuntimeError("yt-dlp produced no file")
     return files[-1]
 
 def voicevox_image(asset):
-    html=requests.get(asset["source"],headers=UA,timeout=60).text
+    html=requests.get(asset["source"],headers=UA,timeout=30).text
     soup=BeautifulSoup(html,"html.parser")
     candidates=[]
     for img in soup.find_all("img"):
@@ -71,7 +71,7 @@ def voicevox_image(asset):
         raise RuntimeError("official Zundamon image URL not found")
     from urllib.parse import urljoin
     url=urljoin(asset["source"],candidates[0])
-    r=requests.get(url,headers=UA,timeout=120)
+    r=requests.get(url,headers=UA,timeout=45)
     r.raise_for_status()
     ext=ext_from_ct(r.headers.get("content-type"),Path(url).suffix or ".png")
     p=OUT/(asset["id"]+ext)
