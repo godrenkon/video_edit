@@ -5,10 +5,6 @@ from pathlib import Path
 P = Path("tools/ssd_hdd_video/render_real_media.py")
 src = P.read_text(encoding="utf-8")
 
-if "def finalize_no_near_repeats(" in src:
-    print("V6 near-repeat finalizer already present")
-    raise SystemExit(0)
-
 marker = "\n\n# final 8 sec: actual hardware montage in 2-second cuts, then next-video title.\n"
 if marker not in src:
     raise SystemExit("V6 insertion marker not found")
@@ -18,17 +14,10 @@ func = r'''
 def finalize_no_near_repeats(events, distance=1, passes=48):
     """Final deterministic visual-spacing pass.
 
-    This pass runs after coalescing/rebalancing and guarantees that the exact
-    same asset is never shown in two *adjacent* cuts.  It intentionally allows
-    A-B-A patterns: returning to the same controller/NAND/HDD visual after one
-    intervening cut is often semantically correct in a technical explanation.
-
-    The previous distance=2 invariant was too strict and could reject valid
-    sequences such as controller -> NAND -> controller even when every shot was
-    short and directly matched the narration.
-
-    Every replacement still has to pass semantic_asset_ok, so visual variety
-    never takes priority over explanatory correctness.
+    Guarantee only that the exact same asset is never shown in two adjacent
+    cuts. A-B-A is intentionally allowed when it is the clearest visual match
+    for a technical explanation, for example controller -> NAND -> controller.
+    Every replacement must still pass semantic_asset_ok.
     """
     events=[dict(e) for e in events]
     if not events:
@@ -74,15 +63,13 @@ def finalize_no_near_repeats(events, distance=1, passes=48):
         old=e["asset"]
         pool=media_pool(e)
 
-        # Only adjacent equality is forbidden.  Do not forbid the asset used
-        # two cuts ago; A-B-A is allowed when it is the clearest explanation.
+        # Only direct adjacency is forbidden. Do not block the asset two cuts
+        # ago; A-B-A is valid when narration returns to the same component.
         forbidden=set()
         if idx>0:
             forbidden.add(events[idx-1]["asset"])
         if idx+1<len(events):
             forbidden.add(events[idx+1]["asset"])
-
-        # Protect the actual adjacent conflict explicitly.
         if conflict_i>0 and conflict_i-1 != idx:
             forbidden.add(events[conflict_i-1]["asset"])
         if conflict_i < len(events) and conflict_i != idx:
@@ -116,18 +103,11 @@ def finalize_no_near_repeats(events, distance=1, passes=48):
 
         i=conflict
         repeated=events[i]["asset"]
-        older=[i-1]
-
-        # Prefer changing the current shot. If it is semantically constrained,
-        # try the immediately previous duplicate. If neither can change, keep
-        # the semantic match and fail loudly rather than substituting nonsense.
-        targets=[i] + older
         changed=False
-        for idx in targets:
+        for idx in (i,i-1):
             if replace_at(idx,i,counts):
                 changed=True
                 break
-
         if not changed:
             row=events[i]["row"]
             raise RuntimeError(
@@ -144,8 +124,6 @@ def finalize_no_near_repeats(events, distance=1, passes=48):
     if remaining:
         raise RuntimeError("V6 adjacent-repeat invariant failed: "+repr(remaining[:20]))
 
-    # Re-check semantics after every spacing replacement. This turns a visual
-    # QA failure into a cheap pre-render failure rather than a 1-hour rerender.
     semantic_bad=[]
     for i,e in enumerate(events):
         if e["row"].get("section")=="次回":
@@ -161,25 +139,66 @@ def finalize_no_near_repeats(events, distance=1, passes=48):
     return events
 '''
 
-src = src.replace(marker, func + marker, 1)
+# Idempotent function injection. Do not exit early: older renderers may already
+# contain the function but still retain the obsolete A-B-A rejection QA below.
+if "def finalize_no_near_repeats(" not in src:
+    src = src.replace(marker, func + marker, 1)
 
-old = '''events=coalesce_short_events(events,min_dur=0.95,max_dur=4.05)
+# Align the final mutation pass with the actual hard QA: adjacent duplicates are
+# forbidden, but A-B-A is allowed. Replace either the legacy block or the
+# partially patched V6 block.
+legacy = '''events=coalesce_short_events(events,min_dur=0.95,max_dur=4.05)
 events=repair_near_repeats(events,distance=2)
 events=rebalance_global_usage(events,distance=3,passes=10)
 events=repair_near_repeats(events,distance=2)
 '''
-new = '''events=coalesce_short_events(events,min_dur=0.95,max_dur=4.05)
-events=repair_near_repeats(events,distance=2)
+patched = '''events=coalesce_short_events(events,min_dur=0.95,max_dur=4.05)
+events=repair_near_repeats(events,distance=1)
 events=rebalance_global_usage(events,distance=3,passes=10)
-events=repair_near_repeats(events,distance=2)
-# V6 is the final mutation of the visual asset sequence. It guarantees only
-# adjacent duplicates are removed. A-B-A is intentionally allowed when it is
-# semantically correct and every shot remains short.
+events=repair_near_repeats(events,distance=1)
+# V6 final mutation: adjacent A-A is forbidden; semantic A-B-A is allowed.
 events=finalize_no_near_repeats(events,distance=1)
 '''
-if old not in src:
-    raise SystemExit("V6 final-pass call marker not found")
-src = src.replace(old,new,1)
+if legacy in src:
+    src = src.replace(legacy, patched, 1)
+else:
+    # Handle a renderer that already has the finalizer call but still uses
+    # distance=2 repair passes.
+    src = src.replace('events=repair_near_repeats(events,distance=2)',
+                      'events=repair_near_repeats(events,distance=1)')
+    call='events=finalize_no_near_repeats(events,distance=1)'
+    if call not in src:
+        anchor='events=rebalance_global_usage(events,distance=3,passes=10)\n'
+        pos=src.find(anchor)
+        if pos<0:
+            raise SystemExit("V6 final-pass call marker not found")
+        # Insert after the repair following rebalance if present, otherwise after rebalance.
+        after=pos+len(anchor)
+        next_repair='events=repair_near_repeats(events,distance=1)\n'
+        if src.startswith(next_repair,after):
+            after += len(next_repair)
+        src = src[:after] + call + '\n' + src[after:]
+
+# Remove the obsolete hard QA that rejected A-B-A patterns. The workflow-level
+# V10 hard QA already checks the correct invariant: no adjacent identical asset.
+old_near = '''near_repeat=[
+    (events[i]["n"],events[i]["asset"])
+    for i in range(len(events))
+    if events[i]["asset"] in {x["asset"] for x in events[max(0,i-2):i]}
+]
+if near_repeat:
+    raise RuntimeError("real-media asset reused within two previous cuts: "+repr(near_repeat[:20]))
+
+'''
+if old_near in src:
+    src = src.replace(old_near,
+        '# V6: A-B-A is permitted. Adjacent A-A is checked above and again in V10 hard QA.\n\n',1)
+
+# Assert that the obsolete rule is really gone; fail cheaply before rendering.
+if 'real-media asset reused within two previous cuts' in src:
+    raise SystemExit('V6 obsolete A-B-A QA is still present')
+if 'events=finalize_no_near_repeats(events,distance=1)' not in src:
+    raise SystemExit('V6 finalizer call missing after patch')
 
 P.write_text(src,encoding="utf-8")
-print("Applied V6 adjacent-repeat finalizer")
+print("Applied V6 adjacent-only repeat policy and removed obsolete A-B-A QA")
