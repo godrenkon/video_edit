@@ -1,0 +1,250 @@
+name: Build SSD HDD Real Media V11 Current
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-media-v11-current.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ssd-hdd-real-media-v11-current
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download verified real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets
+          path: real_assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36679624503
+
+      - name: Download supplemental real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets-extra
+          path: real_assets_extra
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36679063835
+
+      - name: Merge supplemental assets
+        run: |
+          cp -a real_assets_extra/. real_assets/
+          if [ -f real_assets/ATTRIBUTION_EXTRA.md ]; then
+            cat real_assets/ATTRIBUTION_EXTRA.md >> real_assets/ATTRIBUTION.md
+          fi
+          find real_assets -maxdepth 1 -type f -printf '%f\n' | sort
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow janome requests numpy soundfile
+
+      - name: Pronunciation source QA
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('tools/ssd_hdd_video/build_voice_only.py').read_text(encoding='utf-8')
+          checks={
+              'HDD':'エイチディーディー',
+              'SSD':'エスエスディー',
+              'NVMe':'エヌブイエムイー',
+              'M.2':'エムドットツー',
+          }
+          for src,dst in checks.items():
+              assert src in s and dst in s, (src,dst)
+          print('PRONUNCIATION_SOURCE_QA_OK',checks)
+          PY
+
+      - name: Start VOICEVOX
+        run: |
+          docker pull voicevox/voicevox_engine:cpu-latest
+          docker run -d --rm --name voicevox -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:cpu-latest
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:50021/version >/dev/null; then
+              echo "VOICEVOX ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "VOICEVOX did not start" >&2
+          exit 1
+
+      - name: Build corrected Zundamon narration in-run
+        run: |
+          rm -rf voice voice_output
+          python3 tools/ssd_hdd_video/build_voice_only.py
+          mkdir -p voice
+          cp voice_output/SSD_HDD_NARRATION_ZUNDAMON_48k.wav voice/
+          cp voice_output/narration_timestamps.tsv voice/
+          ffprobe -v error -show_entries stream=sample_rate,channels,duration -of json voice/SSD_HDD_NARRATION_ZUNDAMON_48k.wav
+
+      - name: Apply current visual precision patches
+        run: |
+          python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
+          python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
+          python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
+          python3 tools/ssd_hdd_video/patch_v82_visuals.py
+          python3 tools/ssd_hdd_video/patch_v82_zundamon_variants.py
+          python3 tools/ssd_hdd_video/patch_v9_precision.py
+          python3 tools/ssd_hdd_video/patch_near_repeat_v6.py
+          python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
+          grep -n "adjacent-only repeat policy\|A-B-A is permitted\|finalize_no_near_repeats" tools/ssd_hdd_video/render_real_media.py | tail -n 20
+
+      - name: Smoke test speed and SSD types
+        env:
+          SSD_HDD_SMOKE_START: "590"
+          SSD_HDD_SMOKE_SECONDS: "125"
+        run: |
+          rm -rf real_video_output /tmp/ssd_hdd_real_render
+          python3 tools/ssd_hdd_video/render_real_media.py
+          mv real_video_output smoke_types
+          python3 - <<'PY'
+          import csv
+          rows=list(csv.DictReader(open('smoke_types/storyboard.tsv',encoding='utf-8'),delimiter='\t'))
+          assert rows
+          sata={'sata_ssd','crucial_ssd','sata_vs_nvme','sata_connector','sata_data_power'}
+          m2={'nvme_m2','m2_installed','laptop_nvme','sata_vs_nvme','ssd_install','ssd_diagram'}
+          hdd={'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open','hdd_side','hdd_diagram'}
+          bad=[]
+          for r in rows:
+              t=r['text']; a=r['asset']; full=r.get('source_text',''); hint=r.get('subject_hint','')
+              if ('2.5インチ' in t or '薄い箱' in t or 'SATA SSD' in t) and (hint=='SSD' or 'SSD' in full) and not any(k in t for k in ['M.2','NVMe']):
+                  if a not in sata: bad.append(('2.5/SATA SSD',r))
+              if any(k in t for k in ['M.2','NVMe','細長い基板']):
+                  if a not in m2: bad.append(('M.2/NVMe',r))
+              if any(k in t for k in ['プラッタ','ヘッド','CMR','SMR','5400RPM','7200RPM','回転数']):
+                  if a not in hdd: bad.append(('HDD mechanism',r))
+          assert not bad, [(x,r['start'],r['asset'],r['text']) for x,r in bad[:30]]
+          assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows)))
+          print('V11_TYPES_SMOKE_OK',len(rows),len({r['asset'] for r in rows}))
+          PY
+
+      - name: Smoke test lifespan and backup
+        env:
+          SSD_HDD_SMOKE_START: "860"
+          SSD_HDD_SMOKE_SECONDS: "105"
+        run: |
+          rm -rf real_video_output /tmp/ssd_hdd_real_render
+          python3 tools/ssd_hdd_video/render_real_media.py
+          mv real_video_output smoke_life
+          python3 - <<'PY'
+          import csv
+          rows=list(csv.DictReader(open('smoke_life/storyboard.tsv',encoding='utf-8'),delimiter='\t'))
+          assert rows
+          backup={'nas','nas_drive_bay','external_hdds','external_hdd_laptop','server_rack','pc_m2_hdd_inside','hdd_ssd_disassembled','backup_diagram'}
+          bad=[]
+          for r in rows:
+              t=r['text']; a=r['asset']
+              if any(k in t for k in ['3-2-1','合計3つ','2種類の保存先','別の場所','一台が壊れても','データが残る状態']):
+                  if a not in backup: bad.append(('backup',r))
+          assert not bad, [(x,r['start'],r['asset'],r['text']) for x,r in bad[:30]]
+          assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows)))
+          print('V11_LIFE_SMOKE_OK',len(rows),len({r['asset'] for r in rows}))
+          PY
+
+      - name: Render full V11 real-media explainer
+        run: |
+          rm -rf real_video_output /tmp/ssd_hdd_real_render
+          unset SSD_HDD_SMOKE_START SSD_HDD_SMOKE_SECONDS
+          python3 tools/ssd_hdd_video/render_real_media.py
+
+      - name: V11 hard QA
+        run: |
+          ffprobe -v error -show_streams -show_format -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > real_video_output/ffprobe.json
+          python3 - <<'PY'
+          import csv,json
+          rows=list(csv.DictReader(open('real_video_output/storyboard.tsv',encoding='utf-8'),delimiter='\t'))
+          assert rows
+          durations=[float(r['duration']) for r in rows]
+          assert max(durations)<=4.05,max(durations)
+          assert len(rows)>=300,len(rows)
+          unique={r['asset'] for r in rows}
+          assert len(unique)>=18,len(unique)
+          assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows)))
+
+          # A-B-A is allowed: the same correct hardware may reappear after one intervening cut.
+          sata={'sata_ssd','crucial_ssd','sata_vs_nvme','sata_connector','sata_data_power'}
+          m2={'nvme_m2','m2_installed','laptop_nvme','sata_vs_nvme','ssd_install','ssd_diagram'}
+          hdd={'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open','hdd_side','hdd_diagram'}
+          nand={'ssd_nand','ssd_controller','ssd_diagram','sata_ssd','crucial_ssd','nvme_m2','m2_installed'}
+          backup={'nas','nas_drive_bay','external_hdds','external_hdd_laptop','server_rack','pc_m2_hdd_inside','hdd_ssd_disassembled','backup_diagram'}
+          bad=[]
+          for r in rows:
+              t=r['text']; a=r['asset']; full=r.get('source_text',''); hint=r.get('subject_hint','')
+              if ('2.5インチ' in t or '薄い箱' in t or 'SATA SSD' in t) and (hint=='SSD' or ('SSD' in full and 'HDD' not in full)) and not any(k in t for k in ['M.2','NVMe']):
+                  if a not in sata: bad.append(('2.5/SATA SSD',r))
+              if any(k in t for k in ['M.2','NVMe','細長い基板']):
+                  if a not in m2: bad.append(('M.2/NVMe',r))
+              if any(k in t for k in ['プラッタ','ヘッド','CMR','SMR','5400RPM','7200RPM','回転数']):
+                  if a not in hdd: bad.append(('HDD mechanism',r))
+              if hint=='SSD' and any(k in t for k in ['NAND','TLC','QLC','コントローラー','セル','フラッシュメモリ']):
+                  if a not in nand: bad.append(('NAND/controller',r))
+              if any(k in t for k in ['3-2-1','合計3つ','2種類の保存先','別の場所','一台が壊れても','データが残る状態']):
+                  if a not in backup: bad.append(('backup',r))
+          assert not bad, [(x,r['start'],r['asset'],r['text']) for x,r in bad[:40]]
+
+          probe=json.load(open('real_video_output/ffprobe.json'))
+          v=next(x for x in probe['streams'] if x['codec_type']=='video')
+          a=next(x for x in probe['streams'] if x['codec_type']=='audio')
+          assert v['width']==1920 and v['height']==1080 and v['r_frame_rate']=='60/1'
+          assert a['sample_rate']=='48000' and a['channels']==2
+          assert float(probe['format']['duration'])>1100
+          ass=open('real_video_output/subtitles_green.ass',encoding='utf-8-sig').read()
+          assert 'Style: Main,Noto Sans CJK JP,94' in ass and '&H008DFF71' in ass
+          poses=int(open('real_video_output/zundamon_pose_count.txt').read().strip())
+          assert poses>=1
+          print('V11_HARD_QA_OK',len(rows),len(unique),max(durations),probe['format']['duration'],'poses',poses)
+          PY
+
+      - name: Build V11 QA samples
+        run: |
+          mkdir -p qa
+          cp real_video_output/storyboard.tsv qa/
+          cp real_video_output/ffprobe.json qa/
+          cp real_video_output/ATTRIBUTION.md qa/
+          cp real_video_output/subtitles_green.ass qa/
+          cp real_video_output/zundamon_pose_count.txt qa/
+          for T in 15 90 180 300 420 540 600 635 650 680 780 880 900 930 1020 1140; do
+            ffmpeg -y -loglevel error -ss "$T" -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -frames:v 1 "qa/frame_${T}.png"
+          done
+          ffmpeg -y -loglevel error -ss 590 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 125 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/types_speed_125s.mp4
+          ffmpeg -y -loglevel error -ss 860 -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 -t 105 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/life_backup_105s.mp4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-v11-final
+          path: |
+            real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_CLEAN.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4
+            real_video_output/bgm_stem.wav
+            real_video_output/sfx_stem.wav
+            real_video_output/storyboard.tsv
+            real_video_output/subtitles_green.ass
+            real_video_output/ATTRIBUTION.md
+            real_video_output/ffprobe.json
+            real_video_output/zundamon_pose_count.txt
+          compression-level: 0
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-v11-qa
+          path: qa
+          compression-level: 0
+          retention-days: 7
