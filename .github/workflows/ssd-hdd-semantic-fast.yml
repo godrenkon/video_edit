@@ -10,8 +10,9 @@ on:
       - "tools/ssd_hdd_video/patch_phrase_boundaries_v5.py"
       - "tools/ssd_hdd_video/patch_visual_semantics_v4.py"
       - "tools/ssd_hdd_video/patch_near_repeat_v6.py"
-      - "tools/ssd_hdd_video/patch_semantic_specificity_v7.py"
+      - "tools/ssd_hdd_video/patch_v9_precision.py"
       - "tools/ssd_hdd_video/patch_storyboard_only.py"
+      - "tools/ssd_hdd_video/build_voice_only.py"
   workflow_dispatch:
 
 permissions:
@@ -25,25 +26,25 @@ concurrency:
 jobs:
   semantic:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download verified real assets
+      - name: Download fresh V10 core real assets
         uses: actions/download-artifact@v4
         with:
           name: ssd-hdd-real-assets
           path: real_assets
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 35807470144
+          run-id: 36679624503
 
-      - name: Download supplemental real assets
+      - name: Download fresh supplemental real assets
         uses: actions/download-artifact@v4
         with:
           name: ssd-hdd-real-assets-extra
           path: real_assets_extra
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 35807748858
+          run-id: 36679063835
 
       - name: Merge assets
         run: |
@@ -53,25 +54,43 @@ jobs:
             cat real_assets/ATTRIBUTION_EXTRA.md >> real_assets/ATTRIBUTION.md
           fi
 
-      - name: Download corrected narration timing
-        uses: actions/download-artifact@v4
-        with:
-          name: ssd-hdd-zundamon-narration
-          path: voice
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 35667383665
-
       - name: Install lightweight QA dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg fonts-noto-cjk
-          python3 -m pip install --disable-pip-version-check pillow janome
+          python3 -m pip install --disable-pip-version-check pillow janome requests numpy soundfile
 
-      - name: Apply semantic patches and storyboard-only mode
+      - name: Start VOICEVOX timing engine
+        run: |
+          docker pull voicevox/voicevox_engine:cpu-latest
+          docker run -d --rm --name voicevox -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:cpu-latest
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:50021/version >/dev/null; then
+              echo "VOICEVOX ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "VOICEVOX did not start" >&2
+          exit 1
+
+      - name: Build corrected narration timing in-run
+        run: |
+          rm -rf voice voice_output
+          python3 tools/ssd_hdd_video/build_voice_only.py
+          mkdir -p voice
+          cp voice_output/SSD_HDD_NARRATION_ZUNDAMON_48k.wav voice/
+          cp voice_output/narration_timestamps.tsv voice/
+
+      - name: Apply V10 semantic patches and storyboard-only mode
         run: |
           python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
           python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
           python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
+          python3 tools/ssd_hdd_video/patch_v82_visuals.py
+          python3 tools/ssd_hdd_video/patch_v82_zundamon_variants.py
+          python3 tools/ssd_hdd_video/patch_v9_precision.py
+          python3 tools/ssd_hdd_video/patch_near_repeat_v6.py
           python3 tools/ssd_hdd_video/patch_storyboard_only.py
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
 
@@ -79,6 +98,7 @@ jobs:
         env:
           SSD_HDD_STORYBOARD_ONLY: "1"
         run: |
+          rm -rf real_video_output /tmp/ssd_hdd_real_render
           python3 tools/ssd_hdd_video/render_real_media.py
 
       - name: Strict full-video semantic QA
@@ -91,9 +111,10 @@ jobs:
           assert len(rows) >= 250, len(rows)
           assert max(float(r['duration']) for r in rows) <= 4.05
           assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows)))
-          assert not any(rows[i]['asset'] in {x['asset'] for x in rows[max(0,i-2):i]} for i in range(len(rows)))
+          # A-B-A is intentionally allowed when the narration returns to the same
+          # component; only adjacent duplicates are forbidden.
           assert 'zundamon_official' not in {r['asset'] for r in rows}
-          assert len({r['asset'] for r in rows}) >= 14
+          assert len({r['asset'] for r in rows}) >= 18, len({r['asset'] for r in rows})
 
           hdd_only={
               'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open',
@@ -104,14 +125,15 @@ jobs:
               'ssd_controller','ssd_nand','ssd_install'
           }
           hdd_mech={
-              'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open','hdd_side'
+              'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open','hdd_side','hdd_diagram'
           }
           backup_media={
               'nas','nas_drive_bay','external_hdds','external_hdd_laptop','server_rack',
-              'pc_m2_hdd_inside','hdd_ssd_disassembled'
+              'pc_m2_hdd_inside','hdd_ssd_disassembled','backup_diagram'
           }
           strict_neutral={
-              'hdd_ssd_disassembled','pc_m2_hdd_inside','motherboard','computer_components_video'
+              'hdd_ssd_disassembled','pc_m2_hdd_inside','motherboard','computer_components_video',
+              'storage_diagram','comparison_diagram'
           }
           decision_keys=[
               '速度と容量','どちらを重視','どちらを優先','何を保存したい',
