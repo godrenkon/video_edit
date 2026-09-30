@@ -9,8 +9,16 @@ if "def finalize_visual_semantics_v7(" in src:
     print("V7 semantic specificity finalizer already present")
     raise SystemExit(0)
 
-marker="\ndef finalize_no_near_repeats(events, distance=2, passes=48):\n"
-if marker not in src:
+# V6 used to define/call finalize_no_near_repeats with distance=2.  The current
+# canonical V6 policy is adjacent-only (distance=1).  Accept both so V7 remains
+# compatible with old and new renderer baselines and never fails only because
+# the V6 default changed.
+markers=[
+    "\ndef finalize_no_near_repeats(events, distance=1, passes=48):\n",
+    "\ndef finalize_no_near_repeats(events, distance=2, passes=48):\n",
+]
+marker=next((m for m in markers if m in src),None)
+if marker is None:
     raise SystemExit("V7 requires V6 finalizer to be applied first")
 
 func=r'''
@@ -24,7 +32,7 @@ def finalize_visual_semantics_v7(events):
     rewriting the original grammatical subject. Every replacement must pass the
     same semantic_asset_ok() predicate used by the rest of the renderer.
     V6 runs immediately afterwards to restore spacing if any replacement creates
-    an A-B-A pattern.
+    a direct adjacent repeat.
     """
     events=[dict(e) for e in events]
     counts={}
@@ -73,8 +81,6 @@ def finalize_visual_semantics_v7(events):
             for j in range(max(0,idx-4),min(len(events),idx+5))
             if j!=idx
         ]
-        # Prefer a candidate not already near this cut, then the globally less
-        # used candidate. This keeps opening/final summaries visually balanced.
         candidates=sorted(
             _unique(candidates),
             key=lambda a:(nearby.count(a),counts.get(a,0),a)
@@ -98,24 +104,16 @@ def finalize_visual_semantics_v7(events):
         txt=(row.get("text") or "").strip()
         full=(row.get("source_text") or txt).strip()
 
-        # HDD mechanism: show the actual platter/head/working HDD rather than a
-        # generic NAS enclosure or another storage product.
         if section in ("第2章　HDDとは？","第4章　SSDとHDDは何が違う？","第8章　寿命と故障はどう違う？"):
             mech_keys=("ヘッド","プラッタ","回ってくる","回転して","回転音","カリカリ","モーター","回転機構","機械部品")
             if any(k in txt for k in mech_keys):
                 changed += set_asset(i,HDD_MECH)
                 continue
 
-        # Comparison statements explicitly contrasting both technologies should
-        # prefer a both-sides composition, but only if contextual semantics allow
-        # it; otherwise choose the best canonical comparison shot.
         if section=="第4章　SSDとHDDは何が違う？" and any(k in txt for k in ("HDDのような機械的な回転音","可動部品があるかどうか")):
             changed += set_asset(i,MIXED + HDD_MECH + SSD_DEVICE)
             continue
 
-        # Capacity/price: archive-scale examples should look like bulk storage,
-        # not an SSD installation close-up. Price/choice principles should avoid
-        # one-sided imagery where the canonical pool permits a mixed view.
         if section=="第7章　容量と価格はどう違う？":
             archive_keys=("何十本","何百本","編集前の素材","必要な容量","バックアップ","数TB","大容量HDD","大量に残したい","HDDへ保存")
             neutral_keys=("ストレージを買う","どれくらい保存","容量をいくら","価格は時期","固定価格","買う時点","容量あたりの価格")
@@ -126,13 +124,10 @@ def finalize_visual_semantics_v7(events):
                 changed += set_asset(i,MIXED + ARCHIVE + SSD_DEVICE)
                 continue
 
-        # Lifespan sentences describing both failure models should be balanced.
         if section=="第8章　寿命と故障はどう違う？" and any(k in txt for k in ("SSDにもHDDにも","それぞれ違った故障要因","寿命や故障の違い","重要なのだ")):
             changed += set_asset(i,MIXED + HDD_MECH + SSD_DEVICE)
             continue
 
-        # Backup chapter: only deliberate single-drive examples use one-sided
-        # media. The backup explanation itself prefers NAS/external/server views.
         if section=="第9章　バックアップは必要":
             if "高性能なSSD一台" in txt:
                 changed += set_asset(i,SSD_DEVICE)
@@ -149,8 +144,6 @@ def finalize_visual_semantics_v7(events):
                 changed += set_asset(i,BACKUP)
                 continue
 
-        # Final chapter: role assignment remains one-sided where appropriate,
-        # while principles/conclusions prefer both technologies together.
         if section=="最終章　SSDとHDD、結局どっちを選ぶ？":
             if any(k in txt for k in ("Windowsやアプリ","ゲーム、現在作業","SSDへ置いて","全部SSD","SSDにする")):
                 changed += set_asset(i,SSD_ACTIVE)
@@ -170,8 +163,6 @@ def finalize_visual_semantics_v7(events):
                 changed += set_asset(i,MIXED + HDD_MECH + SSD_DEVICE)
                 continue
 
-        # Opening overview: use the canonical BOTH pool but balance HDD/SSD shots
-        # instead of forcing unrelated motherboard footage.
         if section=="オープニング":
             overview_keys=("SSDとHDDの","SSDとかHDD","どこが違う","どっちを","SSDとHDDは、どちらも","大まかな役割","それぞれの仕組み")
             if any(k in txt for k in overview_keys):
@@ -180,17 +171,21 @@ def finalize_visual_semantics_v7(events):
 
     for n,e in enumerate(events):
         e["n"]=n
-    print("V7.1 semantic specificity adjusted",changed,"events")
+    print("V7.2 semantic specificity adjusted",changed,"events")
     return events
 '''
 
 src=src.replace(marker,"\n"+func+marker.lstrip("\n"),1)
 
-old='''events=finalize_no_near_repeats(events,distance=2)\n'''
-new='''events=finalize_visual_semantics_v7(events)\nevents=finalize_no_near_repeats(events,distance=2)\n'''
-if old not in src:
+call_patterns=[
+    'events=finalize_no_near_repeats(events,distance=1)\n',
+    'events=finalize_no_near_repeats(events,distance=2)\n',
+]
+old=next((c for c in call_patterns if c in src),None)
+if old is None:
     raise SystemExit("V7 finalizer call marker not found")
+new='events=finalize_visual_semantics_v7(events)\n'+old
 src=src.replace(old,new,1)
 
 P.write_text(src,encoding="utf-8")
-print("Applied V7.1 explanatory semantic specificity finalizer")
+print("Applied V7.2 explanatory semantic specificity finalizer")
