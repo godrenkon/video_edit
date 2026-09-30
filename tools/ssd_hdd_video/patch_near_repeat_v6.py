@@ -15,17 +15,20 @@ if marker not in src:
 
 func = r'''
 
-def finalize_no_near_repeats(events, distance=2, passes=48):
+def finalize_no_near_repeats(events, distance=1, passes=48):
     """Final deterministic visual-spacing pass.
 
-    Run this *after* coalescing and global rebalancing.  Earlier passes can
-    legitimately change neighbouring shots and re-introduce A-B-A patterns.
-    This pass guarantees there is no adjacent repeat and no reuse within the
-    previous ``distance`` cuts before any expensive ffmpeg rendering starts.
+    This pass runs after coalescing/rebalancing and guarantees that the exact
+    same asset is never shown in two *adjacent* cuts.  It intentionally allows
+    A-B-A patterns: returning to the same controller/NAND/HDD visual after one
+    intervening cut is often semantically correct in a technical explanation.
 
-    If the current event cannot be changed semantically, the older occurrence
-    is changed instead.  Every replacement still has to pass
-    ``semantic_asset_ok``.
+    The previous distance=2 invariant was too strict and could reject valid
+    sequences such as controller -> NAND -> controller even when every shot was
+    short and directly matched the narration.
+
+    Every replacement still has to pass semantic_asset_ok, so visual variety
+    never takes priority over explanatory correctness.
     """
     events=[dict(e) for e in events]
     if not events:
@@ -71,19 +74,19 @@ def finalize_no_near_repeats(events, distance=2, passes=48):
         old=e["asset"]
         pool=media_pool(e)
 
-        # Do not pick anything visible in the local spacing window.  For an
-        # older occurrence, this includes the newer duplicate that caused the
-        # conflict, so changing the old A in A-B-A truly resolves the loop.
-        lo=max(0,idx-distance)
-        hi=min(len(events),idx+distance+1)
-        forbidden={events[j]["asset"] for j in range(lo,hi) if j!=idx}
+        # Only adjacent equality is forbidden.  Do not forbid the asset used
+        # two cuts ago; A-B-A is allowed when it is the clearest explanation.
+        forbidden=set()
+        if idx>0:
+            forbidden.add(events[idx-1]["asset"])
+        if idx+1<len(events):
+            forbidden.add(events[idx+1]["asset"])
 
-        # Also protect the conflict neighbourhood explicitly; this matters at
-        # the beginning/end of the timeline where the symmetric window is
-        # smaller.
-        for j in range(max(0,conflict_i-distance),min(len(events),conflict_i+2)):
-            if j != idx:
-                forbidden.add(events[j]["asset"])
+        # Protect the actual adjacent conflict explicitly.
+        if conflict_i>0 and conflict_i-1 != idx:
+            forbidden.add(events[conflict_i-1]["asset"])
+        if conflict_i < len(events) and conflict_i != idx:
+            forbidden.add(events[conflict_i]["asset"])
 
         candidates=[a for a in pool if a!=old and a not in forbidden and valid_for(e,a)]
         if not candidates:
@@ -104,9 +107,8 @@ def finalize_no_near_repeats(events, distance=2, passes=48):
     for _pass in range(passes):
         counts=usage_counts()
         conflict=None
-        for i in range(len(events)):
-            recent={events[j]["asset"] for j in range(max(0,i-distance),i)}
-            if events[i]["asset"] in recent:
+        for i in range(1,len(events)):
+            if events[i]["asset"] == events[i-1]["asset"]:
                 conflict=i
                 break
         if conflict is None:
@@ -114,12 +116,12 @@ def finalize_no_near_repeats(events, distance=2, passes=48):
 
         i=conflict
         repeated=events[i]["asset"]
-        older=[j for j in range(max(0,i-distance),i) if events[j]["asset"]==repeated]
+        older=[i-1]
 
-        # Prefer changing the current shot.  If its phrase is semantically too
-        # constrained, change the older duplicate instead.  This is the case
-        # the previous repair pass did not guarantee.
-        targets=[i] + list(reversed(older))
+        # Prefer changing the current shot. If it is semantically constrained,
+        # try the immediately previous duplicate. If neither can change, keep
+        # the semantic match and fail loudly rather than substituting nonsense.
+        targets=[i] + older
         changed=False
         for idx in targets:
             if replace_at(idx,i,counts):
@@ -129,22 +131,20 @@ def finalize_no_near_repeats(events, distance=2, passes=48):
         if not changed:
             row=events[i]["row"]
             raise RuntimeError(
-                "V6 cannot resolve near-repeat before rendering: "
-                f"event={i} asset={repeated!r} text={row.get('text','')!r} "
-                f"recent={[events[j]['asset'] for j in range(max(0,i-distance),i)]!r}"
+                "V6 cannot resolve adjacent repeat before rendering: "
+                f"event={i} asset={repeated!r} text={row.get('text','')!r}"
             )
     else:
-        raise RuntimeError("V6 near-repeat repair exceeded pass limit")
+        raise RuntimeError("V6 adjacent-repeat repair exceeded pass limit")
 
     remaining=[]
-    for i,e in enumerate(events):
-        recent={events[j]["asset"] for j in range(max(0,i-distance),i)}
-        if e["asset"] in recent:
-            remaining.append((i,e["asset"],sorted(recent),e["row"].get("text","")))
+    for i in range(1,len(events)):
+        if events[i]["asset"] == events[i-1]["asset"]:
+            remaining.append((i,events[i]["asset"],events[i]["row"].get("text","")))
     if remaining:
-        raise RuntimeError("V6 near-repeat invariant failed: "+repr(remaining[:20]))
+        raise RuntimeError("V6 adjacent-repeat invariant failed: "+repr(remaining[:20]))
 
-    # Re-check semantics after every spacing replacement.  This turns a visual
+    # Re-check semantics after every spacing replacement. This turns a visual
     # QA failure into a cheap pre-render failure rather than a 1-hour rerender.
     semantic_bad=[]
     for i,e in enumerate(events):
@@ -157,7 +157,7 @@ def finalize_no_near_repeats(events, distance=2, passes=48):
 
     for n,e in enumerate(events):
         e["n"]=n
-    print("V6 spacing QA passed: events",len(events),"distance",distance)
+    print("V6 adjacent-spacing QA passed: events",len(events),"distance",distance)
     return events
 '''
 
@@ -172,13 +172,14 @@ new = '''events=coalesce_short_events(events,min_dur=0.95,max_dur=4.05)
 events=repair_near_repeats(events,distance=2)
 events=rebalance_global_usage(events,distance=3,passes=10)
 events=repair_near_repeats(events,distance=2)
-# V6 must be the final mutation of the visual asset sequence.  It guarantees
-# no adjacent or A-B-A reuse remains *after* coalescing/rebalancing.
-events=finalize_no_near_repeats(events,distance=2)
+# V6 is the final mutation of the visual asset sequence. It guarantees only
+# adjacent duplicates are removed. A-B-A is intentionally allowed when it is
+# semantically correct and every shot remains short.
+events=finalize_no_near_repeats(events,distance=1)
 '''
 if old not in src:
     raise SystemExit("V6 final-pass call marker not found")
 src = src.replace(old,new,1)
 
 P.write_text(src,encoding="utf-8")
-print("Applied V6 deterministic near-repeat finalizer")
+print("Applied V6 adjacent-repeat finalizer")
