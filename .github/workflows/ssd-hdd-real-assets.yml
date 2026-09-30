@@ -39,3 +39,5 @@ jobs:
           path: real_assets
           compression-level: 0
           retention-days: 7
+
+# 2026-09-30 refresh: regenerate a fresh verified asset artifact for V10.
