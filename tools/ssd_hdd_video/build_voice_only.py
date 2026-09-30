@@ -148,3 +148,5 @@ print(f"sentences={idx}")
 print(f"duration={current:.3f}")
 print(final_wav)
 print(final_mp3)
+
+# retrigger V10 precision build with the in-run VOICEVOX pipeline
