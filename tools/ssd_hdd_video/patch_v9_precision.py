@@ -26,3 +26,7 @@ s=s.replace('scale=-1:640,setpts=PTS-STARTPTS[z]', 'scale=-1:520,setpts=PTS-STAR
 
 P.write_text(s,encoding='utf-8')
 print('V9 precision patch applied')
+
+# 2026-09-30: retrigger V10 after relaxing V6 from A-B-A prohibition to
+# adjacent-duplicate-only spacing. Semantic correctness now wins over arbitrary
+# three-cut uniqueness while the 4.05s hold limit and adjacent-repeat QA remain.
