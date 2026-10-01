@@ -21,8 +21,8 @@ ROOT='android(HbuilderX)/res/zun2.3'
 RAW=f'https://raw.githubusercontent.com/{REPO}/{COMMIT}/'
 UA={'User-Agent':'Mozilla/5.0 SSD-HDD-video-build'}
 
-# Coordinates come from the original v2.3 PSD layer mapping included with the
-# expanded layer set.  Each PNG is composited back onto the original 1082x1650 canvas.
+# Coordinates come from the v2.3 name_mapping.txt included with the expanded layer set.
+# The normal eye is not a single image: it is Normal whites + a pupil layer.
 LAYERS={
     'tail': ('Tail-like thing.png',(578,555)),
     'body': ('Outfit 1/Usual clothes.png',(306,167)),
@@ -33,7 +33,8 @@ LAYERS={
     'l_think': ('Outfit 1/Left arm/Thinking.png',(470,537)),
     'l_raise': ('Outfit 1/Left arm/Hand raised.png',(585,322)),
     'cheeks': ('Face Color/Cheeks.png',(363,433)),
-    'eyes_camera': ('Eyes/Camera gaze.png',(391,372)),
+    'eye_whites_normal': ('Eyes/Eye set/Normal whites.png',(366,351)),
+    'eye_pupil_camera': ('Eyes/Eye set/Pupils/Camera gaze.png',(391,372)),
     'eyes_up': ('Eyes/Looking up 3.png',(367,348)),
     'eyes_half': ('Eyes/Half-closed eyes.png',(364,369)),
     'brow_normal': ('Eyebrows/Normal brows.png',(383,305)),
@@ -47,9 +48,9 @@ LAYERS={
 
 POSES={
     # Calm default used for ordinary explanation.
-    'normal': ['tail','body','l_waist','r_waist','cheeks','eyes_camera','brow_normal','mouth_mufu','edamame'],
+    'normal': ['tail','body','l_waist','r_waist','cheeks','eye_whites_normal','eye_pupil_camera','brow_normal','mouth_mufu','edamame'],
     # Right-hand pointing pose for mechanisms, terminology and key facts.
-    'explain': ['tail','body','l_waist','r_point','cheeks','eyes_camera','brow_normal','mouth_o','edamame'],
+    'explain': ['tail','body','l_waist','r_point','cheeks','eye_whites_normal','eye_pupil_camera','brow_normal','mouth_o','edamame'],
     # Thinking pose for questions, comparisons and "why?" transitions.
     'question': ['tail','body','l_think','r_waist','cheeks','eyes_up','brow_troubled','mouth_mufu','edamame'],
     # Raised-hand / alert pose for caveats, lifetime, backup and misconceptions.
@@ -65,7 +66,8 @@ def get_layer(key):
     if not p.exists():
         url=raw_url(rel)
         r=requests.get(url,headers=UA,timeout=90)
-        r.raise_for_status()
+        if r.status_code != 200:
+            raise RuntimeError(f'layer download failed: key={key} status={r.status_code} url={url}')
         p.write_bytes(r.content)
     im=Image.open(p).convert('RGBA')
     return im,(x,y),rel
@@ -80,7 +82,6 @@ def build_pose(name,keys):
     bbox=canvas.getchannel('A').getbbox()
     if not bbox:
         raise RuntimeError(f'pose {name}: empty alpha')
-    # Crop real figure but keep consistent breathing room; output remains transparent.
     margin=36
     l,t,r,b=bbox
     l=max(0,l-margin); t=max(0,t-margin); r=min(CANVAS[0],r+margin); b=min(CANVAS[1],b+margin)
@@ -101,7 +102,6 @@ for x in meta:
     if x['size'][1] < 800 or x['size'][0] < 300:
         raise RuntimeError(f'pose too small or incomplete: {x}')
 
-# Contact sheet used by QA before any 20-minute render is allowed.
 thumbs=[]
 for x in meta:
     im=Image.open(OUT/x['file']).convert('RGBA')
