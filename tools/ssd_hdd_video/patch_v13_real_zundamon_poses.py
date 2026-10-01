@@ -43,7 +43,7 @@ new='''def prepare_zundamon_poses(src=None):
     if len(set(hashes)) != len(poses):
         raise RuntimeError("V13 Zundamon poses are not genuinely distinct")
 
-    (OUT/"zundamon_pose_count.txt").write_text(str(len(poses))+"\n",encoding="utf-8")
+    (OUT/"zundamon_pose_count.txt").write_text(str(len(poses))+chr(10),encoding="utf-8")
     manifest=pose_dir/"manifest.json"
     if manifest.exists():
         (OUT/"zundamon_pose_manifest.json").write_text(manifest.read_text(encoding="utf-8"),encoding="utf-8")
