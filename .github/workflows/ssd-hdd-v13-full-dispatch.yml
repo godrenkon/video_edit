@@ -12,6 +12,7 @@ permissions:
   actions: write
   contents: read
 
+# retry 2: rerun after V13 pose-patch newline fix
 jobs:
   dispatch:
     runs-on: ubuntu-24.04
