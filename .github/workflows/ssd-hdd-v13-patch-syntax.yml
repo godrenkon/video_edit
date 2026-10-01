@@ -1,0 +1,31 @@
+name: SSD HDD V13 Patch Syntax QA
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-v13-patch-syntax.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply full V13 patch chain and compile
+        run: |
+          python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
+          python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
+          python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
+          python3 tools/ssd_hdd_video/patch_v82_visuals.py
+          python3 tools/ssd_hdd_video/patch_v13_real_zundamon_poses.py
+          python3 tools/ssd_hdd_video/patch_v9_precision.py
+          python3 tools/ssd_hdd_video/patch_near_repeat_v6.py
+          python3 tools/ssd_hdd_video/patch_smoke_boundary_v12.py
+          python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
+          grep -n "zundamon_pose_count\|V13.1\|choose_zundamon_pose" tools/ssd_hdd_video/render_real_media.py | head -n 80
+          echo V13_PATCH_SYNTAX_OK
