@@ -1,0 +1,59 @@
+name: SSD HDD V13 Pose QA
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-v13-pose-qa.yml"
+      - "tools/ssd_hdd_video/build_zundamon_23_poses.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ssd-hdd-v13-pose-qa
+  cancel-in-progress: true
+
+jobs:
+  pose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install minimal dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow requests
+      - name: Build genuine Zundamon v2.3 poses
+        run: |
+          rm -rf zundamon_poses
+          python3 tools/ssd_hdd_video/build_zundamon_23_poses.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          m=json.load(open('zundamon_poses/manifest.json',encoding='utf-8'))
+          poses=m['poses']
+          assert len(poses)==4
+          assert len({x['sha256'] for x in poses})==4
+          for x in poses:
+              p=Path('zundamon_poses')/x['file']
+              im=Image.open(p).convert('RGBA')
+              assert im.getchannel('A').getbbox()
+              assert im.height>=800 and im.width>=300
+          print('POSE_QA_OK',[(x['name'],x['size'],x['sha256'][:12]) for x in poses])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-v13-pose-qa
+          path: |
+            zundamon_poses/zundamon_normal.png
+            zundamon_poses/zundamon_explain.png
+            zundamon_poses/zundamon_question.png
+            zundamon_poses/zundamon_attention.png
+            zundamon_poses/zundamon_pose_contact_sheet.png
+            zundamon_poses/manifest.json
+          compression-level: 0
+          retention-days: 7
