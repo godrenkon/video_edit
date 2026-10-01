@@ -1,0 +1,47 @@
+name: Inspect Zundamon Standing Art 2.3
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/inspect-zundamon23.yml"
+      - "tools/ssd_hdd_video/inspect_zundamon_23.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PSD inspection dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install requests beautifulsoup4 psd-tools pillow
+
+      - name: Download and inspect original Zundamon 2.3 material
+        run: |
+          python3 tools/ssd_hdd_video/inspect_zundamon_23.py
+          echo '--- ZIP LIST ---'
+          sed -n '1,160p' zundamon23_inspect/zip_listing.txt
+          echo '--- PSD LAYER TREE ---'
+          sed -n '1,260p' zundamon23_inspect/layer_tree.txt
+          echo '--- TOP LAYERS ---'
+          cat zundamon23_inspect/top_layers.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zundamon-standing-art-23-inspection
+          path: |
+            zundamon23_inspect/default_composite.png
+            zundamon23_inspect/top_*.png
+            zundamon23_inspect/layer_tree.txt
+            zundamon23_inspect/top_layers.json
+            zundamon23_inspect/zip_listing.txt
+          compression-level: 0
+          retention-days: 7
