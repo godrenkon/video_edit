@@ -1,0 +1,26 @@
+name: Dispatch SSD HDD V12 Current Head
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-v12-dispatch.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Dispatch V12 on current branch head
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --method POST \
+            repos/godrenkon/video_edit/actions/workflows/ssd-hdd-real-media-v12-smoke-boundary.yml/dispatches \
+            -f ref=video-build/ssd-hdd-explainer
+          echo "Dispatched V12 at current branch head"
