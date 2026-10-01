@@ -1,0 +1,26 @@
+name: Dispatch SSD HDD V13.1 Full
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-v13-full-dispatch.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Dispatch latest V13 full workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run ssd-hdd-real-media-v13-full.yml \
+            --repo godrenkon/video_edit \
+            --ref video-build/ssd-hdd-explainer
+          echo "Dispatched V13.1 full build on latest branch"
