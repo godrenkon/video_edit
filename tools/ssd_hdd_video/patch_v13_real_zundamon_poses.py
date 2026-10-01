@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import runpy
 
 P=Path('tools/ssd_hdd_video/render_real_media.py')
 s=P.read_text(encoding='utf-8')
@@ -42,7 +43,7 @@ new='''def prepare_zundamon_poses(src=None):
     if len(set(hashes)) != len(poses):
         raise RuntimeError("V13 Zundamon poses are not genuinely distinct")
 
-    (OUT/"zundamon_pose_count.txt").write_text(str(len(poses))+"\\n",encoding="utf-8")
+    (OUT/"zundamon_pose_count.txt").write_text(str(len(poses))+"\n",encoding="utf-8")
     manifest=pose_dir/"manifest.json"
     if manifest.exists():
         (OUT/"zundamon_pose_manifest.json").write_text(manifest.read_text(encoding="utf-8"),encoding="utf-8")
@@ -70,3 +71,8 @@ s=s.replace('zundamon_poses=prepare_zundamon_poses(asset("zundamon_official"))',
 
 P.write_text(s,encoding='utf-8')
 print('V13 genuine Zundamon 2.3 poses patched; mirror/tilt variants disabled')
+
+# V13.1 semantic tightening is chained here so every production workflow that
+# already applies the V13 real-pose patch also gets the stronger phrase-to-media
+# matching rules. This keeps full builds and smoke builds on the same semantics.
+runpy.run_path('tools/ssd_hdd_video/patch_v13_semantic_tightening.py', run_name='__main__')
