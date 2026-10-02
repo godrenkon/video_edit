@@ -32,7 +32,7 @@ jobs:
           python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
       - name: Verify V14 markers
         run: |
-          grep -n "Reset at EVERY narration sentence" tools/ssd_hdd_video/render_real_media.py
+          grep -n "reset at EVERY narration sentence" tools/ssd_hdd_video/render_real_media.py
           grep -n "RAM / memory explanation" tools/ssd_hdd_video/render_real_media.py
           grep -n "Browser / application / Windows" tools/ssd_hdd_video/render_real_media.py
           grep -n "Backup chapter" tools/ssd_hdd_video/render_real_media.py
