@@ -4,5 +4,6 @@ v82_smoke_run: 36348802830
 v82_smoke_result: PASS (opening/speed/types/backup windows, multiple Zundamon presentation variants, no adjacent duplicates, max hold <= 4.05s)
 full_workflow_commit: 32b52cebad3e0f90297204e3f1f6ec6ffd80e236
 full_hard_qa_requirements: >=250 events, >=14 real assets, no adjacent/A-B-A repeats, all chapters >=6 unique assets, top asset share <=0.32, strict semantic mapping, 1080p60, 48kHz stereo, Zundamon variants >=2
-trigger_revision: final V8.2 full real-media master
-timestamp: 2026-09-28
+trigger_revision: fresh full real-media production run after final user visual/material requirements
+reason: verify actual licensed materials, short cut cadence, Zundamon, large green subtitles, corrected narration pronunciation, semantic hard QA
+triggered_at: 2026-10-02T19:16:00+09:00
