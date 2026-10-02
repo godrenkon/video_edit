@@ -1,0 +1,86 @@
+name: SSD HDD Real Media Production V15 Fixed
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-media-production-v15-fixed.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ssd-hdd-real-media-production-v15-fixed
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install render dependencies first
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow janome requests numpy soundfile
+
+      - name: Download verified real media assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets
+          path: real_assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36679624503
+
+      - name: Download latest supplemental real media assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets-extra
+          path: real_assets_extra
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36995725158
+
+      - name: Download corrected Zundamon narration
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-zundamon-narration
+          path: voice_download
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36995762480
+
+      - name: Run proven real-media production pipeline
+        run: |
+          bash tools/ssd_hdd_video/run_real_media_v15_production.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-v15-final
+          path: |
+            real_video_output/SSD_HDD_REAL_MEDIA_V15_FINAL.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_CLEAN.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4
+            real_video_output/bgm_stem.wav
+            real_video_output/sfx_stem.wav
+            real_video_output/storyboard.tsv
+            real_video_output/subtitles_green_v15.ass
+            real_video_output/ATTRIBUTION.md
+            real_video_output/ffprobe.json
+            real_video_output/zundamon_pose_count.txt
+            real_video_output/zundamon_pose_manifest.json
+          compression-level: 0
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-v15-qa
+          path: qa
+          compression-level: 0
+          retention-days: 7
