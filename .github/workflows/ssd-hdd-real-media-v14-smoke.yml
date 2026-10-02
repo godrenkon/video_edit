@@ -1,0 +1,217 @@
+name: SSD HDD Real Media V14 Smoke
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-media-v14-smoke.yml"
+      - "tools/ssd_hdd_video/patch_v14_semantic_storytelling.py"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ssd-hdd-real-media-v14-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download verified real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets
+          path: real_assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36679624503
+
+      - name: Download supplemental real assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets-extra
+          path: real_assets_extra
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36679063835
+
+      - name: Merge supplemental assets
+        run: |
+          cp -a real_assets_extra/. real_assets/
+          if [ -f real_assets/ATTRIBUTION_EXTRA.md ]; then
+            cat real_assets/ATTRIBUTION_EXTRA.md >> real_assets/ATTRIBUTION.md
+          fi
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow janome requests numpy soundfile
+
+      - name: Build genuine Zundamon 2.3 poses
+        run: |
+          rm -rf zundamon_poses
+          python3 tools/ssd_hdd_video/build_zundamon_23_poses.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          m=json.load(open('zundamon_poses/manifest.json',encoding='utf-8'))
+          assert len(m['poses'])==4
+          assert len({x['sha256'] for x in m['poses']})==4
+          for x in m['poses']:
+              p=Path('zundamon_poses')/x['file']
+              im=Image.open(p).convert('RGBA')
+              assert im.getchannel('A').getbbox(),p
+          print('V14_POSES_OK')
+          PY
+
+      - name: Start VOICEVOX
+        run: |
+          docker pull voicevox/voicevox_engine:cpu-latest
+          docker run -d --rm --name voicevox -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:cpu-latest
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:50021/version >/dev/null; then
+              echo "VOICEVOX ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Build corrected narration and timings
+        run: |
+          rm -rf voice voice_output
+          python3 tools/ssd_hdd_video/build_voice_only.py
+          mkdir -p voice
+          cp voice_output/SSD_HDD_NARRATION_ZUNDAMON_48k.wav voice/
+          cp voice_output/narration_timestamps.tsv voice/
+
+      - name: Apply V13 patches plus V14 semantic-storytelling patch
+        run: |
+          python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
+          python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
+          python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
+          python3 tools/ssd_hdd_video/patch_v82_visuals.py
+          python3 tools/ssd_hdd_video/patch_v13_real_zundamon_poses.py
+          python3 tools/ssd_hdd_video/patch_v9_precision.py
+          python3 tools/ssd_hdd_video/patch_near_repeat_v6.py
+          python3 tools/ssd_hdd_video/patch_smoke_boundary_v12.py
+          python3 tools/ssd_hdd_video/patch_v14_semantic_storytelling.py
+          python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
+          grep -n "Reset at EVERY narration sentence\|RAM / memory explanation\|Backup chapter" tools/ssd_hdd_video/render_real_media.py
+
+      - name: Smoke A - storage basics / RAM / Windows
+        run: |
+          rm -rf real_video_output /tmp/ssd_hdd_real_render smoke_a
+          SSD_HDD_SMOKE_START=75 SSD_HDD_SMOKE_SECONDS=105 python3 tools/ssd_hdd_video/render_real_media.py
+          mv real_video_output smoke_a
+
+      - name: QA A - no carried HDD/SSD subject into RAM or app examples
+        run: |
+          python3 - <<'PY'
+          import csv
+          rows=list(csv.DictReader(open('smoke_a/storyboard.tsv',encoding='utf-8'),delimiter='\t'))
+          assert rows
+          ram_allowed={'ram_ddr4','pc_m2_hdd_inside','motherboard','m2_installed'}
+          app_allowed={'browser_demo_video','pc_m2_hdd_inside','m2_installed','laptop_nvme','nvme_m2','sata_ssd','crucial_ssd','motherboard','ssd_install'}
+          ram=[]; apps=[]; leaked=[]
+          for r in rows:
+              t=r['text']; src=r.get('source_text',''); sec=r['section']; hint=r.get('subject_hint','')
+              if 'HDD' not in src and 'SSD' not in src and 'HDDとは' not in sec and 'SSDとは' not in sec and hint:
+                  leaked.append((r['start'],hint,r['asset'],t,src))
+              if ('RAM' in t or 'メモリ' in t) and 'HDD' not in t and 'SSD' not in t:
+                  ram.append(r)
+                  assert r['asset'] in ram_allowed,(r['start'],r['asset'],t)
+              if any(k in t for k in ['Windows','アプリ','ゲーム','編集ソフト','ブラウザ']) and 'HDD' not in t and 'SSD' not in t:
+                  apps.append(r)
+                  assert r['asset'] in app_allowed,(r['start'],r['asset'],t)
+          assert ram, 'RAM smoke coverage missing'
+          assert apps, 'Windows/app smoke coverage missing'
+          assert not leaked, leaked[:20]
+          print('V14_SMOKE_A_OK','rows',len(rows),'ram',len(ram),'apps',len(apps))
+          PY
+
+      - name: Smoke B - backup
+        run: |
+          rm -rf real_video_output /tmp/ssd_hdd_real_render smoke_b
+          SSD_HDD_SMOKE_START=875 SSD_HDD_SMOKE_SECONDS=105 python3 tools/ssd_hdd_video/render_real_media.py
+          mv real_video_output smoke_b
+
+      - name: QA B - backup narration uses actual backup media
+        run: |
+          python3 - <<'PY'
+          import csv
+          rows=list(csv.DictReader(open('smoke_b/storyboard.tsv',encoding='utf-8'),delimiter='\t'))
+          assert rows
+          allowed={'nas','nas_drive_bay','external_hdds','external_hdd_laptop','server_rack','pc_m2_hdd_inside','hdd_ssd_disassembled','backup_diagram'}
+          checked=[]
+          for r in rows:
+              t=r['text']; sec=r['section']
+              if 'HDD' in t or 'SSD' in t:
+                  continue
+              if 'バックアップ' in sec or any(k in t for k in ['3-2-1','コピー','別の場所','クラウド','一台が壊','データが残る状態']):
+                  checked.append(r)
+                  assert r['asset'] in allowed,(r['start'],r['asset'],t)
+          assert checked,'backup smoke coverage missing'
+          print('V14_SMOKE_B_OK','rows',len(rows),'backup',len(checked))
+          PY
+
+      - name: Smoke C - use cases / laptop / external USB
+        run: |
+          rm -rf real_video_output /tmp/ssd_hdd_real_render smoke_c
+          SSD_HDD_SMOKE_START=1010 SSD_HDD_SMOKE_SECONDS=120 python3 tools/ssd_hdd_video/render_real_media.py
+          mv real_video_output smoke_c
+
+      - name: QA C - external and laptop visuals match narration
+        run: |
+          python3 - <<'PY'
+          import csv
+          rows=list(csv.DictReader(open('smoke_c/storyboard.tsv',encoding='utf-8'),delimiter='\t'))
+          assert rows
+          external_generic={'external_ssd','external_hdds','external_hdd_laptop','sata_ssd','hdd_side'}
+          external_ssd={'external_ssd','sata_ssd','nvme_m2'}
+          external_hdd={'external_hdds','external_hdd_laptop','hdd_side'}
+          laptop={'laptop_nvme','m2_installed','nvme_m2','ssd_install','pc_m2_hdd_inside'}
+          ext=[]; lap=[]
+          for r in rows:
+              t=r['text']
+              if any(k in t for k in ['USB','外付け']):
+                  ext.append(r)
+                  allowed=external_generic
+                  if 'SSD' in t and 'HDD' not in t: allowed=external_ssd
+                  if 'HDD' in t and 'SSD' not in t: allowed=external_hdd
+                  assert r['asset'] in allowed,(r['start'],r['asset'],t)
+              if any(k in t for k in ['ノートパソコン','ノートPC','小型PC','薄いノート']) and 'HDD' not in t and 'SSD' not in t:
+                  lap.append(r)
+                  assert r['asset'] in laptop,(r['start'],r['asset'],t)
+          assert ext,'external/USB smoke coverage missing'
+          assert lap,'laptop smoke coverage missing'
+          print('V14_SMOKE_C_OK','rows',len(rows),'external',len(ext),'laptop',len(lap))
+          PY
+
+      - name: Package V14 smoke QA
+        run: |
+          mkdir -p qa/a qa/b qa/c
+          cp smoke_a/storyboard.tsv smoke_a/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4 qa/a/
+          cp smoke_b/storyboard.tsv smoke_b/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4 qa/b/
+          cp smoke_c/storyboard.tsv smoke_c/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4 qa/c/
+          for dir in a b c; do
+            src="smoke_${dir}"
+            for T in 5 25 50 75; do
+              ffmpeg -y -loglevel error -ss "$T" -i "$src/SSD_HDD_REAL_MEDIA_FINAL.mp4" -frames:v 1 "qa/$dir/frame_${T}.png" || true
+            done
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-v14-smoke-qa
+          path: qa
+          compression-level: 0
+          retention-days: 7
