@@ -1,0 +1,301 @@
+name: SSD HDD Real Media Production V15
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-real-media-production-v15.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ssd-hdd-real-media-production-v15
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore proven V13 real-media engine
+        run: |
+          BASE=36b8a242ce1ce716b5bbf01af6e57ea6a89bcf44
+          git checkout "$BASE" -- \
+            tools/ssd_hdd_video/render_real_media.py \
+            tools/ssd_hdd_video/build_zundamon_23_poses.py \
+            tools/ssd_hdd_video/patch_subject_tracking_v2.py \
+            tools/ssd_hdd_video/patch_phrase_boundaries_v5.py \
+            tools/ssd_hdd_video/patch_visual_semantics_v4.py \
+            tools/ssd_hdd_video/patch_v82_visuals.py \
+            tools/ssd_hdd_video/patch_v13_real_zundamon_poses.py \
+            tools/ssd_hdd_video/patch_v9_precision.py \
+            tools/ssd_hdd_video/patch_near_repeat_v6.py \
+            tools/ssd_hdd_video/patch_smoke_boundary_v12.py
+          echo "Restored renderer/patches from proven V13 commit: $BASE"
+
+      - name: Download verified real media assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets
+          path: real_assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36679624503
+
+      - name: Download latest supplemental real media assets
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-assets-extra
+          path: real_assets_extra
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36995725158
+
+      - name: Merge and inspect real assets
+        run: |
+          cp -a real_assets_extra/. real_assets/
+          if [ -f real_assets/ATTRIBUTION_EXTRA.md ]; then
+            cat real_assets/ATTRIBUTION_EXTRA.md >> real_assets/ATTRIBUTION.md
+          fi
+          echo "=== REAL ASSETS ==="
+          find real_assets -maxdepth 1 -type f -printf '%f\t%s bytes\n' | sort
+          python3 - <<'PY'
+          from pathlib import Path
+          required={
+            'hdd_working_video','hdd_open_photo','hdd_head_macro','hdd_side',
+            'sata_ssd','nvme_m2','ssd_controller','ssd_nand','sata_vs_nvme',
+            'motherboard','ssd_install','nas','server_rack','bgm_pamgaea',
+            'bgm_envision','bgm_mellowtron','zundamon_official',
+            'external_hdds','external_ssd','m2_installed','pc_m2_hdd_inside',
+            'sata_connector','sata_data_power'
+          }
+          names={p.stem for p in Path('real_assets').iterdir() if p.is_file()}
+          missing=sorted(required-names)
+          assert not missing, missing
+          print('REAL_ASSET_QA_OK',len(names),'files')
+          PY
+
+      - name: Download corrected Zundamon narration
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-zundamon-narration
+          path: voice_download
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 36995762480
+
+      - name: Prepare latest narration and verify pronunciation source
+        run: |
+          mkdir -p voice
+          cp voice_download/SSD_HDD_NARRATION_ZUNDAMON_48k.wav voice/
+          cp voice_download/narration_timestamps.tsv voice/
+          ffprobe -v error -show_entries stream=sample_rate,channels,duration -of json voice/SSD_HDD_NARRATION_ZUNDAMON_48k.wav
+          git show 69a386ac1cef9193078b9c64986b28f040c41543:tools/ssd_hdd_video/build_voice_only.py > /tmp/voice_source.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('/tmp/voice_source.py').read_text(encoding='utf-8')
+          checks={
+            'HDD':'エイチディーディー',
+            'SSD':'エスエスディー',
+            'NVMe':'エヌブイエムイー',
+            'M.2':'エムドットツー',
+            'PCIe':'ピーシーアイイー',
+          }
+          for src,dst in checks.items():
+              assert src in s and dst in s,(src,dst)
+          print('PRONUNCIATION_QA_OK',checks)
+          PY
+
+      - name: Install render dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pillow janome requests numpy soundfile
+
+      - name: Build genuine Zundamon 2.3 poses
+        run: |
+          rm -rf zundamon_poses
+          python3 tools/ssd_hdd_video/build_zundamon_23_poses.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          m=json.load(open('zundamon_poses/manifest.json',encoding='utf-8'))
+          poses=m['poses']
+          assert len(poses)==4,len(poses)
+          assert len({x['sha256'] for x in poses})==4
+          for x in poses:
+              p=Path('zundamon_poses')/x['file']
+              im=Image.open(p).convert('RGBA')
+              assert im.getchannel('A').getbbox(),p
+              assert im.height>=800 and im.width>=300,(p,im.size)
+          print('GENUINE_ZUNDAMON_POSES_OK',[(x['name'],x['size'],x['sha256'][:12]) for x in poses])
+          PY
+
+      - name: Apply proven V13 semantic precision patches
+        run: |
+          python3 tools/ssd_hdd_video/patch_subject_tracking_v2.py
+          python3 tools/ssd_hdd_video/patch_phrase_boundaries_v5.py
+          python3 tools/ssd_hdd_video/patch_visual_semantics_v4.py
+          python3 tools/ssd_hdd_video/patch_v82_visuals.py
+          python3 tools/ssd_hdd_video/patch_v13_real_zundamon_poses.py
+          python3 tools/ssd_hdd_video/patch_v9_precision.py
+          python3 tools/ssd_hdd_video/patch_near_repeat_v6.py
+          python3 tools/ssd_hdd_video/patch_smoke_boundary_v12.py
+          python3 -m py_compile tools/ssd_hdd_video/render_real_media.py
+
+      - name: Render real-media master
+        run: |
+          rm -rf real_video_output /tmp/ssd_hdd_real_render
+          unset SSD_HDD_SMOKE_START SSD_HDD_SMOKE_SECONDS
+          python3 tools/ssd_hdd_video/render_real_media.py
+
+      - name: Core visual-semantic QA
+        run: |
+          ffprobe -v error -show_streams -show_format -of json real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 > real_video_output/ffprobe_v13.json
+          python3 - <<'PY'
+          import csv,json
+          from pathlib import Path
+          rows=list(csv.DictReader(open('real_video_output/storyboard.tsv',encoding='utf-8'),delimiter='\t'))
+          assert len(rows)>=300,len(rows)
+          durations=[float(r['duration']) for r in rows]
+          assert max(durations)<=4.05,max(durations)
+          unique={r['asset'] for r in rows}
+          assert len(unique)>=18,len(unique)
+          assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows)))
+
+          sata={'sata_ssd','crucial_ssd','sata_vs_nvme','sata_connector','sata_data_power'}
+          m2={'nvme_m2','m2_installed','laptop_nvme','sata_vs_nvme','ssd_install','ssd_diagram'}
+          hdd={'hdd_working_video','hdd_open_photo','hdd_head_macro','laptop_hdd_open','hdd_side','hdd_diagram'}
+          nand={'ssd_nand','ssd_controller','ssd_diagram','sata_ssd','crucial_ssd','nvme_m2','m2_installed'}
+          backup={'nas','nas_drive_bay','external_hdds','external_hdd_laptop','server_rack','pc_m2_hdd_inside','hdd_ssd_disassembled','backup_diagram'}
+          bad=[]
+          for r in rows:
+              t=r['text']; a=r['asset']; full=r.get('source_text',''); hint=r.get('subject_hint','')
+              if ('2.5インチ' in t or '薄い箱' in t or 'SATA SSD' in t) and (hint=='SSD' or ('SSD' in full and 'HDD' not in full)) and not any(k in t for k in ['M.2','NVMe']):
+                  if a not in sata: bad.append(('2.5/SATA SSD',r))
+              if any(k in t for k in ['M.2','NVMe','細長い基板']):
+                  if a not in m2: bad.append(('M.2/NVMe',r))
+              if any(k in t for k in ['プラッタ','ヘッド','CMR','SMR','5400RPM','7200RPM','回転数']):
+                  if a not in hdd: bad.append(('HDD mechanism',r))
+              if hint=='SSD' and any(k in t for k in ['NAND','TLC','QLC','コントローラー','セル','フラッシュメモリ']):
+                  if a not in nand: bad.append(('NAND/controller',r))
+              if any(k in t for k in ['3-2-1','合計3つ','2種類の保存先','別の場所','一台が壊れても','データが残る状態']):
+                  if a not in backup: bad.append(('backup',r))
+          assert not bad,[(x,r['start'],r['asset'],r['text']) for x,r in bad[:40]]
+
+          probe=json.load(open('real_video_output/ffprobe_v13.json'))
+          v=next(x for x in probe['streams'] if x['codec_type']=='video')
+          a=next(x for x in probe['streams'] if x['codec_type']=='audio')
+          assert v['width']==1920 and v['height']==1080 and v['r_frame_rate']=='60/1'
+          assert a['sample_rate']=='48000' and a['channels']==2
+          assert float(probe['format']['duration'])>1100
+
+          source='\n'.join(r.get('source_text','') for r in rows)
+          banned=['この写真','この画像','画面を見','写真を見','画像を見']
+          assert not any(x in source for x in banned),[x for x in banned if x in source]
+
+          pose_count=int(Path('real_video_output/zundamon_pose_count.txt').read_text().strip())
+          assert pose_count==4,pose_count
+          print('CORE_REAL_MEDIA_QA_OK',len(rows),len(unique),max(durations),'poses',pose_count)
+          PY
+
+      - name: Make extra-large green YouTube subtitles
+        run: |
+          cp real_video_output/subtitles_green.ass real_video_output/subtitles_green_v15.ass
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('real_video_output/subtitles_green_v15.ass')
+          s=p.read_text(encoding='utf-8-sig')
+          s=s.replace('Style: Main,Noto Sans CJK JP,94,','Style: Main,Noto Sans CJK JP,108,')
+          # Keep the proven bright-green fill and thick 10px black outline.
+          assert '&H008DFF71' in s
+          assert 'Noto Sans CJK JP,108' in s
+          p.write_text(s,encoding='utf-8-sig')
+          print('SUBTITLE_STYLE_OK: 108px green + 10px black outline')
+          PY
+
+      - name: Burn V15 subtitles onto clean real-media master
+        run: |
+          ffmpeg -y -loglevel error \
+            -i real_video_output/SSD_HDD_REAL_MEDIA_CLEAN.mp4 \
+            -i real_video_output/SSD_HDD_REAL_MEDIA_FINAL.mp4 \
+            -vf "ass=real_video_output/subtitles_green_v15.ass:fontsdir=/usr/share/fonts/opentype/noto" \
+            -map 0:v:0 -map 1:a:0 \
+            -c:v libx264 -preset medium -b:v 10M -maxrate 12M -bufsize 24M \
+            -pix_fmt yuv420p -c:a copy -movflags +faststart \
+            real_video_output/SSD_HDD_REAL_MEDIA_V15_FINAL.mp4
+
+      - name: Final V15 QA
+        run: |
+          ffprobe -v error -show_streams -show_format -of json real_video_output/SSD_HDD_REAL_MEDIA_V15_FINAL.mp4 > real_video_output/ffprobe.json
+          python3 - <<'PY'
+          import csv,json
+          from pathlib import Path
+          rows=list(csv.DictReader(open('real_video_output/storyboard.tsv',encoding='utf-8'),delimiter='\t'))
+          probe=json.load(open('real_video_output/ffprobe.json'))
+          v=next(x for x in probe['streams'] if x['codec_type']=='video')
+          a=next(x for x in probe['streams'] if x['codec_type']=='audio')
+          assert v['width']==1920 and v['height']==1080 and v['r_frame_rate']=='60/1'
+          assert a['sample_rate']=='48000' and a['channels']==2
+          assert float(probe['format']['duration'])>1100
+          assert max(float(r['duration']) for r in rows)<=4.05
+          assert not any(rows[i]['asset']==rows[i-1]['asset'] for i in range(1,len(rows)))
+          ass=Path('real_video_output/subtitles_green_v15.ass').read_text(encoding='utf-8-sig')
+          assert 'Noto Sans CJK JP,108' in ass and '&H008DFF71' in ass and ',1,10,4,2,' in ass
+          print('V15_FINAL_QA_OK',len(rows),len({r['asset'] for r in rows}),probe['format']['duration'])
+          PY
+
+      - name: Build V15 QA package
+        run: |
+          mkdir -p qa/frames qa/poses
+          cp real_video_output/storyboard.tsv qa/
+          cp real_video_output/ffprobe.json qa/
+          cp real_video_output/ATTRIBUTION.md qa/
+          cp real_video_output/subtitles_green_v15.ass qa/
+          cp real_video_output/zundamon_pose_count.txt qa/
+          cp real_video_output/zundamon_pose_manifest.json qa/
+          cp zundamon_poses/*.png qa/poses/
+          cp zundamon_poses/manifest.json qa/poses/source_manifest.json
+          for T in 15 45 90 150 210 300 390 445 540 620 680 780 875 910 960 1020 1100 1160; do
+            ffmpeg -y -loglevel error -ss "$T" -i real_video_output/SSD_HDD_REAL_MEDIA_V15_FINAL.mp4 -frames:v 1 "qa/frames/frame_${T}.png"
+          done
+          ffmpeg -y -loglevel error -ss 0 -i real_video_output/SSD_HDD_REAL_MEDIA_V15_FINAL.mp4 -t 90 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/intro_90s.mp4
+          ffmpeg -y -loglevel error -ss 405 -i real_video_output/SSD_HDD_REAL_MEDIA_V15_FINAL.mp4 -t 90 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/compare_90s.mp4
+          ffmpeg -y -loglevel error -ss 850 -i real_video_output/SSD_HDD_REAL_MEDIA_V15_FINAL.mp4 -t 120 -vf scale=1280:720 -c:v libx264 -crf 21 -preset veryfast -c:a aac -b:a 160k qa/life_backup_120s.mp4
+          cat >> qa/ATTRIBUTION.md <<'EOF'
+
+          - **Zundamon standing-art poses** — 坂本アヒル — original material: 「ずんだもん立ち絵素材2.3」 (im10788496). Four genuine composites from the original v2.3 layers; no AI-generated character art. Character usage follows the 東北ずん子・ずんだもん project guidelines.
+          - **Voice** — VOICEVOX:ずんだもん
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-v15-final
+          path: |
+            real_video_output/SSD_HDD_REAL_MEDIA_V15_FINAL.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_CLEAN.mp4
+            real_video_output/SSD_HDD_REAL_MEDIA_PREVIEW_720p.mp4
+            real_video_output/bgm_stem.wav
+            real_video_output/sfx_stem.wav
+            real_video_output/storyboard.tsv
+            real_video_output/subtitles_green_v15.ass
+            real_video_output/ATTRIBUTION.md
+            real_video_output/ffprobe.json
+            real_video_output/zundamon_pose_count.txt
+            real_video_output/zundamon_pose_manifest.json
+          compression-level: 0
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-real-media-v15-qa
+          path: qa
+          compression-level: 0
+          retention-days: 7
