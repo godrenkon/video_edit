@@ -1,0 +1,62 @@
+name: SSD HDD Chat Delivery FHD Fast
+
+on:
+  push:
+    branches:
+      - video-build/ssd-hdd-explainer
+    paths:
+      - ".github/workflows/ssd-hdd-chat-delivery-fhd-fast.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  encode:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Download completed V15 master
+        uses: actions/download-artifact@v4
+        with:
+          name: ssd-hdd-real-media-v15-final
+          path: source
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 37008200714
+
+      - name: Encode FHD 30fps delivery copy
+        run: |
+          mkdir -p delivery
+          ffmpeg -y -hide_banner -loglevel warning \
+            -i source/SSD_HDD_REAL_MEDIA_V15_FINAL.mp4 \
+            -map 0:v:0 -map 0:a:0 \
+            -vf "scale=1920:1080:flags=lanczos,fps=30" \
+            -c:v libx264 -preset veryfast \
+            -b:v 2400k -maxrate 3000k -bufsize 6000k \
+            -pix_fmt yuv420p \
+            -c:a aac -b:a 128k -ar 48000 \
+            -movflags +faststart \
+            delivery/SSD_HDD_REAL_MEDIA_V15_FHD_30FPS_CHAT.mp4
+
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,sample_rate,channels -show_entries format=duration,size,bit_rate -of json delivery/SSD_HDD_REAL_MEDIA_V15_FHD_30FPS_CHAT.mp4 > delivery/ffprobe.json
+          cat delivery/ffprobe.json
+          SIZE=$(stat -c%s delivery/SSD_HDD_REAL_MEDIA_V15_FHD_30FPS_CHAT.mp4)
+          echo "bytes=$SIZE"
+          test "$SIZE" -lt 500000000
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ssd-hdd-fhd-fast-chat-delivery
+          path: |
+            delivery/SSD_HDD_REAL_MEDIA_V15_FHD_30FPS_CHAT.mp4
+            delivery/ffprobe.json
+          compression-level: 0
+          retention-days: 7
