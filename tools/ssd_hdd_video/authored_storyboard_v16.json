@@ -1,0 +1,1529 @@
+{
+  "version": 16,
+  "timing": "narration sentence boundaries; semantic anchors only",
+  "scenes": [
+    {
+      "source_index": 1,
+      "source_sha256": "8a9d82551ecc87dc8c5ed7f3ffee586094a06e8772db0f1ddf8f535cfc7e5a20",
+      "layout": "intro",
+      "title": "SSDとHDDの違い",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "仕組みから、使い分けまで",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 2,
+      "source_sha256": "0b3cd13825a993065881228c524f535bd4e2cba4e5ffc3d450ddd4acff5c0073",
+      "layout": "intro",
+      "title": "SSDとHDDの違い",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "仕組みから、使い分けまで",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 3,
+      "source_sha256": "377e8c78f53d6774e43475dff88589eca54663510da0610b2140d50b53a1c26c",
+      "layout": "pair",
+      "title": "SSD？ HDD？ 何をする部品？",
+      "assets": [
+        "external_ssd",
+        "external_hdds"
+      ],
+      "note": "外付けSSD／外付けHDD",
+      "pose": "question",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 4,
+      "source_sha256": "2a1c96c8db7b69bfe0ae0be2f50c8959608fd47ebedc7019ad4d21788732d469",
+      "layout": "storage",
+      "title": "どちらも「データを保存する場所」",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "写真／動画／ゲーム／アプリ",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 5,
+      "source_sha256": "c682d149bd774bdac9addc0ab1f47fa52da3ba73174b5dc7e9d757ab6e4916e5",
+      "layout": "pair",
+      "title": "役割は同じ。中の仕組みが違う",
+      "assets": [
+        "ssd_nand",
+        "laptop_hdd_open"
+      ],
+      "note": "半導体メモリ／磁気ディスク",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 6,
+      "source_sha256": "3cdd99d13f5f5c2d2457f3ae281330cc23160115d51d8e9fb4095ede0209d549",
+      "layout": "agenda",
+      "title": "基本から順番に見ていこう",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "役割／仕組み／違い／種類／選び方",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 7,
+      "source_sha256": "6e05787657d806efc68f35d76b9622850fe7e5d35e562c7746850dc187ba3575",
+      "layout": "storage",
+      "title": "SSDとHDDの担当は「保存」",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "パソコンの中のストレージ",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 8,
+      "source_sha256": "fe1dd00c5e1aad2e333d305bcafb60e3342c460ea7dfce751cb2e5dc3725df7f",
+      "layout": "photo",
+      "title": "パソコンの中にも、データの保存場所",
+      "assets": [
+        "pc_m2_hdd_inside"
+      ],
+      "note": "CPU・RAMとは担当が違う",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 9,
+      "source_sha256": "f3d80bc6cbd0ddd5951645b842967f4898201e4caa170c57399616c7da032348",
+      "layout": "storage",
+      "title": "Windowsも、写真も、ストレージへ",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "OS／ゲーム・アプリ／写真・動画／ファイル",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 10,
+      "source_sha256": "d5c21d2c7cab0974a1c554f6fb16144d664677db952fa38bfbc2ac62dccbb7bd",
+      "layout": "storage",
+      "title": "電源を切っても、データを残す",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "保存した写真やゲームが、翌日も残る",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 11,
+      "source_sha256": "63e6f239c8dde2c1c5b8297afb4e3206ed01e3fa011b40936ed4950339892476",
+      "layout": "ram",
+      "title": "RAMとストレージは役割が違う",
+      "assets": [
+        "ram_ddr4",
+        "crucial_ssd"
+      ],
+      "note": "作業場所／保存場所",
+      "pose": "question",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 12,
+      "source_sha256": "bdfaa9552c264203813425eeee97bdf8ed29e8e229eed9eafa73d1a0308c7553",
+      "layout": "ram",
+      "title": "RAM：今使っているデータを置く",
+      "assets": [
+        "ram_ddr4",
+        "crucial_ssd"
+      ],
+      "note": "作業場所／保存場所",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 13,
+      "source_sha256": "0f20eba88ca80b022c6e94a2a0b9e68df3b705fb2353e0d3307dab85fb578c4d",
+      "layout": "ram",
+      "title": "SSD・HDD：あとにも残すデータ",
+      "assets": [
+        "ram_ddr4",
+        "crucial_ssd"
+      ],
+      "note": "作業場所／保存場所",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 14,
+      "source_sha256": "01535b50dd098ffdb61209952d14c1a4e1878f3794d697174e8f318f9cfb2e1a",
+      "layout": "desk",
+      "title": "机の上と、しまっておく棚",
+      "assets": [
+        "ram_ddr4",
+        "crucial_ssd"
+      ],
+      "note": "RAM＝作業する机／ストレージ＝保存する棚",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 15,
+      "source_sha256": "cfa4fd16c8eb5e52caa54d21925a404c8d9578720e593af9595589ff4eb03b3c",
+      "layout": "ram",
+      "title": "容量だけでなく「用途」が違う",
+      "assets": [
+        "ram_ddr4",
+        "crucial_ssd"
+      ],
+      "note": "16GBのRAM／1TBのSSD",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 16,
+      "source_sha256": "13f7055fcc19e0a5c4a333d71a6054faf59c0690f1c22ae46accca2cc4b00314",
+      "layout": "capacity",
+      "title": "500GB・1TB・4TBは保存できる量",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "容量が増えると、保存できるデータも増える",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 17,
+      "source_sha256": "9cde39abe05e67cfc2a01a0f9cae088ecd9ef5d93d213ffda6bdecb19085b063",
+      "layout": "pair",
+      "title": "では、HDDの中を見てみよう",
+      "assets": [
+        "crucial_ssd",
+        "laptop_hdd_open"
+      ],
+      "note": "SSD／HDD",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 18,
+      "source_sha256": "563ceed6626cec18314089c30dd09fe504085a1110fa2ad8a756824ac1dc4244",
+      "layout": "photo",
+      "title": "HDD ＝ Hard Disk Drive",
+      "assets": [
+        "laptop_hdd_open"
+      ],
+      "note": "磁気ディスクでデータを記録",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 19,
+      "source_sha256": "345843230e5a293e0168f0ca1ee0c9fab5f96db3912ead29cc5613693a56e2a3",
+      "layout": "hdd",
+      "title": "円盤「プラッタ」に磁気で記録",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "プラッタ",
+      "pose": "explain",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 20,
+      "source_sha256": "e6c4bdc55b995570ce7a85d4862890f238e3dc191a035ee11932c9b55cf58e83",
+      "layout": "motion",
+      "title": "回る円盤の近くに「ヘッド」",
+      "assets": [
+        "hdd_working_video"
+      ],
+      "note": "実際に動くプラッタとヘッド（HDD内部の映像）",
+      "pose": "explain",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。",
+      "video_start": 240.00000000000003
+    },
+    {
+      "source_index": 21,
+      "source_sha256": "0c6bb38c633d06d2db004f237dc40ce5d0704a048cfb8c9bf3de610a0d2e1807",
+      "layout": "motion",
+      "title": "ヘッドを動かして読み書きする",
+      "assets": [
+        "hdd_working_video"
+      ],
+      "note": "実際に動くプラッタとヘッド（HDD内部の映像）",
+      "pose": "explain",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。",
+      "video_start": 250.19099999999995
+    },
+    {
+      "source_index": 22,
+      "source_sha256": "3e7e0e7abc1743cdffbb60a0e222f88f2d1e1145e92c13aececdc39a752d51c2",
+      "layout": "hdd",
+      "title": "回る円盤を使う、というイメージ",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "レコードに似ているのは「回転する」点",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 23,
+      "source_sha256": "8c5e7a994289d1c8d0d681a52ac3038fc558bcd0e8649ee81da10f10a20c05bd",
+      "layout": "headgap",
+      "title": "実際には、円盤へ触れない",
+      "assets": [
+        "hdd_head_macro"
+      ],
+      "note": "ヘッドはプラッタ表面のすぐ近くを通る",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 24,
+      "source_sha256": "1833de856376e4c4abcb134f77783e399708acc621ab8ceb2460ccdc2a38ccd1",
+      "layout": "hdd",
+      "title": "① 読みたい場所までヘッドを移動",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "ヘッドの移動",
+      "pose": "explain",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 25,
+      "source_sha256": "18ca53073e4e414eac7989eae91aa955562ca28d26923875132dc217d5b05a26",
+      "layout": "hdd",
+      "title": "② データの場所が回ってくるのを待つ",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "プラッタの回転",
+      "pose": "explain",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 26,
+      "source_sha256": "89522543fa4b6462103dc7002b9636f08fb25cb12f890052fb351eea0f0a2d35",
+      "layout": "access",
+      "title": "HDDには、機械的な待ち時間がある",
+      "assets": [
+        "laptop_hdd_open",
+        "ssd_nand"
+      ],
+      "note": "ヘッドを移動 → 回転を待つ → 読み取る",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 27,
+      "source_sha256": "fe99a848fcf60bcecb1a40c0d134ecb484993a45f653fb59ecda4620050fe428",
+      "layout": "sequence",
+      "title": "連続したデータと、散らばったデータ",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "連続／点在",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 28,
+      "source_sha256": "be2ec429629310079643d11cf1bb5c9e6e91febb63bef1b1b69bceb9130d3ff3",
+      "layout": "photo",
+      "title": "部品が動くことにも、影響がある",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "動作音・振動・動作中の衝撃",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 29,
+      "source_sha256": "3961605b78a090e1874eae66e66014062550998bde8f64855b291a9e9f9c9e76",
+      "layout": "photo",
+      "title": "次は、SSDの中を見てみよう",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "半導体を使うストレージ",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 30,
+      "source_sha256": "949dd8713ce91c28126d56c9d78957045ca7fe81202719f7c5cbad2bc96444b1",
+      "layout": "photo",
+      "title": "SSD ＝ Solid State Drive",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "HDDと同じく、データを保存する部品",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 31,
+      "source_sha256": "164576d4996f960454a47b5c56ffd754693aa3cd5987fadb085c3f887ba06063",
+      "layout": "pair",
+      "title": "SSDの中には、回る円盤がない",
+      "assets": [
+        "ssd_nand",
+        "laptop_hdd_open"
+      ],
+      "note": "SSD内部／HDD内部",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 32,
+      "source_sha256": "ca50d6eb81601867d316d411f56c989eb6e557cc5434e87bee9f2bc2180f6db6",
+      "layout": "nand",
+      "title": "NANDフラッシュメモリに保存",
+      "assets": [
+        "ssd_nand"
+      ],
+      "note": "黒い大きな部品がNANDメモリ",
+      "pose": "explain",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 33,
+      "source_sha256": "c440f60528731011e162a8ddfc27395b4ee3d18205859a7387893eb498fee2f7",
+      "layout": "controller",
+      "title": "コントローラーが読み書きを管理",
+      "assets": [
+        "ssd_nand"
+      ],
+      "note": "データの保存先を管理する部品",
+      "pose": "explain",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 34,
+      "source_sha256": "7bd74cc1755dae4a6106ed5410346e2a5387ec896e6c831b6a4b5b210bd8c396",
+      "layout": "access",
+      "title": "SSDは、電気的にアクセスする",
+      "assets": [
+        "laptop_hdd_open",
+        "ssd_nand"
+      ],
+      "note": "機械的な移動／電気的なアクセス",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 35,
+      "source_sha256": "c14a36bbd1315e6dc59522e63f9cff1b60b58e70c843c8a261f9a22cd9b67f85",
+      "layout": "pair",
+      "title": "SSDには、回転する部品がない",
+      "assets": [
+        "ssd_nand",
+        "laptop_hdd_open"
+      ],
+      "note": "SSD内部／HDD内部",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 36,
+      "source_sha256": "5176afa931b8aad6bfd16f7b540381388f0e5b79e196079d01f6a7933ba9c925",
+      "layout": "controller",
+      "title": "NANDだけで完結するわけではない",
+      "assets": [
+        "ssd_nand"
+      ],
+      "note": "コントローラーも重要",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 37,
+      "source_sha256": "2f68dc8630e490312e522a53fa5a70922e45bad1f603ec2c79d3029edd4d7a25",
+      "layout": "controller",
+      "title": "書き込みを分散し、エラーを訂正",
+      "assets": [
+        "ssd_nand"
+      ],
+      "note": "書き込みの分散／エラー訂正／全体の管理",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 38,
+      "source_sha256": "c082f728920ed71ad365fb461ca89b89b5c7abb469db9eb860bea3bf58c39edb",
+      "layout": "pair",
+      "title": "磁気ディスクと、半導体メモリ",
+      "assets": [
+        "laptop_hdd_open",
+        "ssd_nand"
+      ],
+      "note": "HDD／SSD",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 39,
+      "source_sha256": "5740f3a14e4256205aacfddd48ef4c121b7e1608d62fe967bb6755f22e531e5a",
+      "layout": "pair",
+      "title": "ここから、特徴を比べよう",
+      "assets": [
+        "laptop_hdd_open",
+        "ssd_nand"
+      ],
+      "note": "HDD／SSD",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 40,
+      "source_sha256": "ac83b9518b8221cb34c8cc4d4192527148b5636a44ef3388a91dbd27702b5a06",
+      "layout": "access",
+      "title": "データへアクセスする速さ",
+      "assets": [
+        "laptop_hdd_open",
+        "ssd_nand"
+      ],
+      "note": "機械的な移動／電気的なアクセス",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 41,
+      "source_sha256": "584ca84a650bffead881b692b8812a93c7ace20cdbe2acd83c8c84662611bf69",
+      "layout": "access",
+      "title": "HDDの待ち時間、SSDには不要",
+      "assets": [
+        "laptop_hdd_open",
+        "ssd_nand"
+      ],
+      "note": "機械的な移動／電気的なアクセス",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 42,
+      "source_sha256": "02aa0d691776a07cd4c654606bff0259a6f43fb53873ce5e4cb7a33acb1b02c2",
+      "layout": "access",
+      "title": "必要なデータへ素早くアクセス",
+      "assets": [
+        "laptop_hdd_open",
+        "ssd_nand"
+      ],
+      "note": "SSDは機械的な待ち時間がない",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 43,
+      "source_sha256": "9df368aef4c9a039875c7f199f790e664259546704e627628ef9b523e752e494",
+      "layout": "usage",
+      "title": "コピーだけでなく、起動やロードにも",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "ファイルのコピー／Windowsの起動／アプリ・ゲーム",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 44,
+      "source_sha256": "66aad5d46148737895a07976f704fe21eaecee5714645aa97865c4f661e025b2",
+      "layout": "photo",
+      "title": "HDDの動作音・振動の理由",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "中で部品が動いている",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 45,
+      "source_sha256": "a22eea9c40924532447ea6eb3b1eda2b2f30e9d9ee8d20e1a32bad6e891a2101",
+      "layout": "photo",
+      "title": "回転音や、読み書きの音",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "プラッタの回転と、ヘッドの移動",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 46,
+      "source_sha256": "a85ea28dbbfef2792b532e021d6a0c92300e85925d5632133110d8b1c66dfed4",
+      "layout": "pair",
+      "title": "SSDには、機械的な回転音がない",
+      "assets": [
+        "ssd_nand",
+        "hdd_open_photo"
+      ],
+      "note": "可動部品なし／回転・移動する部品あり",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 47,
+      "source_sha256": "b887710991be7bbf4d9aa5816ff611afe5c4f6fe565c3a60f1fb3a3d53b3810a",
+      "layout": "photo",
+      "title": "動作中のHDDは、衝撃に注意",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "精密な機械部品が動いている",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 48,
+      "source_sha256": "ab768d1aa3f9303e631c2ac459a6546622813a0fd9e37996e4e85bb5292802db",
+      "layout": "photo",
+      "title": "HDDの強みは、大容量と価格",
+      "assets": [
+        "hdd_size_compare"
+      ],
+      "note": "保存したいデータが多い時に役立つ",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 49,
+      "source_sha256": "9d8ab3d7ed91702a8c52af083d2052b37c9f89f13df6bd9305abe31d5dc3f1a1",
+      "layout": "capacity",
+      "title": "保存量が増えるほど、容量単価が大切",
+      "assets": [
+        "hdd_size_compare"
+      ],
+      "note": "何TBも保存したい時は、価格と容量を比較",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 50,
+      "source_sha256": "6992a618b7a6ecb7fe3647e855ca67ebc9a86fec192c32ba78f00ddeb1c078d0",
+      "layout": "roles",
+      "title": "速度と大量保存で、担当を分ける",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "SSD：作業用／HDD：大量保存",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 51,
+      "source_sha256": "4dd471513f6514e486e3f7fa5d24038159df91dfff6cd818dd9cb1aa59b72c2a",
+      "layout": "photo",
+      "title": "M.2 SSDは、小型の基板",
+      "assets": [
+        "m2_installed"
+      ],
+      "note": "マザーボードに取り付けた実物の例",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 52,
+      "source_sha256": "1088057b18c5d79f87ceb94a60680284c393ae374990bcc6dd63beb63c3ee97d",
+      "layout": "photo",
+      "title": "高速なNVMe SSDは、発熱にも注意",
+      "assets": [
+        "m2_installed"
+      ],
+      "note": "高負荷では、冷却も重要になる",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 53,
+      "source_sha256": "885ffad17c0d6463d1213893e70f853ffddcd2f49cbf3d547865fb991a2263b2",
+      "layout": "specspeed",
+      "title": "商品に書かれた「読み込み速度」",
+      "assets": [
+        "crucial_ssd",
+        "m2_installed"
+      ],
+      "note": "500MB/s／7000MB/s",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 54,
+      "source_sha256": "9281e33b205583e791ccb1f5eef573d56cb9cf896daa1ce43e4ad2ee821ba582",
+      "layout": "specspeed",
+      "title": "一つの数字で、全部は分からない",
+      "assets": [
+        "crucial_ssd",
+        "m2_installed"
+      ],
+      "note": "公称速度と、実際の処理時間は別",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 55,
+      "source_sha256": "cfecc3ae549d3680de45ab4be2184b90dcbb3dc0bc231988376ef7e23c7a011c",
+      "layout": "sequence",
+      "title": "読み書きには、二つのパターン",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "シーケンシャル／ランダム",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 56,
+      "source_sha256": "fa4ed1b5814bbf28b9950b22bac579ebbafd3e11d58d9100af44addb8b616b16",
+      "layout": "sequence",
+      "title": "シーケンシャル：連続して読む",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "大きな動画ファイルのコピーなど",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 57,
+      "source_sha256": "e7a9fedab56a38fdcfbacc8ab3fe61ea29542d639d1fd5c35581a255c47878c2",
+      "layout": "sequence",
+      "title": "ランダム：離れた場所を読む",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "小さなデータを次々に読み込む",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 58,
+      "source_sha256": "e37c333a0bab5f072874aaca6abd8f9af6d3c84eeb4edce4a1784e066de0a442",
+      "layout": "sequence",
+      "title": "起動やロードでも、細かな読み込み",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "Windows・アプリ・ゲームの起動",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 59,
+      "source_sha256": "712c7e3b15e14711aa99dff58f82ebfc73994ab06e15d38a5602da004da45317",
+      "layout": "sequence",
+      "title": "HDDでは、移動時間が積み重なる",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "読みたい場所が変わるたびに、ヘッドが移動",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 60,
+      "source_sha256": "58c2d6276ef8c7eb81ad90babffff689e97c8b0a38d989d4c26604773763cb86",
+      "layout": "sequence",
+      "title": "SSDは、物理的な移動が不要",
+      "assets": [
+        "ssd_nand"
+      ],
+      "note": "ランダムアクセスで差が出やすい",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 61,
+      "source_sha256": "b91299372854c03a5bccd94a8714e5d5e47b79be0fc45fb2db3bcbc35bb49554",
+      "layout": "sequence",
+      "title": "連続した読み書きなら、HDDも得意",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "SSDとの差は、処理の内容によって変わる",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 62,
+      "source_sha256": "0e4532fb91c818ebf2dda534c0e39a3d3d86b4e7409924b09e3f91b1444e33c2",
+      "layout": "specspeed",
+      "title": "SATA SSDと、NVMe SSDの速度",
+      "assets": [
+        "crucial_ssd",
+        "m2_installed"
+      ],
+      "note": "SATA SSD：約500MB/s台の製品もある",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 63,
+      "source_sha256": "fb78679c35907293372b3f5b7bca7a53a984435899d04738931b083c3f63692a",
+      "layout": "usage",
+      "title": "数値の倍率と、体感の倍率は違う",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "ベンチマークの数字 ≠ 起動・ロードの短縮率",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 64,
+      "source_sha256": "97cfc5fbf6f9a2b307079ff9f98173a94389b5d2f6ed0ca52621808fd0a08dbe",
+      "layout": "fps",
+      "title": "ロード時間とFPSは別の話",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "SSDだけで、平均FPSが何倍にもなるわけではない",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 65,
+      "source_sha256": "3866e2eaf7e38aedabbea611ef96cdbd6b2a157529d014aa468cc4c6ad9e03ea",
+      "layout": "pair",
+      "title": "SSD・HDDには、種類がある",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "形状や接続方式を、順番に確認",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 66,
+      "source_sha256": "d062b28e8517f81da81449d9afa428ec10b76599b2c8daa4ad1e726e2228bf8b",
+      "layout": "photo",
+      "title": "2.5インチ SATA SSD",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "薄い箱のような形",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 67,
+      "source_sha256": "183d5cae43fb26b92dd90d3862c850845cf611b78190e95e1fc9787a0e98ec35",
+      "layout": "photo",
+      "title": "M.2 SSD",
+      "assets": [
+        "m2_installed"
+      ],
+      "note": "細長い基板の形",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 68,
+      "source_sha256": "d8a2a71f784016f55663e4c9d11722bc1e214552e1e73fd34b16c05c33e1988e",
+      "layout": "m2",
+      "title": "M.2とNVMeは、同じ意味ではない",
+      "assets": [
+        "m2_installed"
+      ],
+      "note": "M.2＝形状／NVMe＝通信の仕様",
+      "pose": "explain",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 69,
+      "source_sha256": "3b239c85b98865755af2f28db8e1a758792e26fe455ea9f525e98f3866a9c453",
+      "layout": "m2",
+      "title": "M.2形状でも、SATAのSSDがある",
+      "assets": [
+        "m2_installed"
+      ],
+      "note": "形状だけで、対応方式や速度は決まらない",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 70,
+      "source_sha256": "7efd08827db8a4f93e1f58de69bfc792dc4073b7483858340ccedb29ba178be8",
+      "layout": "bits",
+      "title": "NANDにも、TLC・QLCという種類",
+      "assets": [
+        "ssd_nand"
+      ],
+      "note": "セルに保存する情報の量が違う",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 71,
+      "source_sha256": "e267f56270384a1a58ffe9012908ef99ad872e68c6f838c188aeccfe2645fcfa",
+      "layout": "bits",
+      "title": "TLCは3ビット、QLCは4ビット",
+      "assets": [
+        "ssd_nand"
+      ],
+      "note": "TLC：3ビット／QLC：4ビット",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 72,
+      "source_sha256": "ce83bf4c990624be9f6b8b400b22039709379bebe67856162610938ff48da6a6",
+      "layout": "controller",
+      "title": "性能は、NANDだけでは決まらない",
+      "assets": [
+        "ssd_nand"
+      ],
+      "note": "コントローラー／キャッシュ／ファームウェア",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 73,
+      "source_sha256": "bfa7556397a9986719e04488d9cc40a89ecba8e1a678ece30df660492bc699b1",
+      "layout": "photo",
+      "title": "HDDの大きさ：3.5インチ・2.5インチ",
+      "assets": [
+        "hdd_size_compare"
+      ],
+      "note": "実物のサイズ比較",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 74,
+      "source_sha256": "0a2c34bbcc975caea529d6b482ec2e530365a65778787090969a808136a4c2ff",
+      "layout": "photo",
+      "title": "デスクトップ・NASと、ノートPC",
+      "assets": [
+        "hdd_size_compare"
+      ],
+      "note": "3.5インチ／2.5インチ",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 75,
+      "source_sha256": "8868196cd630924353caa63d5225c548c72aa7adcb1a2ecc4c57c6041bbb78da",
+      "layout": "rpm",
+      "title": "RPM ＝ 1分間の回転数",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "5400RPM／7200RPM",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 76,
+      "source_sha256": "824cac74de3b55b5d9550109c54cad59cb20cbbb71801cbe36d176ed220f3c76",
+      "layout": "rpm",
+      "title": "回転数だけで、性能は決まらない",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "回転数も、性能に関係する要素の一つ",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 77,
+      "source_sha256": "c3426f42b910a0c68840fa2839682d46e68a8535ab2143d6d81efcc68adc50c4",
+      "layout": "tracks",
+      "title": "記録方式の違い：CMRとSMR",
+      "assets": [
+        "laptop_hdd_open"
+      ],
+      "note": "トラックの並べ方が違う",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 78,
+      "source_sha256": "a24dd54c9925e88a3b31745206158d854d467219bce50b3a8c4858f5aad6053d",
+      "layout": "tracks",
+      "title": "CMRは隣り合い、SMRは一部が重なる",
+      "assets": [
+        "laptop_hdd_open"
+      ],
+      "note": "CMR／SMR",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 79,
+      "source_sha256": "cfa3b31c30ae20aee7056d9163318de546aa3a966403d8dc456f24ecc300b6ea",
+      "layout": "tracks",
+      "title": "SMRは、書き換えが多い用途に注意",
+      "assets": [
+        "laptop_hdd_open"
+      ],
+      "note": "容量だけでなく、使い方も確認",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 80,
+      "source_sha256": "d3a10e33be1bdcf28e70bc69875f6ed7752f05aa5f305a07b3fbad1c1d2d528e",
+      "layout": "capacity",
+      "title": "保存できる量と、かかる費用",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "必要な容量を、先に考える",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 81,
+      "source_sha256": "0ea56cf9d3eb18a817083fe13539e42def9cecf8d998ec168df1f8f4e99e7c1a",
+      "layout": "photo",
+      "title": "SSDにも、大容量の製品がある",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "価格や選択肢は、時期によって変わる",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 82,
+      "source_sha256": "bc0833644adaa11355a0e55bf50e55adbb5bb1d952d0d2e0ef68e44cf6574f9d",
+      "layout": "photo",
+      "title": "大量保存では、HDDが選択肢になる",
+      "assets": [
+        "hdd_size_compare"
+      ],
+      "note": "容量あたりの価格を比べる",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 83,
+      "source_sha256": "b3dc238178bedd2bdaf018bd1cb55605800f4feaa944d5719e5bfb2ec963d9e6",
+      "layout": "usage",
+      "title": "Windows・アプリ・ゲーム用の容量",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "1TB・2TBで足りるかは、自分の使用量次第",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 84,
+      "source_sha256": "6162c2bb0d2d824f338bc724f3d8e253beea7b7184e9bbe1de9cdf227238adca",
+      "layout": "storage",
+      "title": "動画と編集素材は、容量が増えやすい",
+      "assets": [
+        "hdd_size_compare"
+      ],
+      "note": "完成動画／撮影素材／編集素材",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 85,
+      "source_sha256": "5967876656e127e76a78dff01f24cf838b5e7bd6b4ff04f2c230edb0194ef38a",
+      "layout": "backup",
+      "title": "パソコン全体を、複数回バックアップ",
+      "assets": [
+        "external_hdds"
+      ],
+      "note": "複数世代を残すと、必要な容量も増える",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 86,
+      "source_sha256": "dcc7d45b7e563f336f031b80af23c99fa5702bdbe4b51a606906d7bc24d65051",
+      "layout": "roles",
+      "title": "よく使うデータと、大量保存を分ける",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "SSD：普段使うデータ／HDD：大量に残すデータ",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 87,
+      "source_sha256": "a3865943d11219148dd3eba5f1d976644a6719e85f8ca032ed5c1ec13e6455f2",
+      "layout": "price",
+      "title": "買う時点で、容量あたりの価格を比べる",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "価格 ÷ 容量 ＝ 容量単価",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 88,
+      "source_sha256": "be27101523da5503e0968f320a2cba32ae62332892243188f5acaef636e8d9cb",
+      "layout": "pair",
+      "title": "寿命と故障も、仕組みによって違う",
+      "assets": [
+        "ssd_nand",
+        "hdd_open_photo"
+      ],
+      "note": "SSD／HDD",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 89,
+      "source_sha256": "ae0a9505d37e5dbdc9f545815e4d55c72a66f1885f36813207888294dfc66fc6",
+      "layout": "nand",
+      "title": "NANDは、書き換えで少しずつ劣化",
+      "assets": [
+        "ssd_nand"
+      ],
+      "note": "使い方によって、書き込み量が変わる",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 90,
+      "source_sha256": "ff3f09b307a1f6e06a3d140a3be83a946d18e5b4272b11b2bc6253bdc0f06efb",
+      "layout": "tbw",
+      "title": "TBWは、書き込み耐久性の目安",
+      "assets": [
+        "ssd_nand"
+      ],
+      "note": "総書き込み量を見るための指標",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 91,
+      "source_sha256": "22d4b0e185dcb2c47916fefe2efba4d7cd39ba66e5ba42546c0e243ad026a7ba",
+      "layout": "tbw",
+      "title": "TBWに達した瞬間に壊れるわけではない",
+      "assets": [
+        "ssd_nand"
+      ],
+      "note": "耐久性・保証条件を見るための目安",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 92,
+      "source_sha256": "de7d418b820930f468c245ba6db098099c3d490123a7356b9705c60b2c257450",
+      "layout": "photo",
+      "title": "HDDには、機械部品がある",
+      "assets": [
+        "hdd_open_photo"
+      ],
+      "note": "モーター・ヘッド・回転機構",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 93,
+      "source_sha256": "d7e29f43a9ff2a450e66b2cf153c42616ee33c750848f8200d488c52cc1576b6",
+      "layout": "pair",
+      "title": "SSDにもHDDにも、故障要因がある",
+      "assets": [
+        "ssd_nand",
+        "hdd_open_photo"
+      ],
+      "note": "電子部品／機械部品",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 94,
+      "source_sha256": "87d5d056052b77ac3dcf6d5ed7db1811e1ab39241d38fadad3c46d8a1cee1e9e",
+      "layout": "pair",
+      "title": "どちらにも「絶対に安全」はない",
+      "assets": [
+        "ssd_nand",
+        "hdd_open_photo"
+      ],
+      "note": "大切なデータは、別の保存先にも残す",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 95,
+      "source_sha256": "1618834442191417a1390d696b35f6647a137486f397ec7719c345d66ba7379e",
+      "layout": "lifetime",
+      "title": "寿命は、条件によって変わる",
+      "assets": [
+        "ssd_nand",
+        "hdd_open_photo"
+      ],
+      "note": "品質／時間／書き込み量／温度／衝撃／保存環境",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 96,
+      "source_sha256": "827a325a395a39c890b90a8879c3c2fcda4946ebf07b7c0a215c3a023a3bffc9",
+      "layout": "backup",
+      "title": "大切なデータを、一台だけに置かない",
+      "assets": [
+        "external_ssd",
+        "external_hdds"
+      ],
+      "note": "同じデータを、複数の保存先へ",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 97,
+      "source_sha256": "d2ef11515fb0a133295b4cad3c57115dc93bfeb048180b4cb8239ed74c38a73a",
+      "layout": "backup",
+      "title": "その一台が壊れたら、どうなる？",
+      "assets": [
+        "external_ssd",
+        "external_hdds"
+      ],
+      "note": "一台だけの保存には、失うリスクがある",
+      "pose": "question",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 98,
+      "source_sha256": "2cbbb6b38e07c017b1b286d2ccf8efdbd195b4874950275a3917f0ee9765b0ef",
+      "layout": "backup",
+      "title": "SSDかHDDかを選ぶだけでは不十分",
+      "assets": [
+        "external_ssd",
+        "external_hdds"
+      ],
+      "note": "保存先を分けて、同じデータを残す",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 99,
+      "source_sha256": "5416976bfcba7a58f240be435476ab58782f7aa1bbd7c9aefffaa44fc570b448",
+      "layout": "backup",
+      "title": "同じデータを、別の場所にも残す",
+      "assets": [
+        "external_ssd",
+        "external_hdds"
+      ],
+      "note": "一つの故障で、全部を失わないために",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 100,
+      "source_sha256": "e07eb6bc0f41148ad1f030bc7eb0946892e475d657aaf84045cc57a52101a7e4",
+      "layout": "backup321",
+      "title": "バックアップの考え方「3-2-1」",
+      "assets": [
+        "external_ssd",
+        "external_hdds"
+      ],
+      "note": "3つのコピー／2種類の保存先／1つは別の場所",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 101,
+      "source_sha256": "cdb32d3b1a2325729116c55a4ce9a8aadf51f212c12fc80404f0c51a9359c622",
+      "layout": "backup321",
+      "title": "3つ・2種類・1つを別の場所へ",
+      "assets": [
+        "external_ssd",
+        "external_hdds"
+      ],
+      "note": "3つのコピー／2種類の保存先／1つは別の場所",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 102,
+      "source_sha256": "36e65332e50af752b610f1bf2afe7283d78f24709afcee5901421d18f09a6c0b",
+      "layout": "backup",
+      "title": "一台が壊れても、データが残る状態へ",
+      "assets": [
+        "external_ssd",
+        "external_hdds"
+      ],
+      "note": "壊れない一台を探すより、失わない構成",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 103,
+      "source_sha256": "8ea526370c93cdd578244d7bce384b147691335605deabcfe09b4a0325e1ac9d",
+      "layout": "roles",
+      "title": "実際の使い方に当てはめよう",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "SSD：素早いアクセス／HDD：大量保存",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 104,
+      "source_sha256": "26baa1c7c21bf40484ba45258d7f719c71f3ffce8ad0f0ee720a3cd0b13531a6",
+      "layout": "usage",
+      "title": "Windows・普段のアプリにはSSD",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "メインストレージとして使う",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 105,
+      "source_sha256": "6e456944de65b493e0070e24139fd4a8fb99a2a4d6191876406c4291075f5f79",
+      "layout": "usage",
+      "title": "細かな読み込みの待ち時間を短く",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "起動や操作で、アクセスの速さを活かす",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 106,
+      "source_sha256": "2fcb7986c545c203008ee6860f8901114151e9ebe9fe889f27a660ee9815d18e",
+      "layout": "usage",
+      "title": "ゲームの起動・ステージのロード",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "大量のデータを読み込む場面",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 107,
+      "source_sha256": "232f081b893a13ed99d9fb2f478d380ec8edf94244243a8ba88b7453cb46d965",
+      "layout": "fps",
+      "title": "FPSは、CPU・GPUなどにも左右される",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "ストレージの変更だけで、全部は速くならない",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 108,
+      "source_sha256": "c1c93849a731d6e58898bb8492d0310d818283dda99ac0ab76c4c7cd691041a4",
+      "layout": "usage",
+      "title": "編集中の素材・キャッシュはSSDへ",
+      "assets": [
+        "crucial_ssd"
+      ],
+      "note": "素材／キャッシュ／プロジェクト",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 109,
+      "source_sha256": "706b6e4bc858230dec8ef13dd87c2f2574646ce4854b53734e23346010c62558",
+      "layout": "photo",
+      "title": "編集が終わった動画は、HDDへ保存",
+      "assets": [
+        "hdd_size_compare"
+      ],
+      "note": "大量の動画を、コストを抑えて残す",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 110,
+      "source_sha256": "4e5c1d9dbc8324262c6b479b00f5286f17a343877bebb2c0762e58b26d821fc6",
+      "layout": "pair",
+      "title": "写真・動画・バックアップ・NAS",
+      "assets": [
+        "external_hdds",
+        "nas"
+      ],
+      "note": "大量保存／ネットワーク上の保存先",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 111,
+      "source_sha256": "57f6480858299068f5898135571b79e6d6ca77b2b86e9b6e26a38387b54d8a8b",
+      "layout": "photo",
+      "title": "ノートPCにも、小型のSSD",
+      "assets": [
+        "m2_installed"
+      ],
+      "note": "可動部品がなく、持ち運びにも使いやすい",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 112,
+      "source_sha256": "7fb2f015fa65324f608e98869a4e8efc4a908c8cea3be0e5c0f61d6b5b349989",
+      "layout": "usb",
+      "title": "外付けSSDは、接続規格も確認",
+      "assets": [
+        "external_ssd"
+      ],
+      "note": "SSD本体とUSB側、両方の性能が関係する",
+      "pose": "attention",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 113,
+      "source_sha256": "19814dd7b7d4b40e77550dc41bc835d45120d785f879378b89a1a379664fed5e",
+      "layout": "pair",
+      "title": "同じ保存役でも、中の仕組みが違う",
+      "assets": [
+        "laptop_hdd_open",
+        "ssd_nand"
+      ],
+      "note": "HDD／SSD",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 114,
+      "source_sha256": "c7a5c9e06794995b79f41039d0da54b7a573ac18896cf85eb71ea8e5daad5265",
+      "layout": "pair",
+      "title": "磁気ディスクと、NANDフラッシュ",
+      "assets": [
+        "laptop_hdd_open",
+        "ssd_nand"
+      ],
+      "note": "HDD：磁気と機械／SSD：半導体と電気",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 115,
+      "source_sha256": "c142ad18191f104f25d65e3de13d5384fb170049e6cf8191577976c56769a350",
+      "layout": "roles",
+      "title": "それぞれの強みで選ぶ",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "SSD：速度・静音性・小型化／HDD：大容量・容量単価",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 116,
+      "source_sha256": "83e6da44c6bb34fea74ddf152d1be52c734737394fdb21192c2037b7034b7a63",
+      "layout": "roles",
+      "title": "何を保存するかで、選び方が変わる",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "速度を重視／大量保存を重視",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 117,
+      "source_sha256": "703d05611c6b3122f8c36db8aedd2e0c986741318ba12a51db60d7c18e4d1b7a",
+      "layout": "roles",
+      "title": "今使うデータはSSD、大量保存はHDD",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "SSD：OS・アプリ・作業用／HDD：写真・完成動画・バックアップ",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 118,
+      "source_sha256": "fa485049c4221743c8a5e6c3fddd4a13680521c63add2f743564e5c00bdafab9",
+      "layout": "roles",
+      "title": "必要な容量と予算に合わせる",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "全部SSDにする選択／HDDを多く使う選択",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 119,
+      "source_sha256": "61c09b95e5c88d0e656c6eb4d04a174497060b4d5d3750ddb3eb892cd5461653",
+      "layout": "roles",
+      "title": "名前だけでなく、用途で選ぼう",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "特徴を知って、自分に合う構成へ",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 120,
+      "source_sha256": "0299d1d311874ef05eec99794b001c417fa175a8fc75cc4644198b8e48b26b6b",
+      "layout": "pair",
+      "title": "SSDとHDDの違いを見てきました",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "仕組みを知ると、使い分けが見えてくる",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 121,
+      "source_sha256": "3c2a47b7e6a16a08cf2746466b4c99f78b1ce8b804a195536f7d837f7f430f23",
+      "layout": "outro",
+      "title": "高評価・チャンネル登録もよろしくなのだ",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "参考になったら、応援よろしくなのだ",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    },
+    {
+      "source_index": 122,
+      "source_sha256": "00f75cdacdeeaf0419785a7648f7b2c3fe5ee45bb23f5fb68336500d139842cf",
+      "layout": "outro",
+      "title": "また次の動画で会おうなのだ",
+      "assets": [
+        "crucial_ssd",
+        "hdd_size_compare"
+      ],
+      "note": "ご視聴ありがとうございました",
+      "pose": "normal",
+      "reason": "ナレーションの説明対象と要点を表示し、この説明が終わるまで保持する。"
+    }
+  ]
+}
