@@ -8,6 +8,7 @@ Photos are contained, not stretched; Zundamon has a fixed baseline and scale.
 from __future__ import annotations
 import argparse, csv, hashlib, io, json, math, re, subprocess
 from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
@@ -278,7 +279,7 @@ def ass_time(t):
     cs=round(t*100);h,cs=divmod(cs,360000);m,cs=divmod(cs,6000);s,cs=divmod(cs,100)
     return f'{h}:{m:02}:{s:02}.{cs:02}'
 
-def subtitles(rows,start,end):
+def subtitles(rows,start,end,path=None):
     # Preserve established V15 cue timing. Only appearance changes; no pop or zoom.
     source=VOICE/'subtitles_source.ass'
     if not source.exists():raise FileNotFoundError('Copy verified V15 subtitles to voice/subtitles_source.ass')
@@ -310,7 +311,39 @@ Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
         if ImageDraw.Draw(Image.new('RGB',(1,1))).textlength(s,font=font(size))>1690:raise ValueError(f'Caption too wide: {s}')
         tags=f'{{\\an5\\pos(960,960)\\fs{size}}}'
         events.append(f'Dialogue: 1,{ass_time(max(st,start)-start)},{ass_time(min(en,end)-start)},Main,,0,0,0,,{tags}{s}')
-    p=OUT/'subtitles_v16.ass';p.write_text(header+'\n'.join(events)+'\n',encoding='utf-8-sig');return p
+    p=path or OUT/'subtitles_v16.ass';p.write_text(header+'\n'.join(events)+'\n',encoding='utf-8-sig');return p
+
+def encode_scene_segments(scenes,image_dir,rows,start_frame,end_frame,mixed,final):
+    """Encode finite scenes independently, then concatenate verified frame counts."""
+    segment_dir=OUT/'segments';segment_dir.mkdir(exist_ok=True);jobs=[]
+    for i,s in enumerate(scenes):
+        st=max(start_frame,s['start_frame']);en=min(end_frame,s['end_frame'])
+        if en<=st:continue
+        cue=subtitles(rows,st/FPS,en/FPS,segment_dir/f'{i:03}.ass')
+        jobs.append((i,s,st,en,cue,segment_dir/f'{i:03}.mp4'))
+    def encode(job):
+        i,s,st,en,cue,destination=job;frames=en-st;duration=frames/FPS
+        inputs=['-loop','1','-framerate',str(FPS),'-i',str(image_dir/f'{i:03}.png')]
+        fc=[]
+        if s['layout']=='motion':
+            inputs+=['-ss',str(s['video_start']+(st-s['start_frame'])/FPS),'-t',str(duration),'-i',str(asset_path(s['assets'][0]))]
+            fc.append(f'[1:v]scale=1396:516:force_original_aspect_ratio=decrease,pad=1396:516:(ow-iw)/2:(oh-ih)/2:color=white,fps={FPS},setpts=PTS-STARTPTS[m]')
+            fc.append('[0:v][m]overlay=84:252:shortest=0:eof_action=repeat[picture]')
+        else:fc.append('[0:v]null[picture]')
+        fc.append(f'[picture]ass={cue}:fontsdir={FONT.parent}[v]')
+        subprocess.run(['ffmpeg','-y','-xerror','-loglevel','error',*inputs,'-filter_complex_threads','1','-filter_complex',';'.join(fc),'-map','[v]','-an','-frames:v',str(frames),'-t',str(duration),'-r',str(FPS),'-c:v','libx264','-preset','veryfast','-crf','21','-threads','2','-pix_fmt','yuv420p',str(destination)],check=True)
+        info=json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0','-show_entries','stream=nb_frames,duration','-of','json',str(destination)],text=True))['streams'][0]
+        if int(info['nb_frames'])!=frames:raise ValueError(f'Segment {i} frame count mismatch')
+        return frames
+    done=0;covered=0
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        for future in as_completed([pool.submit(encode,j) for j in jobs]):
+            covered+=future.result();done+=1
+            (OUT/'segment_progress.json').write_text(json.dumps({'completed':done,'total':len(jobs),'encoded_frames':covered,'expected_frames':end_frame-start_frame}))
+            if done%10==0 or done==len(jobs):print('SCENE_ENCODING',done,'/',len(jobs),flush=True)
+    assert covered==end_frame-start_frame
+    concat=OUT/'concat_segments.txt';concat.write_text('\n'.join("file '"+str(j[-1].resolve())+"'" for j in jobs)+'\n')
+    subprocess.run(['ffmpeg','-y','-xerror','-loglevel','warning','-f','concat','-safe','0','-i',str(concat),'-i',str(mixed),'-map','0:v:0','-map','1:a:0','-c','copy','-t',str((end_frame-start_frame)/FPS),'-movflags','+faststart',str(final)],check=True)
 
 
 
@@ -338,17 +371,9 @@ def main():
     for i,s in enumerate(scenes):
         st=max(start_frame,s['start_frame']);en=min(end_frame,s['end_frame'])
         if en>st:selected.append((s,image_dir/f'{i:03}.png',en-st))
-    # Decode each still once. The explicit image timebase retains exact 60fps cuts.
-    concat=OUT/'concat_images.txt';lines=[]
-    for scene,p,frames in selected:
-        lines.extend(["file '"+str(p.resolve())+"'",'option framerate 60',f'duration {frames/FPS:.9f}'])
-    lines.extend(["file '"+str(selected[-1][1].resolve())+"'",'option framerate 60'])
-    concat.write_text('\n'.join(lines)+'\n')
     final=OUT/'SSD_HDD_V16_FHD_60FPS.mp4'
     bgm=asset_path('bgm_mellowtron')
-    # Mix the looping soundtrack first. Encoding video while a sparse-image
-    # demuxer and looping audio share one filter graph can queue unbounded
-    # output frames near EOF. A finite audio input avoids that starvation.
+    # Produce a finite soundtrack independently before the verified scene mux.
     mixed=OUT/'mixed_audio.m4a'
     audio_fc=';'.join([
         '[0:a]aresample=48000,aformat=channel_layouts=stereo[n]',
@@ -356,24 +381,12 @@ def main():
         '[n][b]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95:level=0:latency=1[a]'])
     subprocess.run(['ffmpeg','-y','-xerror','-loglevel','warning','-ss',str(start),'-i',str(voice),'-stream_loop','-1','-i',str(bgm),'-filter_complex',audio_fc,'-map','[a]','-t',str(end-start),'-c:a','aac','-b:a','192k','-ar','48000',str(mixed)],check=True)
     if abs(probe_duration(mixed)-(end-start))>.1:raise ValueError('Mixed audio duration mismatch')
-    inputs=['-f','concat','-safe','0','-i',str(concat),'-i',str(mixed)]
-    fc=[f'[0:v]fps={FPS},trim=duration={end-start},setpts=PTS-STARTPTS[base]']
-    motion_scenes=[s for s in scenes if s['layout']=='motion']
-    motion_start=motion_scenes[0]['start_frame']/FPS if motion_scenes else end
-    motion_end=motion_scenes[-1]['end_frame']/FPS if motion_scenes else end
-    ms=max(start,motion_start);me=min(end,motion_end)
-    if me>ms:
-        inputs+=['-ss',str(motion_scenes[0]['video_start']+ms-motion_start),'-t',str(me-ms),'-i',str(asset_path('hdd_working_video'))]
-        fc.append(f'[2:v]scale=1396:516:force_original_aspect_ratio=decrease,pad=1396:516:(ow-iw)/2:(oh-ih)/2:color=white,fps={FPS},setpts=PTS-STARTPTS+{ms-start}/TB[m]')
-        fc.append(f"[base][m]overlay=84:252:enable='between(t,{ms-start},{me-start})':eof_action=pass:repeatlast=0[picture]")
-    else:fc.append('[base]null[picture]')
-    fc.append(f'[picture]ass={ass}:fontsdir={FONT.parent}[v]')
-    command=['ffmpeg','-y','-xerror','-loglevel','warning',*inputs,'-filter_complex_threads','2','-filter_complex',';'.join(fc),'-map','[v]','-map','1:a:0','-frames:v',str(end_frame-start_frame),'-t',str(end-start),'-r',str(FPS),'-c:v','libx264','-preset','veryfast','-crf','21','-threads','4','-pix_fmt','yuv420p','-c:a','copy','-movflags','+faststart','-progress',str(OUT/'render_progress.txt'),str(final)]
-    print('RENDER_AUTHORED',len(selected),'compositions',end-start,'seconds',flush=True)
-    subprocess.run(command,check=True)
+    print('RENDER_AUTHORED',len(scenes),'compositions',end-start,'seconds',flush=True)
+    encode_scene_segments(scenes,image_dir,rows,start_frame,end_frame,mixed,final)
     probe=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_streams','-show_format','-of','json',str(final)],text=True));(OUT/'ffprobe.json').write_text(json.dumps(probe,indent=2))
     v=next(x for x in probe['streams'] if x['codec_type']=='video');au=next(x for x in probe['streams'] if x['codec_type']=='audio')
     assert (v['width'],v['height'],v['r_frame_rate'])==(1920,1080,'60/1')
+    assert int(v['nb_frames'])==end_frame-start_frame
     assert au['sample_rate']=='48000' and au['channels']==2
     assert abs(float(probe['format']['duration'])-(end-start))<.1
     credit_sources=[ASSETS/'ATTRIBUTION.md',ASSETS/'ATTRIBUTION_EXTRA.md']
