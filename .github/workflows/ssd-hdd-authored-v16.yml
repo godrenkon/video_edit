@@ -1,9 +1,12 @@
 name: SSD HDD V16 Authored
 on:
-  push:
-    branches: [video-build/ssd-hdd-explainer]
-    paths: [.github/workflows/ssd-hdd-authored-v16.yml]
   workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Run containing ssd-hdd-v16-editing-inputs
+        required: true
+        default: '37308946171'
+        type: string
 permissions:
   contents: read
   actions: read
@@ -20,45 +23,10 @@ jobs:
           python3 -m pip install Pillow
       - uses: actions/download-artifact@v4
         with:
-          name: ssd-hdd-real-assets
-          path: real_assets
+          name: ssd-hdd-v16-editing-inputs
+          path: .
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 36679624503
-      - uses: actions/download-artifact@v4
-        with:
-          name: ssd-hdd-real-assets-extra
-          path: real_assets
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 36995725158
-      - uses: actions/download-artifact@v4
-        with:
-          name: ssd-hdd-zundamon-narration
-          path: voice
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 36995762480
-      - uses: actions/download-artifact@v4
-        with:
-          name: ssd-hdd-real-media-v15-qa
-          path: v15_qa
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: 37008200714
-      - name: Restore verified subtitles and poses
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import shutil
-          root=Path('v15_qa')
-          Path('zundamon_poses').mkdir(exist_ok=True)
-          source=next(root.rglob('subtitles_green_v15.ass'))
-          shutil.copyfile(source,'voice/subtitles_source.ass')
-          for pose in ['normal','explain','question','attention']:
-              candidates=list(root.rglob('zundamon_'+pose+'.png'))
-              if not candidates:
-                  candidates=list(root.rglob(pose+'.png'))
-              if len(candidates)!=1:
-                  raise RuntimeError((pose,candidates))
-              shutil.copyfile(candidates[0],'zundamon_poses/zundamon_'+pose+'.png')
-          PY
+          run-id: ${{ inputs.source_run_id }}
       - uses: actions/upload-artifact@v4
         with:
           name: ssd-hdd-v16-editing-inputs
