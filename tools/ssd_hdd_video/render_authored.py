@@ -346,7 +346,17 @@ def main():
     concat.write_text('\n'.join(lines)+'\n')
     final=OUT/'SSD_HDD_V16_FHD_60FPS.mp4'
     bgm=asset_path('bgm_mellowtron')
-    inputs=['-f','concat','-safe','0','-i',str(concat),'-ss',str(start),'-i',str(voice),'-stream_loop','-1','-i',str(bgm)]
+    # Mix the looping soundtrack first. Encoding video while a sparse-image
+    # demuxer and looping audio share one filter graph can queue unbounded
+    # output frames near EOF. A finite audio input avoids that starvation.
+    mixed=OUT/'mixed_audio.m4a'
+    audio_fc=';'.join([
+        '[0:a]aresample=48000,aformat=channel_layouts=stereo[n]',
+        f'[1:a]atrim=duration={end-start},volume=0.035,afade=t=out:st={max(0,end-start-2)}:d=2[b]',
+        '[n][b]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95:level=0:latency=1[a]'])
+    subprocess.run(['ffmpeg','-y','-xerror','-loglevel','warning','-ss',str(start),'-i',str(voice),'-stream_loop','-1','-i',str(bgm),'-filter_complex',audio_fc,'-map','[a]','-t',str(end-start),'-c:a','aac','-b:a','192k','-ar','48000',str(mixed)],check=True)
+    if abs(probe_duration(mixed)-(end-start))>.1:raise ValueError('Mixed audio duration mismatch')
+    inputs=['-f','concat','-safe','0','-i',str(concat),'-i',str(mixed)]
     fc=[f'[0:v]fps={FPS},trim=duration={end-start},setpts=PTS-STARTPTS[base]']
     motion_scenes=[s for s in scenes if s['layout']=='motion']
     motion_start=motion_scenes[0]['start_frame']/FPS if motion_scenes else end
@@ -354,14 +364,11 @@ def main():
     ms=max(start,motion_start);me=min(end,motion_end)
     if me>ms:
         inputs+=['-ss',str(motion_scenes[0]['video_start']+ms-motion_start),'-t',str(me-ms),'-i',str(asset_path('hdd_working_video'))]
-        fc.append(f'[3:v]scale=1396:516:force_original_aspect_ratio=decrease,pad=1396:516:(ow-iw)/2:(oh-ih)/2:color=white,fps={FPS},setpts=PTS-STARTPTS+{ms-start}/TB[m]')
+        fc.append(f'[2:v]scale=1396:516:force_original_aspect_ratio=decrease,pad=1396:516:(ow-iw)/2:(oh-ih)/2:color=white,fps={FPS},setpts=PTS-STARTPTS+{ms-start}/TB[m]')
         fc.append(f"[base][m]overlay=84:252:enable='between(t,{ms-start},{me-start})':eof_action=pass:repeatlast=0[picture]")
     else:fc.append('[base]null[picture]')
     fc.append(f'[picture]ass={ass}:fontsdir={FONT.parent}[v]')
-    fc.append('[1:a]aresample=48000,aformat=channel_layouts=stereo[n]')
-    fc.append(f'[2:a]atrim=duration={end-start},volume=0.035,afade=t=out:st={max(0,end-start-2)}:d=2[b]')
-    fc.append('[n][b]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95:level=0:latency=1[a]')
-    command=['ffmpeg','-y','-xerror','-loglevel','warning',*inputs,'-filter_complex_threads','2','-filter_complex',';'.join(fc),'-map','[v]','-map','[a]','-frames:v',str(end_frame-start_frame),'-t',str(end-start),'-r',str(FPS),'-c:v','libx264','-preset','veryfast','-crf','21','-threads','4','-pix_fmt','yuv420p','-c:a','aac','-b:a','192k','-ar','48000','-movflags','+faststart','-progress',str(OUT/'render_progress.txt'),str(final)]
+    command=['ffmpeg','-y','-xerror','-loglevel','warning',*inputs,'-filter_complex_threads','2','-filter_complex',';'.join(fc),'-map','[v]','-map','1:a:0','-frames:v',str(end_frame-start_frame),'-t',str(end-start),'-r',str(FPS),'-c:v','libx264','-preset','veryfast','-crf','21','-threads','4','-pix_fmt','yuv420p','-c:a','copy','-movflags','+faststart','-progress',str(OUT/'render_progress.txt'),str(final)]
     print('RENDER_AUTHORED',len(selected),'compositions',end-start,'seconds',flush=True)
     subprocess.run(command,check=True)
     probe=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_streams','-show_format','-of','json',str(final)],text=True));(OUT/'ffprobe.json').write_text(json.dumps(probe,indent=2))
