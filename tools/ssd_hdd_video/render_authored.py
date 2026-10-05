@@ -93,7 +93,7 @@ def render_scene(s,path):
     elif layout in ('intro','outro','pair','roles','ram','access','specspeed','lifetime','m2'):
         labels={'ram':('RAM：一時的な作業場所','SSD・HDD：データの保存場所'),
                 'access':('HDD：機械部品が動く','SSD：電気的にアクセス'),
-                'specspeed':('2.5インチ SATA SSD','M.2 NVMe SSDの例'),
+                'specspeed':('2.5インチ SATA SSD（外観例）','M.2 NVMe SSD（外観例）'),
                 'intro':('SSD','HDD'),'outro':('SSD','HDD')}
         if layout=='m2':
             photo(im,a[0],(72,240,750,780),'M.2 SSDを取り付けた実物の例')
@@ -110,6 +110,7 @@ def render_scene(s,path):
             elif layout=='specspeed':
                 if s['source_index'] in (53,54):
                     text(im,(92,745),'例：500MB/s',46,GREEN);text(im,(824,745),'例：7000MB/s',46,GREEN)
+                    text(im,(72,809),'数値は比較用の例。写真の製品の実測値ではない',36,GREEN,max_width=1420)
                 else:
                     text(im,(92,745),'約500MB/s台の製品もある',35,GREEN);text(im,(824,745),'製品や条件によって異なる',35,GREEN)
             elif layout=='lifetime':
